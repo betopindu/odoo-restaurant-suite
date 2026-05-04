@@ -1,0 +1,45 @@
+<odoo>
+    <record id="view_pos_config_form_kds_inherit" model="ir.ui.view">
+        <field name="name">pos.config.form.kds.inherit</field>
+        <field name="model">pos.config</field>
+        <field name="inherit_id" ref="point_of_sale.pos_config_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[hasclass('row') and hasclass('mt16') and hasclass('o_settings_container') and @invisible=&quot;context.get('pos_config_create_mode', False)&quot;]" position="after">
+                <div class="row mt16 o_settings_container" invisible="context.get('pos_config_create_mode', False)">
+                    <setting string="Kitchen Display System (KDS)" help="Configuración del display de cocina">
+                        <div class="content-group mt16">
+                            <div class="row mt8">
+                                <label string="Warning (minutos)" for="kds_warning_minutes" class="col-lg-4 o_light_label"/>
+                                <field name="kds_warning_minutes"/>
+                            </div>
+                            <div class="row mt8">
+                                <label string="Danger (minutos)" for="kds_danger_minutes" class="col-lg-4 o_light_label"/>
+                                <field name="kds_danger_minutes"/>
+                            </div>
+                            <div class="row mt8">
+                                <label string="Auto refresh (segundos)" for="kds_refresh_seconds" class="col-lg-4 o_light_label"/>
+                                <field name="kds_refresh_seconds"/>
+                            </div>
+                            <div class="row mt8">
+                                <label string="Mostrar carril Entregado" for="kds_show_done_lane" class="col-lg-4 o_light_label"/>
+                                <field name="kds_show_done_lane"/>
+                            </div>
+                            <div class="row mt8">
+                                <label string="Reproducir sonido" for="kds_enable_sound" class="col-lg-4 o_light_label"/>
+                                <field name="kds_enable_sound"/>
+                            </div>
+                            <div class="row mt8">
+                                <label string="Entregados visibles en Display (min)" for="kds_done_visible_minutes" class="col-lg-4 o_light_label"/>
+                                <field name="kds_done_visible_minutes"/>
+                            </div>
+                            <div class="row mt8">
+                                <label string="Entregados visibles en Cocina (horas)" for="kds_admin_done_visible_hours" class="col-lg-4 o_light_label"/>
+                                <field name="kds_admin_done_visible_hours"/>
+                            </div>
+                        </div>
+                    </setting>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,207 @@
+<odoo>
+
+    <record id="view_kitchen_order_kanban" model="ir.ui.view">
+        <field name="name">kitchen.order.kanban</field>
+        <field name="model">kitchen.order</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kitchen_kanban" create="false">
+                <field name="name"/>
+                <field name="table"/>
+                <field name="state_summary"/>
+                <field name="created_at"/>
+                <field name="last_activity_at"/>
+                <field name="pos_reference"/>
+                <field name="line_count"/>
+                <field name="lines_preview"/>
+                <field name="admin_sort_rank"/>
+
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_global_click o_kitchen_card_inner">
+                            <div class="o_kitchen_card_header">
+                                <div class="o_kitchen_card_main_info">
+                                    <div class="o_kitchen_table">
+                                        Mesa <field name="table"/>
+                                    </div>
+
+                                    <div class="o_kitchen_reference_block">
+                                        <div class="o_kitchen_reference_row">
+                                            <span class="o_kitchen_reference_label">KDS:</span>
+                                            <span class="o_kitchen_reference_value"><field name="name"/></span>
+                                        </div>
+                                        <div class="o_kitchen_reference_row">
+                                            <span class="o_kitchen_reference_label">POS:</span>
+                                            <span class="o_kitchen_reference_value"><field name="pos_reference"/></span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <details class="o_kitchen_action_menu o_kitchen_order_state_menu">
+                                    <summary t-if="record.state_summary.raw_value == 'new'" class="o_kitchen_badge o_kitchen_badge_new o_kitchen_badge_clickable">
+                                        Nuevo
+                                    </summary>
+                                    <summary t-if="record.state_summary.raw_value == 'preparing'" class="o_kitchen_badge o_kitchen_badge_preparing o_kitchen_badge_clickable">
+                                        Preparando
+                                    </summary>
+                                    <summary t-if="record.state_summary.raw_value == 'ready'" class="o_kitchen_badge o_kitchen_badge_ready o_kitchen_badge_clickable">
+                                        Listo
+                                    </summary>
+                                    <summary t-if="record.state_summary.raw_value == 'done'" class="o_kitchen_badge o_kitchen_badge_done o_kitchen_badge_clickable">
+                                        Entregado
+                                    </summary>
+                                    <summary t-if="record.state_summary.raw_value == 'mixed'" class="o_kitchen_badge o_kitchen_badge_mixed o_kitchen_badge_clickable">
+                                        Mixto
+                                    </summary>
+
+                                    <div class="o_kitchen_action_menu_dropdown">
+                                        <button t-if="record.state_summary.raw_value != 'new'"
+                                                name="action_set_all_lines_new" type="object"
+                                                class="btn o_kitchen_menu_btn o_kitchen_menu_btn_new">
+                                            Nuevo
+                                        </button>
+                                        <button t-if="record.state_summary.raw_value != 'preparing'"
+                                                name="action_set_all_lines_preparing" type="object"
+                                                class="btn o_kitchen_menu_btn o_kitchen_menu_btn_preparing">
+                                            Preparando
+                                        </button>
+                                        <button t-if="record.state_summary.raw_value != 'ready'"
+                                                name="action_set_all_lines_ready" type="object"
+                                                class="btn o_kitchen_menu_btn o_kitchen_menu_btn_ready">
+                                            Listo
+                                        </button>
+                                        <button t-if="record.state_summary.raw_value != 'done'"
+                                                name="action_set_all_lines_done" type="object"
+                                                class="btn o_kitchen_menu_btn o_kitchen_menu_btn_done">
+                                            Entregado
+                                        </button>
+                                    </div>
+                                </details>
+                            </div>
+
+                            <div class="o_kitchen_card_body">
+                                <div class="o_kitchen_meta">
+                                    Creado: <field name="created_at"/>
+                                </div>
+                                <div class="o_kitchen_meta">
+                                    Última actividad: <field name="last_activity_at"/>
+                                </div>
+                                <div class="o_kitchen_meta">
+                                    Ítems: <field name="line_count"/>
+                                </div>
+
+                                <button name="action_open_line_editor"
+                                        type="object"
+                                        class="o_kitchen_items_open_area"
+                                        title="Clic para abrir el detalle de ítems">
+                                    <div class="o_kitchen_items_list o_kitchen_items_list_preline">
+                                        <field name="lines_preview"/>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_kitchen_order_line_editor_kanban" model="ir.ui.view">
+        <field name="name">kitchen.order.line.editor.kanban</field>
+        <field name="model">kitchen.order.line</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kitchen_line_editor_kanban" create="false" quick_create="false" records_draggable="false">
+                <field name="qty"/>
+                <field name="product_name"/>
+                <field name="state"/>
+                <field name="note"/>
+
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="o_kitchen_line_editor_card">
+                            <div class="o_kitchen_line_editor_header">
+                                <div class="o_kitchen_line_editor_title">
+                                    <field name="qty"/> x <field name="product_name"/>
+                                </div>
+
+                                <div t-if="record.state.raw_value == 'new'" class="o_kitchen_badge o_kitchen_badge_new">
+                                    Nuevo
+                                </div>
+                                <div t-if="record.state.raw_value == 'preparing'" class="o_kitchen_badge o_kitchen_badge_preparing">
+                                    Preparando
+                                </div>
+                                <div t-if="record.state.raw_value == 'ready'" class="o_kitchen_badge o_kitchen_badge_ready">
+                                    Listo
+                                </div>
+                                <div t-if="record.state.raw_value == 'done'" class="o_kitchen_badge o_kitchen_badge_done">
+                                    Entregado
+                                </div>
+                            </div>
+
+                            <div t-if="record.note.raw_value" class="o_kitchen_line_editor_note">
+                                Nota: <field name="note"/>
+                            </div>
+
+                            <div class="o_kitchen_line_editor_actions">
+                                <button t-if="record.state.raw_value != 'new'"
+                                        name="action_set_state_new"
+                                        type="object"
+                                        class="btn o_kitchen_line_editor_btn o_kitchen_menu_btn_new">
+                                    Nuevo
+                                </button>
+                                <button t-if="record.state.raw_value != 'preparing'"
+                                        name="action_set_state_preparing"
+                                        type="object"
+                                        class="btn o_kitchen_line_editor_btn o_kitchen_menu_btn_preparing">
+                                    Preparando
+                                </button>
+                                <button t-if="record.state.raw_value != 'ready'"
+                                        name="action_set_state_ready"
+                                        type="object"
+                                        class="btn o_kitchen_line_editor_btn o_kitchen_menu_btn_ready">
+                                    Listo
+                                </button>
+                                <button t-if="record.state.raw_value != 'done'"
+                                        name="action_set_state_done"
+                                        type="object"
+                                        class="btn o_kitchen_line_editor_btn o_kitchen_menu_btn_done">
+                                    Entregado
+                                </button>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_kitchen_order_tree" model="ir.ui.view">
+        <field name="name">kitchen.order.tree</field>
+        <field name="model">kitchen.order</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name"/>
+                <field name="table"/>
+                <field name="pos_reference"/>
+                <field name="state_summary"/>
+                <field name="line_count"/>
+                <field name="created_at"/>
+                <field name="last_activity_at"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="action_kitchen_order" model="ir.actions.act_window">
+        <field name="name">Pedidos de cocina</field>
+        <field name="res_model">kitchen.order</field>
+        <field name="view_mode">kanban,tree</field>
+        <field name="domain">[('admin_hidden', '=', False)]</field>
+        <field name="context">{'kds_refresh_admin_visibility': True}</field>
+    </record>
+
+    <menuitem id="menu_restaurant_kds_root" name="Cocina"/>
+    <menuitem id="menu_restaurant_kds_orders"
+              name="Pedidos de cocina"
+              parent="menu_restaurant_kds_root"
+              action="action_kitchen_order"/>
+
+</odoo>

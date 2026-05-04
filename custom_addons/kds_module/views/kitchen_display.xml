@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <template id="kitchen_display_template">
+        <t t-call="web.layout">
+            <t t-call-assets="web.assets_frontend"/>
+
+            <div class="o_kitchen_display_page"
+                 t-att-data-kds-refresh-seconds="kds['refresh']"
+                 t-att-data-kds-sound="'true' if kds['sound'] else 'false'">
+
+                <div class="o_kitchen_display_header">
+                    <h1>Pantalla de Cocina</h1>
+                </div>
+
+                <t t-call="kds_module.kitchen_display_grid"/>
+            </div>
+        </t>
+    </template>
+
+    <template id="kitchen_display_grid">
+        <div class="o_kitchen_display_grid">
+
+            <!-- NUEVO -->
+            <div class="o_kitchen_display_column o_kitchen_display_column_new">
+                <div class="o_kitchen_display_column_title">Nuevo</div>
+                <div class="o_kitchen_display_column_body">
+                    <t t-foreach="lane_new" t-as="card">
+                        <div t-attf-class="o_kitchen_display_card #{'o_kitchen_card_danger' if card['order'].age_level == 'danger' else ('o_kitchen_card_warning' if card['order'].age_level == 'warning' else '')}">
+                            <div class="o_kitchen_display_card_header_click"
+                                 t-att-data-order-id="card['order'].id"
+                                 t-att-data-from-state="card['lane_state']"
+                                 title="Mover todos los ítems visibles al siguiente estado">
+                                <div class="o_kitchen_display_table">
+                                    Mesa <t t-esc="card['order'].table"/>
+                                    <t t-if="card['order'].age_level == 'warning'">
+                                        <span class="o_kitchen_priority_badge o_kitchen_priority_badge_warning">Atención</span>
+                                    </t>
+                                    <t t-if="card['order'].age_level == 'danger'">
+                                        <span class="o_kitchen_priority_badge o_kitchen_priority_badge_danger">Urgente</span>
+                                    </t>
+                                </div>
+                                <div class="o_kitchen_display_reference">
+                                    <t t-esc="card['order'].name"/> · <t t-esc="card['order'].pos_reference or ''"/>
+                                </div>
+                                <div t-attf-class="o_kitchen_display_meta o_kitchen_age_#{card['order'].age_level or 'normal'}">
+                                    <t t-esc="card['order'].age_label"/>
+                                </div>
+                            </div>
+
+                            <div class="o_kitchen_display_items">
+                                <t t-foreach="card['lines'].filtered(lambda l: l.qty > 0)" t-as="line">
+                                    <div class="o_kitchen_display_item_row o_kitchen_display_item_click"
+                                         t-att-data-line-id="line.id"
+                                         title="Mover este ítem al siguiente estado">
+                                        <strong><t t-esc="line.qty"/></strong>
+                                        x
+                                        <t t-esc="line.product_name"/>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </div>
+
+            <!-- PREPARANDO -->
+            <div class="o_kitchen_display_column o_kitchen_display_column_preparing">
+                <div class="o_kitchen_display_column_title">Preparando</div>
+                <div class="o_kitchen_display_column_body">
+                    <t t-foreach="lane_preparing" t-as="card">
+                        <div t-attf-class="o_kitchen_display_card #{'o_kitchen_card_danger' if card['order'].age_level == 'danger' else ('o_kitchen_card_warning' if card['order'].age_level == 'warning' else '')}">
+                            <div class="o_kitchen_display_card_header_click"
+                                 t-att-data-order-id="card['order'].id"
+                                 t-att-data-from-state="card['lane_state']"
+                                 title="Mover todos los ítems visibles al siguiente estado">
+                                <div class="o_kitchen_display_table">
+                                    Mesa <t t-esc="card['order'].table"/>
+                                    <t t-if="card['order'].age_level == 'warning'">
+                                        <span class="o_kitchen_priority_badge o_kitchen_priority_badge_warning">Atención</span>
+                                    </t>
+                                    <t t-if="card['order'].age_level == 'danger'">
+                                        <span class="o_kitchen_priority_badge o_kitchen_priority_badge_danger">Urgente</span>
+                                    </t>
+                                </div>
+                                <div class="o_kitchen_display_reference">
+                                    <t t-esc="card['order'].name"/> · <t t-esc="card['order'].pos_reference or ''"/>
+                                </div>
+                                <div t-attf-class="o_kitchen_display_meta o_kitchen_age_#{card['order'].age_level or 'normal'}">
+                                    <t t-esc="card['order'].age_label"/>
+                                </div>
+                            </div>
+
+                            <div class="o_kitchen_display_items">
+                                <t t-foreach="card['lines'].filtered(lambda l: l.qty > 0)" t-as="line">
+                                    <div class="o_kitchen_display_item_row o_kitchen_display_item_click"
+                                         t-att-data-line-id="line.id"
+                                         title="Mover este ítem al siguiente estado">
+                                        <strong><t t-esc="line.qty"/></strong>
+                                        x
+                                        <t t-esc="line.product_name"/>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </div>
+
+            <!-- LISTO -->
+            <div class="o_kitchen_display_column o_kitchen_display_column_ready">
+                <div class="o_kitchen_display_column_title">Listo</div>
+                <div class="o_kitchen_display_column_body">
+                    <t t-foreach="lane_ready" t-as="card">
+                        <div t-attf-class="o_kitchen_display_card #{'o_kitchen_card_danger' if card['order'].age_level == 'danger' else ('o_kitchen_card_warning' if card['order'].age_level == 'warning' else '')}">
+                            <div class="o_kitchen_display_card_header_click"
+                                 t-att-data-order-id="card['order'].id"
+                                 t-att-data-from-state="card['lane_state']"
+                                 title="Mover todos los ítems visibles al siguiente estado">
+                                <div class="o_kitchen_display_table">
+                                    Mesa <t t-esc="card['order'].table"/>
+                                    <t t-if="card['order'].age_level == 'warning'">
+                                        <span class="o_kitchen_priority_badge o_kitchen_priority_badge_warning">Atención</span>
+                                    </t>
+                                    <t t-if="card['order'].age_level == 'danger'">
+                                        <span class="o_kitchen_priority_badge o_kitchen_priority_badge_danger">Urgente</span>
+                                    </t>
+                                </div>
+                                <div class="o_kitchen_display_reference">
+                                    <t t-esc="card['order'].name"/> · <t t-esc="card['order'].pos_reference or ''"/>
+                                </div>
+                                <div t-attf-class="o_kitchen_display_meta o_kitchen_age_#{card['order'].age_level or 'normal'}">
+                                    <t t-esc="card['order'].age_label"/>
+                                </div>
+                            </div>
+
+                            <div class="o_kitchen_display_items">
+                                <t t-foreach="card['lines'].filtered(lambda l: l.qty > 0)" t-as="line">
+                                    <div class="o_kitchen_display_item_row o_kitchen_display_item_click"
+                                         t-att-data-line-id="line.id"
+                                         title="Mover este ítem al siguiente estado">
+                                        <strong><t t-esc="line.qty"/></strong>
+                                        x
+                                        <t t-esc="line.product_name"/>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </div>
+
+            <!-- ENTREGADO -->
+            <t t-if="kds['show_done']">
+                <div class="o_kitchen_display_column o_kitchen_display_column_done">
+                    <div class="o_kitchen_display_column_title">Entregado</div>
+                    <div class="o_kitchen_display_column_body">
+                        <t t-foreach="lane_done" t-as="card">
+                            <div class="o_kitchen_display_card o_kitchen_card_done">
+                                <div class="o_kitchen_display_card_header_click">
+                                    <div class="o_kitchen_display_table">Mesa <t t-esc="card['order'].table"/></div>
+                                    <div class="o_kitchen_display_reference">
+                                        <t t-esc="card['order'].name"/> · <t t-esc="card['order'].pos_reference or ''"/>
+                                    </div>
+                                    <div class="o_kitchen_display_meta o_kitchen_age_done">
+                                        <t t-esc="card['order'].age_label"/>
+                                    </div>
+                                </div>
+
+                                <div class="o_kitchen_display_items">
+                                    <t t-foreach="card['lines'].filtered(lambda l: l.qty > 0)" t-as="line">
+                                        <div class="o_kitchen_display_item_row">
+                                            <strong><t t-esc="line.qty"/></strong>
+                                            x
+                                            <t t-esc="line.product_name"/>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+            </t>
+
+        </div>
+    </template>
+</odoo>

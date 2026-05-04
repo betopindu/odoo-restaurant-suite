@@ -1,0 +1,31 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:15
+    container_name: restaurant_db
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  odoo:
+    image: odoo:17.0
+    container_name: restaurant_odoo
+    depends_on:
+      - db
+    ports:
+      - "8069:8069"
+    env_file:
+      - .env
+    volumes:
+      - odoo_data:/var/lib/odoo
+      - ./config/odoo.conf:/etc/odoo/odoo.conf
+      - ./custom_addons:/mnt/extra-addons
+    command: odoo -c /etc/odoo/odoo.conf
+    restart: always
+
+volumes:
+  postgres_data:
+  odoo_data:

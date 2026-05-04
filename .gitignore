@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Odoo
+*.log
+filestore/
+sessions/
+
+# Environment variables
+.env
+.env.local
+
+# Backups
+backups/*
+!backups/.gitkeep
+
+# Docker local volumes
+postgres_data/
+odoo_data/
+
+# Virtual environments
+venv/
+.venv/
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Temporary files
+*.swp
+*.tmp
