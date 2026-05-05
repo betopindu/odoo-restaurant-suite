@@ -31,7 +31,7 @@
                                  t-att-data-from-state="card['lane_state']"
                                  title="Mover todos los ítems visibles al siguiente estado">
                                 <div class="o_kitchen_display_table">
-                                    Mesa <t t-esc="card['order'].table"/>
+                                    Mesa <t t-esc="card['order'].table"/> · <t t-esc="card['kitchen_number']"/>
                                     <t t-if="card['order'].age_level == 'warning'">
                                         <span class="o_kitchen_priority_badge o_kitchen_priority_badge_warning">Atención</span>
                                     </t>
@@ -39,11 +39,11 @@
                                         <span class="o_kitchen_priority_badge o_kitchen_priority_badge_danger">Urgente</span>
                                     </t>
                                 </div>
-                                <div class="o_kitchen_display_reference">
-                                    <t t-esc="card['order'].name"/> · <t t-esc="card['order'].pos_reference or ''"/>
-                                </div>
                                 <div t-attf-class="o_kitchen_display_meta o_kitchen_age_#{card['order'].age_level or 'normal'}">
                                     <t t-esc="card['order'].age_label"/>
+                                </div>
+                                <div class="o_kitchen_display_reference">
+                                    POS: <t t-esc="card['pos_reference']"/>
                                 </div>
                             </div>
 
@@ -74,7 +74,7 @@
                                  t-att-data-from-state="card['lane_state']"
                                  title="Mover todos los ítems visibles al siguiente estado">
                                 <div class="o_kitchen_display_table">
-                                    Mesa <t t-esc="card['order'].table"/>
+                                    Mesa <t t-esc="card['order'].table"/> · <t t-esc="card['kitchen_number']"/>
                                     <t t-if="card['order'].age_level == 'warning'">
                                         <span class="o_kitchen_priority_badge o_kitchen_priority_badge_warning">Atención</span>
                                     </t>
@@ -82,11 +82,11 @@
                                         <span class="o_kitchen_priority_badge o_kitchen_priority_badge_danger">Urgente</span>
                                     </t>
                                 </div>
-                                <div class="o_kitchen_display_reference">
-                                    <t t-esc="card['order'].name"/> · <t t-esc="card['order'].pos_reference or ''"/>
-                                </div>
                                 <div t-attf-class="o_kitchen_display_meta o_kitchen_age_#{card['order'].age_level or 'normal'}">
                                     <t t-esc="card['order'].age_label"/>
+                                </div>
+                                <div class="o_kitchen_display_reference">
+                                    POS: <t t-esc="card['pos_reference']"/>
                                 </div>
                             </div>
 
@@ -117,7 +117,7 @@
                                  t-att-data-from-state="card['lane_state']"
                                  title="Mover todos los ítems visibles al siguiente estado">
                                 <div class="o_kitchen_display_table">
-                                    Mesa <t t-esc="card['order'].table"/>
+                                    Mesa <t t-esc="card['order'].table"/> · <t t-esc="card['kitchen_number']"/>
                                     <t t-if="card['order'].age_level == 'warning'">
                                         <span class="o_kitchen_priority_badge o_kitchen_priority_badge_warning">Atención</span>
                                     </t>
@@ -125,11 +125,11 @@
                                         <span class="o_kitchen_priority_badge o_kitchen_priority_badge_danger">Urgente</span>
                                     </t>
                                 </div>
-                                <div class="o_kitchen_display_reference">
-                                    <t t-esc="card['order'].name"/> · <t t-esc="card['order'].pos_reference or ''"/>
-                                </div>
                                 <div t-attf-class="o_kitchen_display_meta o_kitchen_age_#{card['order'].age_level or 'normal'}">
                                     <t t-esc="card['order'].age_label"/>
+                                </div>
+                                <div class="o_kitchen_display_reference">
+                                    POS: <t t-esc="card['pos_reference']"/>
                                 </div>
                             </div>
 
@@ -157,12 +157,12 @@
                         <t t-foreach="lane_done" t-as="card">
                             <div class="o_kitchen_display_card o_kitchen_card_done">
                                 <div class="o_kitchen_display_card_header_click">
-                                    <div class="o_kitchen_display_table">Mesa <t t-esc="card['order'].table"/></div>
-                                    <div class="o_kitchen_display_reference">
-                                        <t t-esc="card['order'].name"/> · <t t-esc="card['order'].pos_reference or ''"/>
-                                    </div>
+                                    <div class="o_kitchen_display_table">Mesa <t t-esc="card['order'].table"/> · <t t-esc="card['kitchen_number']"/></div>
                                     <div class="o_kitchen_display_meta o_kitchen_age_done">
                                         <t t-esc="card['order'].age_label"/>
+                                    </div>
+                                    <div class="o_kitchen_display_reference">
+                                        POS: <t t-esc="card['pos_reference']"/>
                                     </div>
                                 </div>
 

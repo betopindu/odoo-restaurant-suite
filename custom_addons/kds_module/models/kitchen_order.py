@@ -338,7 +338,7 @@ class KitchenOrder(models.Model):
             "res_model": "kitchen.order.line",
             "view_mode": "kanban",
             "views": [
-                (self.env.ref("restaurant_kds.view_kitchen_order_line_editor_kanban").id, "kanban"),
+                (self.env.ref("kds_module.view_kitchen_order_line_editor_kanban").id, "kanban"),
             ],
             "target": "new",
             "domain": [

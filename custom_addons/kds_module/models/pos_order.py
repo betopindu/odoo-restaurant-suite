@@ -1,8 +1,26 @@
+import json
+
 from odoo import api, fields, models
 
 
 class PosOrder(models.Model):
     _inherit = "pos.order"
+
+    def _get_kds_pos_line_key(self, pos_order, values):
+        attribute_value_ids = values.get("attribute_value_ids") or []
+        try:
+            attribute_key = json.dumps(attribute_value_ids, sort_keys=True)
+        except TypeError:
+            attribute_key = str(attribute_value_ids)
+
+        key_parts = [
+            str(pos_order.id),
+            str(values.get("product_id") or ""),
+            values.get("name") or "",
+            values.get("note") or "",
+            attribute_key,
+        ]
+        return "|".join(key_parts)
 
     @api.model
     def create_from_ui(self, orders, draft=False):
@@ -40,42 +58,80 @@ class PosOrder(models.Model):
             pos_config = pos_order.config_id or fallback_config
             table_name = pos_order.table_id.name if pos_order.table_id else "Sin mesa"
 
+            try:
+                preparation_change = json.loads(data.get("last_order_preparation_change") or "{}")
+            except (TypeError, ValueError):
+                continue
+
+            if not isinstance(preparation_change, dict) or not preparation_change:
+                continue
+
+            lines_by_key = {}
+            for values in preparation_change.values():
+                if not isinstance(values, dict):
+                    continue
+                product_id = values.get("product_id")
+                qty = values.get("quantity", 0.0) or 0.0
+                note = values.get("note") or ""
+                pos_line_key = self._get_kds_pos_line_key(pos_order, values)
+                product = product_model.browse(product_id).exists() if product_id else False
+                product_name = values.get("name") or (product.display_name if product else "Producto")
+
+                if pos_line_key not in lines_by_key:
+                    lines_by_key[pos_line_key] = {
+                        "product": product,
+                        "product_name": product_name,
+                        "qty": 0.0,
+                        "note": note,
+                    }
+                lines_by_key[pos_line_key]["qty"] += qty
+
+            delta_lines = []
+            for pos_line_key, line_values in lines_by_key.items():
+                previous_lines = kitchen_order_line_model.search([
+                    ("order_id.pos_order_id", "=", pos_order.id),
+                    ("pos_line_key", "=", pos_line_key),
+                ])
+                already_sent_qty = max(previous_lines.mapped("pos_cumulative_qty") or [0.0])
+                qty = line_values["qty"]
+                delta_qty = qty - already_sent_qty
+
+                if delta_qty <= 0:
+                    continue
+
+                delta_lines.append({
+                    "pos_line_key": pos_line_key,
+                    "pos_cumulative_qty": qty,
+                    "qty": delta_qty,
+                    "product": line_values["product"],
+                    "product_name": line_values["product_name"],
+                    "note": line_values["note"],
+                })
+
+            if not delta_lines:
+                continue
+
+            now = fields.Datetime.now()
             kitchen_order = kitchen_order_model.create({
                 "pos_order_id": pos_order.id,
                 "pos_config_id": pos_config.id if pos_config else False,
                 "pos_reference": pos_order.pos_reference or pos_reference,
                 "table": table_name,
-                "created_at": fields.Datetime.now(),
-                "last_activity_at": fields.Datetime.now(),
+                "created_at": now,
+                "last_activity_at": now,
             })
 
-            raw_lines = data.get("lines", [])
-            for raw_line in raw_lines:
-                values = {}
-                if isinstance(raw_line, (list, tuple)) and len(raw_line) >= 3 and isinstance(raw_line[2], dict):
-                    values = raw_line[2]
-                elif isinstance(raw_line, dict):
-                    values = raw_line
-
-                product_id = values.get("product_id")
-                qty = values.get("qty", 1.0)
-                note = values.get("note") or values.get("customer_note") or ""
-
-                product = product_model.browse(product_id).exists() if product_id else False
-                product_name = (
-                    values.get("full_product_name")
-                    or values.get("product_name")
-                    or (product.display_name if product else "Producto")
-                )
-
+            for line_values in delta_lines:
                 kitchen_order_line_model.create({
                     "order_id": kitchen_order.id,
-                    "product_id": product.id if product else False,
-                    "product_name": product_name,
-                    "qty": qty,
-                    "note": note,
+                    "product_id": line_values["product"].id if line_values["product"] else False,
+                    "product_name": line_values["product_name"],
+                    "qty": line_values["qty"],
+                    "note": line_values["note"],
+                    "pos_line_key": line_values["pos_line_key"],
+                    "pos_cumulative_qty": line_values["pos_cumulative_qty"],
                     "state": "new",
-                    "created_at": fields.Datetime.now(),
+                    "created_at": now,
                 })
 
         return result

@@ -17,6 +17,8 @@ class KitchenOrderLine(models.Model):
     product_name = fields.Char(string="Producto", required=True)
     qty = fields.Float(string="Cantidad", default=1.0, required=True)
     note = fields.Char(string="Nota")
+    pos_line_key = fields.Char(string="Clave línea POS", index=True, copy=False)
+    pos_cumulative_qty = fields.Float(string="Cantidad acumulada POS", copy=False)
 
     state = fields.Selection(
         [

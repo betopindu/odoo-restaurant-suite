@@ -26,6 +26,21 @@ class KitchenDisplay(http.Controller):
         }
         return rank_map.get(order.age_level or "normal", 2)
 
+    def _format_kitchen_number(self, order):
+        name = order.name or ""
+        sequence = name.rsplit("/", 1)[-1] if "/" in name else name
+        try:
+            return f"#{int(sequence)}"
+        except (TypeError, ValueError):
+            return name
+
+    def _format_pos_reference(self, order):
+        reference = (order.pos_reference or "").replace("Order ", "", 1)
+        parts = reference.split("-")
+        if len(parts) >= 2:
+            return "-".join(parts[:2])
+        return reference
+
     def _is_done_visible(self, order, done_visible_minutes):
         if order.state_summary != "done":
             return True
@@ -59,6 +74,8 @@ class KitchenDisplay(http.Controller):
                         "order": order,
                         "lines": lines,
                         "lane_state": state,
+                        "kitchen_number": self._format_kitchen_number(order),
+                        "pos_reference": self._format_pos_reference(order),
                     })
 
             lane_cards.sort(
