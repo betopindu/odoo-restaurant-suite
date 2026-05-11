@@ -216,6 +216,9 @@ class KitchenOrder(models.Model):
         if self.state_summary != "done":
             return False
 
+        if self.event_type == "change":
+            return True
+
         if not self.last_activity_at:
             return False
 
