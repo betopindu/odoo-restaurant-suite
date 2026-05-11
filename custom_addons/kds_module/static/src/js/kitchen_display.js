@@ -5,6 +5,7 @@
     let kdsSettings = {
         refresh: 10000,
         sound: true,
+        gridUrl: "/kitchen/display/grid",
     };
 
     function getCurrentNewIds() {
@@ -29,6 +30,7 @@
 
         kdsSettings.refresh = Math.max(refreshSeconds, 3) * 1000;
         kdsSettings.sound = soundEnabled;
+        kdsSettings.gridUrl = root.dataset.kdsGridUrl || "/kitchen/display/grid";
     }
 
     function restartAutoRefresh() {
@@ -79,7 +81,7 @@
         try {
             const beforeIds = getCurrentNewIds();
 
-            const response = await fetch("/kitchen/display/grid", {
+            const response = await fetch(kdsSettings.gridUrl, {
                 credentials: "same-origin",
             });
             const html = await response.text();

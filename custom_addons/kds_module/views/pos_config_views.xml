@@ -36,6 +36,12 @@
                                 <label string="Entregados visibles en Cocina (horas)" for="kds_admin_done_visible_hours" class="col-lg-4 o_light_label"/>
                                 <field name="kds_admin_done_visible_hours"/>
                             </div>
+                            <div class="row mt16">
+                                <button name="action_open_kds_display"
+                                        type="object"
+                                        string="Abrir KDS"
+                                        class="btn btn-primary"/>
+                            </div>
                         </div>
                     </setting>
                 </div>

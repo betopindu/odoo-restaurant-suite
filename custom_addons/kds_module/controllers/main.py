@@ -7,14 +7,31 @@ from odoo.http import request
 
 class KitchenDisplay(http.Controller):
 
-    def _get_kds_config(self):
-        config = request.env["pos.config"].sudo().search([], limit=1)
+    def _get_kds_config(self, config_id=None):
+        config_model = request.env["pos.config"].sudo()
+        config = config_model.browse([])
+
+        if config_id:
+            try:
+                config = config_model.browse(int(config_id)).exists()
+            except (TypeError, ValueError):
+                config = config_model.browse([])
+
+        if not config:
+            config = config_model.search([], limit=1)
+
+        grid_url = "/kitchen/display/grid"
+        if config:
+            grid_url = f"{grid_url}?config_id={config.id}"
+
         return {
-            "warning": config.kds_warning_minutes or 5,
-            "danger": config.kds_danger_minutes or 10,
-            "refresh": config.kds_refresh_seconds or 10,
-            "show_done": bool(config.kds_show_done_lane),
-            "sound": bool(config.kds_enable_sound),
+            "config_id": config.id if config else False,
+            "grid_url": grid_url,
+            "warning": (config.kds_warning_minutes or 5) if config else 5,
+            "danger": (config.kds_danger_minutes or 10) if config else 10,
+            "refresh": (config.kds_refresh_seconds or 10) if config else 10,
+            "show_done": bool(config.kds_show_done_lane) if config else False,
+            "sound": bool(config.kds_enable_sound) if config else True,
             "done_visible_minutes": config.kds_done_visible_minutes if config else 180,
         }
 
@@ -41,6 +58,11 @@ class KitchenDisplay(http.Controller):
             return "-".join(parts[:2])
         return reference
 
+    def _format_qty(self, qty):
+        if qty == int(qty):
+            return str(int(qty))
+        return f"{qty:g}"
+
     def _is_done_visible(self, order, done_visible_minutes):
         if order.state_summary != "done":
             return True
@@ -58,11 +80,27 @@ class KitchenDisplay(http.Controller):
 
         return activity_dt >= (now - timedelta(minutes=done_visible_minutes))
 
-    def _build_display_values(self):
+    def _build_display_values(self, config_id=None):
         orders = request.env["kitchen.order"].sudo().search([], order="created_at asc, id asc")
-        kds = self._get_kds_config()
+        kds = self._get_kds_config(config_id=config_id)
+        cancellation_totals = {}
+        cancellation_lines = request.env["kitchen.order.line"].sudo().search([
+            ("is_cancellation", "=", True),
+            ("original_line_id", "!=", False),
+        ])
+        for line in cancellation_lines:
+            cancellation_totals[line.original_line_id.id] = (
+                cancellation_totals.get(line.original_line_id.id, 0) + line.qty
+            )
+        cancellation_total_labels = {
+            line_id: self._format_qty(qty)
+            for line_id, qty in cancellation_totals.items()
+        }
 
         def build_lane(state):
+            if state == "done" and not kds["show_done"]:
+                return []
+
             lane_cards = []
             for order in orders:
                 if state == "done" and not self._is_done_visible(order, kds["done_visible_minutes"]):
@@ -70,12 +108,20 @@ class KitchenDisplay(http.Controller):
 
                 lines = order.line_ids.filtered(lambda l: l.state == state and l.qty > 0)
                 if lines:
+                    line_qty_labels = {
+                        line.id: self._format_qty(line.qty)
+                        for line in lines
+                    }
                     lane_cards.append({
                         "order": order,
                         "lines": lines,
                         "lane_state": state,
                         "kitchen_number": self._format_kitchen_number(order),
                         "pos_reference": self._format_pos_reference(order),
+                        "reference_kitchen_number": self._format_kitchen_number(order.change_reference_order_id) if order.change_reference_order_id else "",
+                        "cancellation_totals": cancellation_totals,
+                        "cancellation_total_labels": cancellation_total_labels,
+                        "line_qty_labels": line_qty_labels,
                     })
 
             lane_cards.sort(
@@ -92,25 +138,28 @@ class KitchenDisplay(http.Controller):
             "lane_new": build_lane("new"),
             "lane_preparing": build_lane("preparing"),
             "lane_ready": build_lane("ready"),
-            "lane_done": build_lane("done") if kds["show_done"] else [],
+            "lane_done": build_lane("done"),
         }
         return values
 
     @http.route("/kitchen/display", auth="user", type="http")
-    def kitchen_display(self):
-        values = self._build_display_values()
+    def kitchen_display(self, **kwargs):
+        values = self._build_display_values(config_id=kwargs.get("config_id"))
         return request.render("kds_module.kitchen_display_template", values)
 
     @http.route("/kitchen/display/grid", auth="user", type="http")
-    def kitchen_display_grid(self):
-        values = self._build_display_values()
+    def kitchen_display_grid(self, **kwargs):
+        values = self._build_display_values(config_id=kwargs.get("config_id"))
         return request.render("kds_module.kitchen_display_grid", values)
 
     @http.route("/kitchen/display/line/<int:line_id>/next", auth="user", type="http", methods=["POST"], csrf=False)
     def kitchen_display_line_next(self, line_id, **kwargs):
         line = request.env["kitchen.order.line"].sudo().browse(line_id).exists()
         if line:
-            line.action_next_state()
+            if line.order_id.event_type == "change" and line.state == "new":
+                line.order_id.action_move_lines_from_state("new")
+            else:
+                line.action_next_state()
 
         return request.make_response(
             json.dumps({"ok": True}),

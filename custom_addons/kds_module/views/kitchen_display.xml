@@ -6,6 +6,7 @@
 
             <div class="o_kitchen_display_page"
                  t-att-data-kds-refresh-seconds="kds['refresh']"
+                 t-att-data-kds-grid-url="kds['grid_url']"
                  t-att-data-kds-sound="'true' if kds['sound'] else 'false'">
 
                 <div class="o_kitchen_display_header">
@@ -25,19 +26,27 @@
                 <div class="o_kitchen_display_column_title">Nuevo</div>
                 <div class="o_kitchen_display_column_body">
                     <t t-foreach="lane_new" t-as="card">
-                        <div t-attf-class="o_kitchen_display_card #{'o_kitchen_card_danger' if card['order'].age_level == 'danger' else ('o_kitchen_card_warning' if card['order'].age_level == 'warning' else '')}">
+                        <div t-attf-class="o_kitchen_display_card #{'o_kitchen_card_change' if card['order'].event_type == 'change' else ('o_kitchen_card_danger' if card['order'].age_level == 'danger' else ('o_kitchen_card_warning' if card['order'].age_level == 'warning' else ''))}">
                             <div class="o_kitchen_display_card_header_click"
                                  t-att-data-order-id="card['order'].id"
                                  t-att-data-from-state="card['lane_state']"
                                  title="Mover todos los ítems visibles al siguiente estado">
                                 <div class="o_kitchen_display_table">
-                                    Mesa <t t-esc="card['order'].table"/> · <t t-esc="card['kitchen_number']"/>
+                                    <t t-if="card['order'].event_type == 'change'">
+                                        Cambio · Mesa <t t-esc="card['order'].table"/>
+                                    </t>
+                                    <t t-else="">
+                                        Mesa <t t-esc="card['order'].table"/> · <t t-esc="card['kitchen_number']"/>
+                                    </t>
                                     <t t-if="card['order'].age_level == 'warning'">
                                         <span class="o_kitchen_priority_badge o_kitchen_priority_badge_warning">Atención</span>
                                     </t>
                                     <t t-if="card['order'].age_level == 'danger'">
                                         <span class="o_kitchen_priority_badge o_kitchen_priority_badge_danger">Urgente</span>
                                     </t>
+                                </div>
+                                <div t-if="card['order'].event_type == 'change'" class="o_kitchen_display_reference">
+                                    Ref <t t-esc="card['reference_kitchen_number']"/>
                                 </div>
                                 <div t-attf-class="o_kitchen_display_meta o_kitchen_age_#{card['order'].age_level or 'normal'}">
                                     <t t-esc="card['order'].age_label"/>
@@ -52,9 +61,17 @@
                                     <div class="o_kitchen_display_item_row o_kitchen_display_item_click"
                                          t-att-data-line-id="line.id"
                                          title="Mover este ítem al siguiente estado">
-                                        <strong><t t-esc="line.qty"/></strong>
-                                        x
-                                        <t t-esc="line.product_name"/>
+                                        <t t-if="line.is_cancellation">
+                                            Cancelar <strong><t t-esc="card['line_qty_labels'].get(line.id)"/></strong> <t t-esc="line.product_name"/>
+                                        </t>
+                                        <t t-else="">
+                                            <strong><t t-esc="card['line_qty_labels'].get(line.id)"/></strong>
+                                            x
+                                            <t t-esc="line.product_name"/>
+                                            <t t-if="card['cancellation_totals'].get(line.id)">
+                                                <span class="o_kitchen_age_danger">(-<t t-esc="card['cancellation_total_labels'].get(line.id)"/>)</span>
+                                            </t>
+                                        </t>
                                     </div>
                                 </t>
                             </div>
@@ -68,19 +85,27 @@
                 <div class="o_kitchen_display_column_title">Preparando</div>
                 <div class="o_kitchen_display_column_body">
                     <t t-foreach="lane_preparing" t-as="card">
-                        <div t-attf-class="o_kitchen_display_card #{'o_kitchen_card_danger' if card['order'].age_level == 'danger' else ('o_kitchen_card_warning' if card['order'].age_level == 'warning' else '')}">
+                        <div t-attf-class="o_kitchen_display_card #{'o_kitchen_card_change' if card['order'].event_type == 'change' else ('o_kitchen_card_danger' if card['order'].age_level == 'danger' else ('o_kitchen_card_warning' if card['order'].age_level == 'warning' else ''))}">
                             <div class="o_kitchen_display_card_header_click"
                                  t-att-data-order-id="card['order'].id"
                                  t-att-data-from-state="card['lane_state']"
                                  title="Mover todos los ítems visibles al siguiente estado">
                                 <div class="o_kitchen_display_table">
-                                    Mesa <t t-esc="card['order'].table"/> · <t t-esc="card['kitchen_number']"/>
+                                    <t t-if="card['order'].event_type == 'change'">
+                                        Cambio · Mesa <t t-esc="card['order'].table"/>
+                                    </t>
+                                    <t t-else="">
+                                        Mesa <t t-esc="card['order'].table"/> · <t t-esc="card['kitchen_number']"/>
+                                    </t>
                                     <t t-if="card['order'].age_level == 'warning'">
                                         <span class="o_kitchen_priority_badge o_kitchen_priority_badge_warning">Atención</span>
                                     </t>
                                     <t t-if="card['order'].age_level == 'danger'">
                                         <span class="o_kitchen_priority_badge o_kitchen_priority_badge_danger">Urgente</span>
                                     </t>
+                                </div>
+                                <div t-if="card['order'].event_type == 'change'" class="o_kitchen_display_reference">
+                                    Ref <t t-esc="card['reference_kitchen_number']"/>
                                 </div>
                                 <div t-attf-class="o_kitchen_display_meta o_kitchen_age_#{card['order'].age_level or 'normal'}">
                                     <t t-esc="card['order'].age_label"/>
@@ -95,9 +120,17 @@
                                     <div class="o_kitchen_display_item_row o_kitchen_display_item_click"
                                          t-att-data-line-id="line.id"
                                          title="Mover este ítem al siguiente estado">
-                                        <strong><t t-esc="line.qty"/></strong>
-                                        x
-                                        <t t-esc="line.product_name"/>
+                                        <t t-if="line.is_cancellation">
+                                            Cancelar <strong><t t-esc="card['line_qty_labels'].get(line.id)"/></strong> <t t-esc="line.product_name"/>
+                                        </t>
+                                        <t t-else="">
+                                            <strong><t t-esc="card['line_qty_labels'].get(line.id)"/></strong>
+                                            x
+                                            <t t-esc="line.product_name"/>
+                                            <t t-if="card['cancellation_totals'].get(line.id)">
+                                                <span class="o_kitchen_age_danger">(-<t t-esc="card['cancellation_total_labels'].get(line.id)"/>)</span>
+                                            </t>
+                                        </t>
                                     </div>
                                 </t>
                             </div>
@@ -111,19 +144,27 @@
                 <div class="o_kitchen_display_column_title">Listo</div>
                 <div class="o_kitchen_display_column_body">
                     <t t-foreach="lane_ready" t-as="card">
-                        <div t-attf-class="o_kitchen_display_card #{'o_kitchen_card_danger' if card['order'].age_level == 'danger' else ('o_kitchen_card_warning' if card['order'].age_level == 'warning' else '')}">
+                        <div t-attf-class="o_kitchen_display_card #{'o_kitchen_card_change' if card['order'].event_type == 'change' else ('o_kitchen_card_danger' if card['order'].age_level == 'danger' else ('o_kitchen_card_warning' if card['order'].age_level == 'warning' else ''))}">
                             <div class="o_kitchen_display_card_header_click"
                                  t-att-data-order-id="card['order'].id"
                                  t-att-data-from-state="card['lane_state']"
                                  title="Mover todos los ítems visibles al siguiente estado">
                                 <div class="o_kitchen_display_table">
-                                    Mesa <t t-esc="card['order'].table"/> · <t t-esc="card['kitchen_number']"/>
+                                    <t t-if="card['order'].event_type == 'change'">
+                                        Cambio · Mesa <t t-esc="card['order'].table"/>
+                                    </t>
+                                    <t t-else="">
+                                        Mesa <t t-esc="card['order'].table"/> · <t t-esc="card['kitchen_number']"/>
+                                    </t>
                                     <t t-if="card['order'].age_level == 'warning'">
                                         <span class="o_kitchen_priority_badge o_kitchen_priority_badge_warning">Atención</span>
                                     </t>
                                     <t t-if="card['order'].age_level == 'danger'">
                                         <span class="o_kitchen_priority_badge o_kitchen_priority_badge_danger">Urgente</span>
                                     </t>
+                                </div>
+                                <div t-if="card['order'].event_type == 'change'" class="o_kitchen_display_reference">
+                                    Ref <t t-esc="card['reference_kitchen_number']"/>
                                 </div>
                                 <div t-attf-class="o_kitchen_display_meta o_kitchen_age_#{card['order'].age_level or 'normal'}">
                                     <t t-esc="card['order'].age_label"/>
@@ -138,9 +179,17 @@
                                     <div class="o_kitchen_display_item_row o_kitchen_display_item_click"
                                          t-att-data-line-id="line.id"
                                          title="Mover este ítem al siguiente estado">
-                                        <strong><t t-esc="line.qty"/></strong>
-                                        x
-                                        <t t-esc="line.product_name"/>
+                                        <t t-if="line.is_cancellation">
+                                            Cancelar <strong><t t-esc="card['line_qty_labels'].get(line.id)"/></strong> <t t-esc="line.product_name"/>
+                                        </t>
+                                        <t t-else="">
+                                            <strong><t t-esc="card['line_qty_labels'].get(line.id)"/></strong>
+                                            x
+                                            <t t-esc="line.product_name"/>
+                                            <t t-if="card['cancellation_totals'].get(line.id)">
+                                                <span class="o_kitchen_age_danger">(-<t t-esc="card['cancellation_total_labels'].get(line.id)"/>)</span>
+                                            </t>
+                                        </t>
                                     </div>
                                 </t>
                             </div>
@@ -150,36 +199,52 @@
             </div>
 
             <!-- ENTREGADO -->
-            <t t-if="kds['show_done']">
-                <div class="o_kitchen_display_column o_kitchen_display_column_done">
-                    <div class="o_kitchen_display_column_title">Entregado</div>
-                    <div class="o_kitchen_display_column_body">
-                        <t t-foreach="lane_done" t-as="card">
-                            <div class="o_kitchen_display_card o_kitchen_card_done">
-                                <div class="o_kitchen_display_card_header_click">
-                                    <div class="o_kitchen_display_table">Mesa <t t-esc="card['order'].table"/> · <t t-esc="card['kitchen_number']"/></div>
-                                    <div class="o_kitchen_display_meta o_kitchen_age_done">
-                                        <t t-esc="card['order'].age_label"/>
-                                    </div>
-                                    <div class="o_kitchen_display_reference">
-                                        POS: <t t-esc="card['pos_reference']"/>
-                                    </div>
-                                </div>
-
-                                <div class="o_kitchen_display_items">
-                                    <t t-foreach="card['lines'].filtered(lambda l: l.qty > 0)" t-as="line">
-                                        <div class="o_kitchen_display_item_row">
-                                            <strong><t t-esc="line.qty"/></strong>
-                                            x
-                                            <t t-esc="line.product_name"/>
-                                        </div>
+            <div t-if="kds['show_done']" class="o_kitchen_display_column o_kitchen_display_column_done">
+                <div class="o_kitchen_display_column_title">Entregado</div>
+                <div class="o_kitchen_display_column_body">
+                    <t t-foreach="lane_done" t-as="card">
+                        <div t-attf-class="o_kitchen_display_card o_kitchen_card_done #{'o_kitchen_card_change' if card['order'].event_type == 'change' else ''}">
+                            <div class="o_kitchen_display_card_header_click">
+                                <div class="o_kitchen_display_table">
+                                    <t t-if="card['order'].event_type == 'change'">
+                                        Cambio · Mesa <t t-esc="card['order'].table"/>
+                                    </t>
+                                    <t t-else="">
+                                        Mesa <t t-esc="card['order'].table"/> · <t t-esc="card['kitchen_number']"/>
                                     </t>
                                 </div>
+                                <div t-if="card['order'].event_type == 'change'" class="o_kitchen_display_reference">
+                                    Ref <t t-esc="card['reference_kitchen_number']"/>
+                                </div>
+                                <div class="o_kitchen_display_meta o_kitchen_age_done">
+                                    <t t-esc="card['order'].age_label"/>
+                                </div>
+                                <div class="o_kitchen_display_reference">
+                                    POS: <t t-esc="card['pos_reference']"/>
+                                </div>
                             </div>
-                        </t>
-                    </div>
+
+                            <div class="o_kitchen_display_items">
+                                <t t-foreach="card['lines'].filtered(lambda l: l.qty > 0)" t-as="line">
+                                    <div class="o_kitchen_display_item_row">
+                                        <t t-if="line.is_cancellation">
+                                            Cancelar <strong><t t-esc="card['line_qty_labels'].get(line.id)"/></strong> <t t-esc="line.product_name"/>
+                                        </t>
+                                        <t t-else="">
+                                            <strong><t t-esc="card['line_qty_labels'].get(line.id)"/></strong>
+                                            x
+                                            <t t-esc="line.product_name"/>
+                                            <t t-if="card['cancellation_totals'].get(line.id)">
+                                                <span class="o_kitchen_age_danger">(-<t t-esc="card['cancellation_total_labels'].get(line.id)"/>)</span>
+                                            </t>
+                                        </t>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
                 </div>
-            </t>
+            </div>
 
         </div>
     </template>

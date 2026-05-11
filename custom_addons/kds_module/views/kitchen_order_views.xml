@@ -6,6 +6,8 @@
         <field name="arch" type="xml">
             <kanban class="o_kitchen_kanban" create="false">
                 <field name="name"/>
+                <field name="event_type"/>
+                <field name="change_reference_order_id"/>
                 <field name="table"/>
                 <field name="state_summary"/>
                 <field name="created_at"/>
@@ -17,6 +19,98 @@
 
                 <templates>
                     <t t-name="kanban-box">
+                        <t t-if="record.event_type.raw_value == 'change'">
+                            <div class="oe_kanban_global_click o_kitchen_card_inner o_kitchen_card_change_admin">
+                                <div class="o_kitchen_card_header">
+                                    <div class="o_kitchen_card_main_info">
+                                        <div class="o_kitchen_table">
+                                            Cambio · Mesa <field name="table"/>
+                                        </div>
+
+                                        <div class="o_kitchen_reference_block">
+                                            <div class="o_kitchen_reference_row">
+                                                <span class="o_kitchen_change_badge">Cambio</span>
+                                            </div>
+                                            <div t-if="record.change_reference_order_id.raw_value" class="o_kitchen_reference_row">
+                                                <span class="o_kitchen_reference_label">Ref:</span>
+                                                <span class="o_kitchen_reference_value"><field name="change_reference_order_id"/></span>
+                                            </div>
+                                            <div class="o_kitchen_reference_row">
+                                                <span class="o_kitchen_reference_label">KDS:</span>
+                                                <span class="o_kitchen_reference_value"><field name="name"/></span>
+                                            </div>
+                                            <div class="o_kitchen_reference_row">
+                                                <span class="o_kitchen_reference_label">POS:</span>
+                                                <span class="o_kitchen_reference_value"><field name="pos_reference"/></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <details class="o_kitchen_action_menu o_kitchen_order_state_menu">
+                                        <summary t-if="record.state_summary.raw_value == 'new'" class="o_kitchen_badge o_kitchen_badge_new o_kitchen_badge_clickable">
+                                            Nuevo
+                                        </summary>
+                                        <summary t-if="record.state_summary.raw_value == 'preparing'" class="o_kitchen_badge o_kitchen_badge_preparing o_kitchen_badge_clickable">
+                                            Preparando
+                                        </summary>
+                                        <summary t-if="record.state_summary.raw_value == 'ready'" class="o_kitchen_badge o_kitchen_badge_ready o_kitchen_badge_clickable">
+                                            Listo
+                                        </summary>
+                                        <summary t-if="record.state_summary.raw_value == 'done'" class="o_kitchen_badge o_kitchen_badge_done o_kitchen_badge_clickable">
+                                            Entregado
+                                        </summary>
+                                        <summary t-if="record.state_summary.raw_value == 'mixed'" class="o_kitchen_badge o_kitchen_badge_mixed o_kitchen_badge_clickable">
+                                            Mixto
+                                        </summary>
+
+                                        <div class="o_kitchen_action_menu_dropdown">
+                                            <button t-if="record.state_summary.raw_value != 'new'"
+                                                    name="action_set_all_lines_new" type="object"
+                                                    class="btn o_kitchen_menu_btn o_kitchen_menu_btn_new">
+                                                Nuevo
+                                            </button>
+                                            <button t-if="record.state_summary.raw_value != 'preparing'"
+                                                    name="action_set_all_lines_preparing" type="object"
+                                                    class="btn o_kitchen_menu_btn o_kitchen_menu_btn_preparing">
+                                                Preparando
+                                            </button>
+                                            <button t-if="record.state_summary.raw_value != 'ready'"
+                                                    name="action_set_all_lines_ready" type="object"
+                                                    class="btn o_kitchen_menu_btn o_kitchen_menu_btn_ready">
+                                                Listo
+                                            </button>
+                                            <button t-if="record.state_summary.raw_value != 'done'"
+                                                    name="action_set_all_lines_done" type="object"
+                                                    class="btn o_kitchen_menu_btn o_kitchen_menu_btn_done">
+                                                Entregado
+                                            </button>
+                                        </div>
+                                    </details>
+                                </div>
+
+                                <div class="o_kitchen_card_body">
+                                    <div class="o_kitchen_meta">
+                                        Creado: <field name="created_at"/>
+                                    </div>
+                                    <div class="o_kitchen_meta">
+                                        Última actividad: <field name="last_activity_at"/>
+                                    </div>
+                                    <div class="o_kitchen_meta">
+                                        Ítems: <field name="line_count"/>
+                                    </div>
+
+                                    <button name="action_open_line_editor"
+                                            type="object"
+                                            class="o_kitchen_items_open_area"
+                                            title="Clic para abrir el detalle de ítems">
+                                        <div class="o_kitchen_items_list o_kitchen_items_list_preline">
+                                            <field name="lines_preview"/>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        </t>
+                        <t t-else="">
                         <div class="oe_kanban_global_click o_kitchen_card_inner">
                             <div class="o_kitchen_card_header">
                                 <div class="o_kitchen_card_main_info">
@@ -99,6 +193,7 @@
                                 </button>
                             </div>
                         </div>
+                        </t>
                     </t>
                 </templates>
             </kanban>

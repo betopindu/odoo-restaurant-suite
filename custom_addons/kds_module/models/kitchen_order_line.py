@@ -19,6 +19,12 @@ class KitchenOrderLine(models.Model):
     note = fields.Char(string="Nota")
     pos_line_key = fields.Char(string="Clave línea POS", index=True, copy=False)
     pos_cumulative_qty = fields.Float(string="Cantidad acumulada POS", copy=False)
+    is_cancellation = fields.Boolean(string="Es cancelación", default=False, index=True)
+    original_line_id = fields.Many2one(
+        "kitchen.order.line",
+        string="Línea original",
+        ondelete="set null",
+    )
 
     state = fields.Selection(
         [
@@ -46,7 +52,17 @@ class KitchenOrderLine(models.Model):
     def action_next_state(self):
         now = fields.Datetime.now()
         for line in self:
-            if line.state == "new":
+            if line.order_id.event_type == "change" and line.state == "new":
+                vals = {
+                    "state": "done",
+                    "done_at": now,
+                }
+                if not line.started_at:
+                    vals["started_at"] = now
+                if not line.ready_at:
+                    vals["ready_at"] = now
+                line.write(vals)
+            elif line.state == "new":
                 line.write({
                     "state": "preparing",
                     "started_at": now,

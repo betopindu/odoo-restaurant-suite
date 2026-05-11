@@ -9,6 +9,21 @@ class KitchenOrder(models.Model):
     _order = "admin_sort_rank asc, last_activity_at desc, created_at desc, id desc"
 
     name = fields.Char(string="Referencia", required=True, copy=False, default="/")
+    event_type = fields.Selection(
+        [
+            ("normal", "Normal"),
+            ("change", "Cambio"),
+        ],
+        string="Tipo de evento",
+        default="normal",
+        required=True,
+        index=True,
+    )
+    change_reference_order_id = fields.Many2one(
+        "kitchen.order",
+        string="Orden de referencia",
+        ondelete="set null",
+    )
     pos_order_id = fields.Many2one("pos.order", string="Orden POS", ondelete="set null")
     pos_config_id = fields.Many2one("pos.config", string="Punto de Venta", ondelete="set null")
     pos_reference = fields.Char(string="Referencia POS")
@@ -236,11 +251,23 @@ class KitchenOrder(models.Model):
         for order in self:
             lines = order.line_ids.filtered(lambda l: l.state == from_state and l.qty > 0)
             if lines:
-                vals = {
-                    "state": next_state,
-                    date_field: now,
-                }
-                lines.write(vals)
+                if order.event_type == "change" and from_state == "new":
+                    for line in lines:
+                        vals = {
+                            "state": "done",
+                            "done_at": now,
+                        }
+                        if not line.started_at:
+                            vals["started_at"] = now
+                        if not line.ready_at:
+                            vals["ready_at"] = now
+                        line.write(vals)
+                else:
+                    vals = {
+                        "state": next_state,
+                        date_field: now,
+                    }
+                    lines.write(vals)
                 order.last_activity_at = now
                 order._update_admin_hidden_flags()
 

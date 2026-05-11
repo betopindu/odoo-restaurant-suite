@@ -33,3 +33,11 @@ class PosConfig(models.Model):
         default=24,
         help="Cantidad de horas que una orden Entregada seguirá visible en la vista administrativa de Cocina.",
     )
+
+    def action_open_kds_display(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_url",
+            "url": f"/kitchen/display?config_id={self.id}",
+            "target": "new",
+        }
