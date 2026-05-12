@@ -51,13 +51,6 @@ class KitchenDisplay(http.Controller):
         except (TypeError, ValueError):
             return name
 
-    def _format_pos_reference(self, order):
-        reference = (order.pos_reference or "").replace("Order ", "", 1)
-        parts = reference.split("-")
-        if len(parts) >= 2:
-            return "-".join(parts[:2])
-        return reference
-
     def _format_qty(self, qty):
         if qty == int(qty):
             return str(int(qty))
@@ -117,7 +110,7 @@ class KitchenDisplay(http.Controller):
                         "lines": lines,
                         "lane_state": state,
                         "kitchen_number": self._format_kitchen_number(order),
-                        "pos_reference": self._format_pos_reference(order),
+                        "pos_reference": order._format_pos_reference_short(),
                         "reference_kitchen_number": self._format_kitchen_number(order.change_reference_order_id) if order.change_reference_order_id else "",
                         "cancellation_totals": cancellation_totals,
                         "cancellation_total_labels": cancellation_total_labels,

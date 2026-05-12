@@ -13,6 +13,7 @@
                 <field name="created_at"/>
                 <field name="last_activity_at"/>
                 <field name="pos_reference"/>
+                <field name="pos_reference_short"/>
                 <field name="line_count"/>
                 <field name="lines_preview"/>
                 <field name="admin_sort_rank"/>
@@ -41,7 +42,7 @@
                                             </div>
                                             <div class="o_kitchen_reference_row">
                                                 <span class="o_kitchen_reference_label">POS:</span>
-                                                <span class="o_kitchen_reference_value"><field name="pos_reference"/></span>
+                                                <span class="o_kitchen_reference_value"><field name="pos_reference_short"/></span>
                                             </div>
                                         </div>
                                     </div>
@@ -125,7 +126,7 @@
                                         </div>
                                         <div class="o_kitchen_reference_row">
                                             <span class="o_kitchen_reference_label">POS:</span>
-                                            <span class="o_kitchen_reference_value"><field name="pos_reference"/></span>
+                                            <span class="o_kitchen_reference_value"><field name="pos_reference_short"/></span>
                                         </div>
                                     </div>
                                 </div>

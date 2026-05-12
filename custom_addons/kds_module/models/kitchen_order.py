@@ -27,6 +27,10 @@ class KitchenOrder(models.Model):
     pos_order_id = fields.Many2one("pos.order", string="Orden POS", ondelete="set null")
     pos_config_id = fields.Many2one("pos.config", string="Punto de Venta", ondelete="set null")
     pos_reference = fields.Char(string="Referencia POS")
+    pos_reference_short = fields.Char(
+        string="Referencia POS corta",
+        compute="_compute_pos_reference_short",
+    )
     table = fields.Char(string="Mesa", required=True)
     created_at = fields.Datetime(string="Creado", default=fields.Datetime.now, required=True)
     last_activity_at = fields.Datetime(string="Última actividad", default=fields.Datetime.now, required=True)
@@ -112,6 +116,19 @@ class KitchenOrder(models.Model):
             ("state_summary", "=", "done")
         ])
         done_orders._update_admin_hidden_flags()
+
+    def _format_pos_reference_short(self):
+        self.ensure_one()
+        reference = (self.pos_reference or "").replace("Order ", "", 1)
+        parts = reference.split("-")
+        if len(parts) >= 2:
+            return "-".join(parts[:2])
+        return reference
+
+    @api.depends("pos_reference")
+    def _compute_pos_reference_short(self):
+        for order in self:
+            order.pos_reference_short = order._format_pos_reference_short()
 
     @api.depends("line_ids.qty")
     def _compute_line_count(self):
