@@ -1,0 +1,49 @@
+<odoo>
+    <record id="view_fiscal_attachment_tree" model="ir.ui.view">
+        <field name="name">fiscal.attachment.tree</field>
+        <field name="model">fiscal.attachment</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name"/>
+                <field name="document_id"/>
+                <field name="tenant_id"/>
+                <field name="attachment_type"/>
+                <field name="filename"/>
+                <field name="mimetype"/>
+                <field name="sha256"/>
+                <field name="is_sensitive"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_fiscal_attachment_form" model="ir.ui.view">
+        <field name="name">fiscal.attachment.form</field>
+        <field name="model">fiscal.attachment</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="document_id"/>
+                        <field name="transmission_id"/>
+                        <field name="tenant_id"/>
+                        <field name="company_id"/>
+                        <field name="attachment_type"/>
+                        <field name="filename"/>
+                        <field name="mimetype"/>
+                        <field name="ir_attachment_id"/>
+                        <field name="sha256"/>
+                        <field name="is_sensitive"/>
+                        <field name="metadata_json"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_fiscal_attachment" model="ir.actions.act_window">
+        <field name="name">Fiscal Attachments</field>
+        <field name="res_model">fiscal.attachment</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

@@ -1,0 +1,116 @@
+<odoo>
+    <record id="view_fiscal_document_tree" model="ir.ui.view">
+        <field name="name">fiscal.document.tree</field>
+        <field name="model">fiscal.document</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name"/>
+                <field name="uuid"/>
+                <field name="tenant_id"/>
+                <field name="company_id"/>
+                <field name="document_type"/>
+                <field name="state"/>
+                <field name="country_code"/>
+                <field name="source_reference"/>
+                <field name="amount_total"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_fiscal_document_form" model="ir.ui.view">
+        <field name="name">fiscal.document.form</field>
+        <field name="model">fiscal.document</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="uuid"/>
+                            <field name="state"/>
+                            <field name="document_type"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="tenant_id"/>
+                            <field name="company_id"/>
+                            <field name="currency_id"/>
+                            <field name="adapter_config_id"/>
+                        </group>
+                    </group>
+                    <group string="Fiscal Context">
+                        <field name="country_code"/>
+                        <field name="environment"/>
+                        <field name="adapter_code"/>
+                        <field name="fiscal_number"/>
+                        <field name="fiscal_series"/>
+                        <field name="country_identifier"/>
+                        <field name="authority_status"/>
+                        <field name="authority_receipt_ref"/>
+                    </group>
+                    <group string="Source">
+                        <field name="source_system"/>
+                        <field name="source_model"/>
+                        <field name="source_res_id"/>
+                        <field name="source_external_id"/>
+                        <field name="source_reference"/>
+                        <field name="idempotency_key"/>
+                    </group>
+                    <group string="Customer">
+                        <field name="partner_id"/>
+                        <field name="customer_name"/>
+                        <field name="customer_tax_id"/>
+                        <field name="customer_tax_id_type"/>
+                        <field name="customer_email"/>
+                    </group>
+                    <group string="Amounts">
+                        <field name="amount_untaxed"/>
+                        <field name="amount_tax"/>
+                        <field name="amount_discount"/>
+                        <field name="amount_total"/>
+                    </group>
+                    <group string="Dates">
+                        <field name="issue_datetime"/>
+                        <field name="submitted_at"/>
+                        <field name="accepted_at"/>
+                        <field name="rejected_at"/>
+                        <field name="cancelled_at"/>
+                    </group>
+                    <notebook>
+                        <page string="Lines">
+                            <field name="line_ids">
+                                <tree editable="bottom">
+                                    <field name="sequence"/>
+                                    <field name="product_name"/>
+                                    <field name="quantity"/>
+                                    <field name="price_unit"/>
+                                    <field name="subtotal"/>
+                                    <field name="tax_amount"/>
+                                    <field name="total"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Events">
+                            <field name="event_ids" readonly="1"/>
+                        </page>
+                        <page string="Transmissions">
+                            <field name="transmission_ids" readonly="1"/>
+                        </page>
+                        <page string="Attachments">
+                            <field name="attachment_ids" readonly="1"/>
+                        </page>
+                        <page string="Metadata">
+                            <field name="metadata_json"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_fiscal_document" model="ir.actions.act_window">
+        <field name="name">Fiscal Documents</field>
+        <field name="res_model">fiscal.document</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

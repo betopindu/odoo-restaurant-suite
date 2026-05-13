@@ -1,0 +1,51 @@
+<odoo>
+    <record id="view_fiscal_event_tree" model="ir.ui.view">
+        <field name="name">fiscal.event.tree</field>
+        <field name="model">fiscal.event</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false">
+                <field name="occurred_at"/>
+                <field name="document_id"/>
+                <field name="tenant_id"/>
+                <field name="event_type"/>
+                <field name="from_state"/>
+                <field name="to_state"/>
+                <field name="actor_type"/>
+                <field name="user_id"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_fiscal_event_form" model="ir.ui.view">
+        <field name="name">fiscal.event.form</field>
+        <field name="model">fiscal.event</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false">
+                <sheet>
+                    <group>
+                        <field name="document_id"/>
+                        <field name="tenant_id"/>
+                        <field name="company_id"/>
+                        <field name="event_type"/>
+                        <field name="from_state"/>
+                        <field name="to_state"/>
+                        <field name="actor_type"/>
+                        <field name="user_id"/>
+                        <field name="occurred_at"/>
+                        <field name="payload_hash"/>
+                    </group>
+                    <group>
+                        <field name="message"/>
+                        <field name="metadata_json"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_fiscal_event" model="ir.actions.act_window">
+        <field name="name">Fiscal Events</field>
+        <field name="res_model">fiscal.event</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

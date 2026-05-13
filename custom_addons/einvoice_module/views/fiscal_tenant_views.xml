@@ -1,0 +1,37 @@
+<odoo>
+    <record id="view_fiscal_tenant_tree" model="ir.ui.view">
+        <field name="name">fiscal.tenant.tree</field>
+        <field name="model">fiscal.tenant</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="company_id"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_fiscal_tenant_form" model="ir.ui.view">
+        <field name="name">fiscal.tenant.form</field>
+        <field name="model">fiscal.tenant</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="code"/>
+                        <field name="company_id"/>
+                        <field name="active"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_fiscal_tenant" model="ir.actions.act_window">
+        <field name="name">Tenants</field>
+        <field name="res_model">fiscal.tenant</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

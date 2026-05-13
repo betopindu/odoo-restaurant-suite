@@ -1,0 +1,20 @@
+{
+    "name": "Electronic Invoicing Core",
+    "summary": "Fiscal core prototype for future electronic invoicing integrations",
+    "version": "17.0.1.0.0",
+    "category": "Accounting/Accounting",
+    "depends": ["base", "account", "product"],
+    "data": [
+        "security/ir.model.access.csv",
+        "views/fiscal_tenant_views.xml",
+        "views/fiscal_document_views.xml",
+        "views/fiscal_event_views.xml",
+        "views/fiscal_transmission_views.xml",
+        "views/fiscal_attachment_views.xml",
+        "views/fiscal_adapter_config_views.xml",
+        "views/einvoice_menus.xml",
+    ],
+    "installable": True,
+    "application": True,
+    "license": "LGPL-3",
+}

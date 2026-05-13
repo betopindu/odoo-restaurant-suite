@@ -1,0 +1,7 @@
+from . import fiscal_tenant
+from . import fiscal_document
+from . import fiscal_document_line
+from . import fiscal_event
+from . import fiscal_transmission
+from . import fiscal_attachment
+from . import fiscal_adapter_config

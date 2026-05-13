@@ -1,0 +1,70 @@
+<odoo>
+    <record id="view_fiscal_transmission_tree" model="ir.ui.view">
+        <field name="name">fiscal.transmission.tree</field>
+        <field name="model">fiscal.transmission</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="started_at"/>
+                <field name="document_id"/>
+                <field name="tenant_id"/>
+                <field name="attempt_number"/>
+                <field name="transmission_type"/>
+                <field name="state"/>
+                <field name="http_status"/>
+                <field name="authority_status_code"/>
+                <field name="next_retry_at"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_fiscal_transmission_form" model="ir.ui.view">
+        <field name="name">fiscal.transmission.form</field>
+        <field name="model">fiscal.transmission</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="document_id"/>
+                            <field name="tenant_id"/>
+                            <field name="company_id"/>
+                            <field name="attempt_number"/>
+                            <field name="transmission_type"/>
+                            <field name="state"/>
+                        </group>
+                        <group>
+                            <field name="started_at"/>
+                            <field name="finished_at"/>
+                            <field name="duration_ms"/>
+                            <field name="next_retry_at"/>
+                        </group>
+                    </group>
+                    <group string="Transport">
+                        <field name="endpoint_url"/>
+                        <field name="http_status"/>
+                        <field name="request_hash"/>
+                        <field name="response_hash"/>
+                    </group>
+                    <group string="Authority">
+                        <field name="authority_status_code"/>
+                        <field name="authority_message"/>
+                    </group>
+                    <group string="Error">
+                        <field name="error_code"/>
+                        <field name="error_type"/>
+                        <field name="error_message"/>
+                    </group>
+                    <group string="Metadata">
+                        <field name="metadata_json"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_fiscal_transmission" model="ir.actions.act_window">
+        <field name="name">Transmissions</field>
+        <field name="res_model">fiscal.transmission</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>
