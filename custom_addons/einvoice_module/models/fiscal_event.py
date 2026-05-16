@@ -19,8 +19,6 @@ class FiscalEvent(models.Model):
             ("system", "System"),
             ("user", "User"),
             ("api", "API"),
-            ("cron", "Cron"),
-            ("adapter", "Adapter"),
         ],
         default="system",
         required=True,

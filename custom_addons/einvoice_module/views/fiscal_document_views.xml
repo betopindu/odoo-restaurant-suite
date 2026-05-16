@@ -22,12 +22,30 @@
         <field name="model">fiscal.document</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button name="action_mark_ready"
+                            type="object"
+                            string="Mark Ready"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_queue"
+                            type="object"
+                            string="Queue"
+                            class="btn-secondary"
+                            invisible="state != 'ready'"/>
+                    <button name="action_process_now"
+                            type="object"
+                            string="Process Now"
+                            class="btn-secondary"
+                            invisible="state not in ('ready', 'queued')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,ready,queued,submitted,accepted"/>
+                </header>
                 <sheet>
                     <group>
                         <group>
                             <field name="name"/>
                             <field name="uuid"/>
-                            <field name="state"/>
                             <field name="document_type"/>
                             <field name="active"/>
                         </group>

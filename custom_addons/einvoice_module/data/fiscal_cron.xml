@@ -1,0 +1,12 @@
+<odoo>
+    <record id="ir_cron_einvoice_process_queued_documents" model="ir.cron">
+        <field name="name">e-Invoice - Process queued fiscal documents</field>
+        <field name="model_id" ref="model_fiscal_document"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_process_queued_documents(limit=10)</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">minutes</field>
+        <field name="numbercall">-1</field>
+        <field name="active">True</field>
+    </record>
+</odoo>

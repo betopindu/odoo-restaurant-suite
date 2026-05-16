@@ -6,6 +6,7 @@
     "depends": ["base", "account", "product"],
     "data": [
         "security/ir.model.access.csv",
+        "data/fiscal_cron.xml",
         "views/fiscal_tenant_views.xml",
         "views/fiscal_document_views.xml",
         "views/fiscal_event_views.xml",
