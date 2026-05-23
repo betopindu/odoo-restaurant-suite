@@ -3,6 +3,7 @@ from uuid import uuid4
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from odoo.addons.einvoice_module.services.idempotency import FiscalIdempotencyService
 from odoo.addons.einvoice_module.services.orchestrator import FiscalOrchestrator
 
 
@@ -101,6 +102,15 @@ class FiscalDocument(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        self._get_idempotency_service().ensure_unique([
+            {
+                "tenant_id": vals.get("tenant_id"),
+                "document_type": vals.get("document_type") or "invoice",
+                "idempotency_key": vals.get("idempotency_key"),
+                "active": vals.get("active", True),
+            }
+            for vals in vals_list
+        ])
         documents = super().create(vals_list)
         event_model = self.env["fiscal.event"]
         for document in documents:
@@ -142,7 +152,27 @@ class FiscalDocument(models.Model):
 
     def write(self, vals):
         self._check_fiscal_edit_lock()
+        self._check_idempotency_write(vals)
         return super().write(vals)
+
+    def _check_idempotency_write(self, vals):
+        idempotency_fields = {"tenant_id", "document_type", "idempotency_key", "active"}
+        if not idempotency_fields.intersection(vals):
+            return
+
+        self._get_idempotency_service().ensure_unique([
+            {
+                "tenant_id": vals.get("tenant_id", document.tenant_id.id),
+                "document_type": vals.get("document_type", document.document_type),
+                "idempotency_key": vals.get("idempotency_key", document.idempotency_key),
+                "active": vals.get("active", document.active),
+                "exclude_ids": document.ids,
+            }
+            for document in self
+        ])
+
+    def _get_idempotency_service(self):
+        return FiscalIdempotencyService(self.env)
 
     def _get_orchestrator(self):
         return FiscalOrchestrator(self.env)
