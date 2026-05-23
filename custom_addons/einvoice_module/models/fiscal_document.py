@@ -1,8 +1,13 @@
 from uuid import uuid4
 
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 from odoo.addons.einvoice_module.services.orchestrator import FiscalOrchestrator
+
+
+LOCKED_FISCAL_STATES = {"submitted", "accepted", "cancelled", "failed_final"}
+FISCAL_LOCK_BYPASS_CONTEXT = "einvoice_skip_fiscal_document_lock"
 
 
 class FiscalDocument(models.Model):
@@ -116,6 +121,28 @@ class FiscalDocument(models.Model):
                 "message": "Fiscal document created",
             })
         return documents
+
+    def _is_fiscal_lock_bypassed(self):
+        return (
+            self.env.context.get(FISCAL_LOCK_BYPASS_CONTEXT)
+            or self.env.user.has_group("base.group_system")
+        )
+
+    def _check_fiscal_edit_lock(self):
+        if self._is_fiscal_lock_bypassed():
+            return
+
+        locked_documents = self.filtered(lambda document: document.state in LOCKED_FISCAL_STATES)
+        if locked_documents:
+            # TODO: create an audit event when administrator override auditing is introduced.
+            raise ValidationError(
+                "You cannot edit fiscal documents in locked states: "
+                "submitted, accepted, cancelled, failed final."
+            )
+
+    def write(self, vals):
+        self._check_fiscal_edit_lock()
+        return super().write(vals)
 
     def _get_orchestrator(self):
         return FiscalOrchestrator(self.env)

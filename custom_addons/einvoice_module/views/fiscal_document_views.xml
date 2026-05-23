@@ -39,7 +39,7 @@
                             class="btn-secondary"
                             invisible="state not in ('ready', 'queued')"/>
                     <field name="state" widget="statusbar"
-                           statusbar_visible="draft,ready,queued,submitted,accepted"/>
+                           statusbar_visible="draft,ready,queued,submitted,accepted,rejected,failed_retryable,failed_final,manual_review"/>
                 </header>
                 <sheet>
                     <group>

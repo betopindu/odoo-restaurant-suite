@@ -29,6 +29,7 @@ class FiscalTransmission(models.Model):
             ("rejected", "Rejected"),
             ("failed_retryable", "Failed Retryable"),
             ("failed_final", "Failed Final"),
+            ("manual_review", "Manual Review"),
         ],
         default="pending",
         required=True,

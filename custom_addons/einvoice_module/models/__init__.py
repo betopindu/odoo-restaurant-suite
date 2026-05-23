@@ -5,3 +5,4 @@ from . import fiscal_event
 from . import fiscal_transmission
 from . import fiscal_attachment
 from . import fiscal_adapter_config
+from . import res_users
