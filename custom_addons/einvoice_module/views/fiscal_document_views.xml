@@ -38,6 +38,21 @@
                             string="Process Now"
                             class="btn-secondary"
                             invisible="state not in ('ready', 'queued')"/>
+                    <button name="action_retry_manual_review"
+                            type="object"
+                            string="Retry"
+                            class="btn-primary"
+                            invisible="state != 'manual_review'"/>
+                    <button name="action_fail_manual_review"
+                            type="object"
+                            string="Mark Failed Final"
+                            class="btn-secondary"
+                            invisible="state != 'manual_review'"/>
+                    <button name="action_cancel_manual_review"
+                            type="object"
+                            string="Cancel"
+                            class="btn-secondary"
+                            invisible="state != 'manual_review'"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,ready,queued,submitted,accepted,rejected,failed_retryable,failed_final,manual_review"/>
                 </header>

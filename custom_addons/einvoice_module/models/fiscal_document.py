@@ -7,7 +7,13 @@ from odoo.addons.einvoice_module.services.idempotency import FiscalIdempotencySe
 from odoo.addons.einvoice_module.services.orchestrator import FiscalOrchestrator
 
 
-LOCKED_FISCAL_STATES = {"submitted", "accepted", "cancelled", "failed_final"}
+LOCKED_FISCAL_STATES = {
+    "submitted",
+    "accepted",
+    "cancelled",
+    "failed_final",
+    "manual_review",
+}
 FISCAL_LOCK_BYPASS_CONTEXT = "einvoice_skip_fiscal_document_lock"
 FISCAL_CREATION_ACTOR_CONTEXT = "einvoice_creation_actor_context"
 
@@ -157,7 +163,7 @@ class FiscalDocument(models.Model):
             # TODO: create an audit event when administrator override auditing is introduced.
             raise ValidationError(
                 "You cannot edit fiscal documents in locked states: "
-                "submitted, accepted, cancelled, failed final."
+                "submitted, accepted, cancelled, failed final, manual review."
             )
 
     def write(self, vals):
@@ -207,6 +213,24 @@ class FiscalDocument(models.Model):
 
     def action_process_now(self):
         return self._get_orchestrator().process_documents(
+            self,
+            actor_context=self._get_user_actor_context(),
+        )
+
+    def action_retry_manual_review(self):
+        return self._get_orchestrator().retry_manual_review(
+            self,
+            actor_context=self._get_user_actor_context(),
+        )
+
+    def action_fail_manual_review(self):
+        return self._get_orchestrator().fail_manual_review(
+            self,
+            actor_context=self._get_user_actor_context(),
+        )
+
+    def action_cancel_manual_review(self):
+        return self._get_orchestrator().cancel_manual_review(
             self,
             actor_context=self._get_user_actor_context(),
         )

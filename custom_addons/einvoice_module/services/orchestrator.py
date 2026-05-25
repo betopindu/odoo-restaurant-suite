@@ -4,6 +4,7 @@ from datetime import timedelta
 from odoo import fields
 from odoo.addons.einvoice_module.services.adapter_registry import FiscalAdapterRegistry
 from odoo.addons.einvoice_module.services.validation import FiscalDocumentValidationService
+from odoo.exceptions import ValidationError
 
 
 class FiscalOrchestrator:
@@ -172,6 +173,44 @@ class FiscalOrchestrator:
                     actor_context=actor_context,
                 )
         return True
+
+    def _resolve_manual_review(self, documents, to_state, message, actor_context=None):
+        if any(document.state != "manual_review" for document in documents):
+            raise ValidationError(
+                "Only fiscal documents in manual review can be resolved."
+            )
+        for document in documents:
+            self.transition_to(
+                document,
+                to_state,
+                message,
+                actor_context=actor_context,
+            )
+        return True
+
+    def retry_manual_review(self, documents, actor_context=None):
+        return self._resolve_manual_review(
+            documents,
+            "queued",
+            "Manual review resolved by retry",
+            actor_context=actor_context,
+        )
+
+    def fail_manual_review(self, documents, actor_context=None):
+        return self._resolve_manual_review(
+            documents,
+            "failed_final",
+            "Manual review resolved as failed final",
+            actor_context=actor_context,
+        )
+
+    def cancel_manual_review(self, documents, actor_context=None):
+        return self._resolve_manual_review(
+            documents,
+            "cancelled",
+            "Manual review cancelled",
+            actor_context=actor_context,
+        )
 
     def process_document(self, document, actor_context=None):
         if document.state == "ready":
