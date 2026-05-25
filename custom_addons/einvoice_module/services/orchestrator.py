@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from odoo import fields
 from odoo.addons.einvoice_module.services.adapter_registry import FiscalAdapterRegistry
+from odoo.addons.einvoice_module.services.validation import FiscalDocumentValidationService
 
 
 class FiscalOrchestrator:
@@ -68,12 +69,47 @@ class FiscalOrchestrator:
             "metadata_json": metadata_json,
         })
 
+    def create_adapter_response_attachment(self, document, transmission, result):
+        payload = {
+            "outcome": result.outcome,
+            "authority_status_code": result.authority_status_code,
+            "authority_message": result.authority_message,
+            "country_identifier": result.country_identifier,
+            "authority_receipt_ref": result.authority_receipt_ref,
+            "retryable": result.retryable,
+            "retry_after_seconds": result.retry_after_seconds,
+            "metadata_json": result.metadata_json,
+        }
+        return self.env["fiscal.attachment"].sudo().create_json_payload_attachment(
+            document,
+            "authority_response",
+            (
+                f"{document.uuid}-adapter-response-attempt-"
+                f"{transmission.attempt_number}.json"
+            ),
+            payload,
+            transmission=transmission,
+        )
+
     def _next_attempt_number(self, document):
         attempts = document.transmission_ids.mapped("attempt_number")
         return (max(attempts) if attempts else 0) + 1
 
     def _get_adapter(self, document):
         return FiscalAdapterRegistry(self.env).get_adapter(document)
+
+    def _validate_before_submit(self, document, actor_context=None):
+        result = FiscalDocumentValidationService().validate(document)
+        if result.is_valid:
+            return True
+
+        self.transition_to(
+            document,
+            "validation_error",
+            f"Fiscal document validation failed: {result.summary()}",
+            actor_context=actor_context,
+        )
+        return False
 
     def _transmission_state_from_outcome(self, outcome):
         return {
@@ -151,6 +187,9 @@ class FiscalOrchestrator:
         if document.state != "queued":
             return False
 
+        if not self._validate_before_submit(document, actor_context=actor_context):
+            return False
+
         now = fields.Datetime.now()
         self.transition_to(
             document,
@@ -160,7 +199,8 @@ class FiscalOrchestrator:
             extra_vals={"submitted_at": now},
         )
         result = self._get_adapter(document).submit(document)
-        self.create_transmission(document, result)
+        transmission = self.create_transmission(document, result)
+        self.create_adapter_response_attachment(document, transmission, result)
         self.transition_to(
             document,
             self._document_state_from_outcome(result.outcome),

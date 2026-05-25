@@ -1,4 +1,8 @@
-from odoo import fields, models
+import base64
+import hashlib
+import json
+
+from odoo import api, fields, models
 
 
 class FiscalAttachment(models.Model):
@@ -31,3 +35,38 @@ class FiscalAttachment(models.Model):
     sha256 = fields.Char(index=True)
     is_sensitive = fields.Boolean(default=True)
     metadata_json = fields.Text()
+
+    @api.model
+    def create_json_payload_attachment(
+        self,
+        document,
+        attachment_type,
+        filename,
+        payload,
+        transmission=None,
+    ):
+        content = json.dumps(
+            payload,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        content_bytes = content.encode("utf-8")
+        ir_attachment = self.env["ir.attachment"].create({
+            "name": filename,
+            "datas": base64.b64encode(content_bytes),
+            "mimetype": "application/json",
+            "res_model": "fiscal.document",
+            "res_id": document.id,
+        })
+        return self.create({
+            "name": filename,
+            "document_id": document.id,
+            "transmission_id": transmission.id if transmission else False,
+            "attachment_type": attachment_type,
+            "mimetype": "application/json",
+            "filename": filename,
+            "ir_attachment_id": ir_attachment.id,
+            "sha256": hashlib.sha256(content_bytes).hexdigest(),
+            "is_sensitive": True,
+        })

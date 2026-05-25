@@ -9,6 +9,7 @@ from odoo.addons.einvoice_module.services.orchestrator import FiscalOrchestrator
 
 LOCKED_FISCAL_STATES = {"submitted", "accepted", "cancelled", "failed_final"}
 FISCAL_LOCK_BYPASS_CONTEXT = "einvoice_skip_fiscal_document_lock"
+FISCAL_CREATION_ACTOR_CONTEXT = "einvoice_creation_actor_context"
 
 
 class FiscalDocument(models.Model):
@@ -113,6 +114,15 @@ class FiscalDocument(models.Model):
         ])
         documents = super().create(vals_list)
         event_model = self.env["fiscal.event"]
+        creation_actor = self.env.context.get(FISCAL_CREATION_ACTOR_CONTEXT) or {}
+        actor_type = creation_actor.get("actor_type") or "user"
+        if actor_type not in ("user", "system", "api"):
+            actor_type = "user"
+        user_id = (
+            creation_actor.get("user_id") or self.env.user.id
+            if actor_type == "user"
+            else False
+        )
         for document in documents:
             has_creation_event = any(
                 event.event_type == "document_created"
@@ -125,8 +135,8 @@ class FiscalDocument(models.Model):
                 "event_type": "document_created",
                 "from_state": False,
                 "to_state": document.state or "draft",
-                "actor_type": "user",
-                "user_id": self.env.user.id,
+                "actor_type": actor_type,
+                "user_id": user_id,
                 "occurred_at": fields.Datetime.now(),
                 "message": "Fiscal document created",
             })
