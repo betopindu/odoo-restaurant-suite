@@ -1,0 +1,17 @@
+<odoo>
+    <record id="view_fiscal_document_form_py" model="ir.ui.view">
+        <field name="name">fiscal.document.form.paraguay</field>
+        <field name="model">fiscal.document</field>
+        <field name="inherit_id" ref="einvoice_module.view_fiscal_document_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group[field[@name='country_code']]" position="after">
+                <group string="Paraguay Information" invisible="country_code != 'PY'">
+                    <field name="py_establishment_id"/>
+                    <field name="py_point_of_issue_id"/>
+                    <field name="py_timbrado_id"/>
+                    <field name="py_csc_id"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

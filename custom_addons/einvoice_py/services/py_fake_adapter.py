@@ -1,0 +1,139 @@
+from odoo import fields
+
+from odoo.addons.einvoice_module.services.adapter_registry import (
+    FakeAdapter,
+    FiscalAdapterRegistry,
+    FiscalAdapterResult,
+)
+from odoo.addons.einvoice_module.services.validation import FiscalValidationResult
+
+
+class PyFakeAdapter(FakeAdapter):
+    code = "py_fake"
+
+    def validate(self, document):
+        errors = []
+        if (document.country_code or "").upper() != "PY":
+            errors.append("Paraguay fake adapter requires country_code PY.")
+
+        config = self._select_config(document)
+        if not config["point_of_issue"]:
+            errors.append("Active Paraguay point of issue is required.")
+        if not config["timbrado"]:
+            errors.append("Active Paraguay timbrado is required.")
+        if not config["csc"]:
+            errors.append("Active Paraguay CSC is required.")
+
+        return FiscalValidationResult(errors)
+
+    def submit(self, document):
+        config = self._select_config(document)
+        self._persist_config(document, config)
+        outcome = self._outcome_from_document(document)
+        country_identifier = document.country_identifier or f"PY-FAKE-{document.uuid}"
+        return FiscalAdapterResult(
+            outcome=outcome,
+            authority_status_code=outcome,
+            authority_message=self._message_from_outcome(outcome),
+            country_identifier=country_identifier if outcome == "accepted" else "",
+            authority_receipt_ref=f"PY-FAKE-{document.uuid}",
+            retryable=outcome == "failed_retryable",
+            retry_after_seconds=300 if outcome == "failed_retryable" else 0,
+            metadata_json={
+                "mode": "fake",
+                "adapter_code": self.code,
+                "source": "einvoice_py",
+                "matched_outcome": outcome,
+                "py_establishment_code": config["establishment"].code,
+                "py_point_of_issue_code": config["point_of_issue"].code,
+                "py_timbrado_number": config["timbrado"].number,
+                "py_id_csc": config["csc"].id_csc,
+            },
+        )
+
+    def _select_config(self, document):
+        point_of_issue = document.py_point_of_issue_id or self._select_point_of_issue(document)
+        establishment = (
+            document.py_establishment_id
+            or point_of_issue.establishment_id
+            or self.env["fiscal.py.establishment"]
+        )
+        return {
+            "point_of_issue": point_of_issue,
+            "establishment": establishment,
+            "timbrado": document.py_timbrado_id or self._select_timbrado(document, point_of_issue),
+            "csc": document.py_csc_id or self._select_csc(document),
+        }
+
+    def _base_domain(self, document):
+        return [
+            ("tenant_id", "=", document.tenant_id.id),
+            ("company_id", "=", document.company_id.id),
+            ("active", "=", True),
+        ]
+
+    def _select_point_of_issue(self, document):
+        return self.env["fiscal.py.point.of.issue"].search(
+            self._base_domain(document),
+            order="id asc",
+            limit=1,
+        )
+
+    def _select_timbrado(self, document, point_of_issue):
+        today = fields.Date.today()
+        domain = self._base_domain(document) + [
+            ("environment", "=", document.environment),
+            ("document_type", "=", document.document_type),
+            "|",
+            ("valid_from", "=", False),
+            ("valid_from", "<=", today),
+            "|",
+            ("valid_to", "=", False),
+            ("valid_to", ">=", today),
+        ]
+        candidates = self.env["fiscal.py.timbrado"].search(domain, order="id asc")
+        if point_of_issue:
+            candidates = candidates.filtered(
+                lambda timbrado: (
+                    not timbrado.allowed_point_of_issue_ids
+                    or point_of_issue in timbrado.allowed_point_of_issue_ids
+                )
+            )
+        return candidates[:1]
+
+    def _select_csc(self, document):
+        today = fields.Date.today()
+        return self.env["fiscal.py.csc"].search(
+            self._base_domain(document)
+            + [
+                ("environment", "=", document.environment),
+                "|",
+                ("valid_from", "=", False),
+                ("valid_from", "<=", today),
+                "|",
+                ("valid_to", "=", False),
+                ("valid_to", ">=", today),
+            ],
+            order="id asc",
+            limit=1,
+        )
+
+    def _persist_config(self, document, config):
+        document.with_context(einvoice_skip_fiscal_document_lock=True).write({
+            "py_establishment_id": config["establishment"].id,
+            "py_point_of_issue_id": config["point_of_issue"].id,
+            "py_timbrado_id": config["timbrado"].id,
+            "py_csc_id": config["csc"].id,
+        })
+
+    def _message_from_outcome(self, outcome):
+        return {
+            "accepted": "Paraguay fake accepted response",
+            "rejected": "Paraguay fake rejected response",
+            "failed_retryable": "Paraguay fake retryable failure response",
+            "failed_final": "Paraguay fake final failure response",
+            "manual_review": "Paraguay fake manual review response",
+        }.get(outcome, "Paraguay fake unknown response")
+
+
+FiscalAdapterRegistry.ADAPTERS[PyFakeAdapter.code] = PyFakeAdapter

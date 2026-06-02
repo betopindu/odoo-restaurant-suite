@@ -112,6 +112,27 @@ class FiscalOrchestrator:
         )
         return False
 
+    def _validate_adapter_before_submit(self, document, adapter, actor_context=None):
+        result = adapter.validate(document)
+        if result is True or result is None:
+            return True
+        if isinstance(result, str):
+            errors = [result]
+        else:
+            errors = getattr(result, "errors", result)
+        errors = errors or []
+        if not errors:
+            return True
+
+        summary = "; ".join(errors)
+        self.transition_to(
+            document,
+            "validation_error",
+            f"Fiscal adapter validation failed: {summary}",
+            actor_context=actor_context,
+        )
+        return False
+
     def _transmission_state_from_outcome(self, outcome):
         return {
             "accepted": "accepted",
@@ -243,6 +264,14 @@ class FiscalOrchestrator:
         if not self._validate_before_submit(document, actor_context=actor_context):
             return False
 
+        adapter = self._get_adapter(document)
+        if not self._validate_adapter_before_submit(
+            document,
+            adapter,
+            actor_context=actor_context,
+        ):
+            return False
+
         now = fields.Datetime.now()
         self.transition_to(
             document,
@@ -251,7 +280,7 @@ class FiscalOrchestrator:
             actor_context=actor_context,
             extra_vals={"submitted_at": now},
         )
-        result = self._get_adapter(document).submit(document)
+        result = adapter.submit(document)
         transmission = self.create_transmission(document, result)
         self.create_adapter_response_attachment(document, transmission, result)
         self.transition_to(
