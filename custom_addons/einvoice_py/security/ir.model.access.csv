@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_fiscal_py_establishment_user,access.fiscal.py.establishment.user,model_fiscal_py_establishment,base.group_user,1,1,1,1
+access_fiscal_py_point_of_issue_user,access.fiscal.py.point.of.issue.user,model_fiscal_py_point_of_issue,base.group_user,1,1,1,1
+access_fiscal_py_timbrado_user,access.fiscal.py.timbrado.user,model_fiscal_py_timbrado,base.group_user,1,1,1,1
+access_fiscal_py_csc_user,access.fiscal.py.csc.user,model_fiscal_py_csc,base.group_user,1,1,1,1

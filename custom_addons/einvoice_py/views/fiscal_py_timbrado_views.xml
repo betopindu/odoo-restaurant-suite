@@ -1,0 +1,50 @@
+<odoo>
+    <record id="view_fiscal_py_timbrado_tree" model="ir.ui.view">
+        <field name="name">fiscal.py.timbrado.tree</field>
+        <field name="model">fiscal.py.timbrado</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="number"/>
+                <field name="tenant_id"/>
+                <field name="company_id"/>
+                <field name="environment"/>
+                <field name="document_type"/>
+                <field name="valid_from"/>
+                <field name="valid_to"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_fiscal_py_timbrado_form" model="ir.ui.view">
+        <field name="name">fiscal.py.timbrado.form</field>
+        <field name="model">fiscal.py.timbrado</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="number"/>
+                        <field name="tenant_id"/>
+                        <field name="company_id"/>
+                        <field name="environment"/>
+                        <field name="document_type"/>
+                        <field name="active"/>
+                    </group>
+                    <group string="Validity">
+                        <field name="valid_from"/>
+                        <field name="valid_to"/>
+                    </group>
+                    <group string="Allowed Points of Issue">
+                        <field name="allowed_point_of_issue_ids" widget="many2many_tags"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_fiscal_py_timbrado" model="ir.actions.act_window">
+        <field name="name">Paraguay Timbrados</field>
+        <field name="res_model">fiscal.py.timbrado</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

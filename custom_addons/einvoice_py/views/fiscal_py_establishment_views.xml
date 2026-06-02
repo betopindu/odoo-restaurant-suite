@@ -1,0 +1,44 @@
+<odoo>
+    <record id="view_fiscal_py_establishment_tree" model="ir.ui.view">
+        <field name="name">fiscal.py.establishment.tree</field>
+        <field name="model">fiscal.py.establishment</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="tenant_id"/>
+                <field name="company_id"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_fiscal_py_establishment_form" model="ir.ui.view">
+        <field name="name">fiscal.py.establishment.form</field>
+        <field name="model">fiscal.py.establishment</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="code"/>
+                        <field name="tenant_id"/>
+                        <field name="company_id"/>
+                        <field name="active"/>
+                    </group>
+                    <group string="Contact">
+                        <field name="address"/>
+                        <field name="phone"/>
+                        <field name="email"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_fiscal_py_establishment" model="ir.actions.act_window">
+        <field name="name">Paraguay Establishments</field>
+        <field name="res_model">fiscal.py.establishment</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

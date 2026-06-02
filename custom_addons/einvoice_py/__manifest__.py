@@ -1,0 +1,19 @@
+{
+    "name": "Electronic Invoicing Paraguay",
+    "summary": "Paraguay fiscal configuration for the e-Invoice core",
+    "version": "17.0.1.0.0",
+    "category": "Accounting/Accounting",
+    "depends": ["einvoice_module"],
+    "data": [
+        "security/ir.model.access.csv",
+        "security/fiscal_py_security_rules.xml",
+        "views/fiscal_py_establishment_views.xml",
+        "views/fiscal_py_point_of_issue_views.xml",
+        "views/fiscal_py_timbrado_views.xml",
+        "views/fiscal_py_csc_views.xml",
+        "views/einvoice_py_menus.xml",
+    ],
+    "installable": True,
+    "application": False,
+    "license": "LGPL-3",
+}

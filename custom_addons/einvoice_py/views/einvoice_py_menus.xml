@@ -1,0 +1,30 @@
+<odoo>
+    <menuitem id="menu_fiscal_py_configuration"
+              name="Paraguay"
+              parent="einvoice_module.menu_fiscal_configuration"
+              sequence="40"/>
+
+    <menuitem id="menu_fiscal_py_establishments"
+              name="Establishments"
+              parent="menu_fiscal_py_configuration"
+              action="action_fiscal_py_establishment"
+              sequence="10"/>
+
+    <menuitem id="menu_fiscal_py_points_of_issue"
+              name="Points of Issue"
+              parent="menu_fiscal_py_configuration"
+              action="action_fiscal_py_point_of_issue"
+              sequence="20"/>
+
+    <menuitem id="menu_fiscal_py_timbrados"
+              name="Timbrados"
+              parent="menu_fiscal_py_configuration"
+              action="action_fiscal_py_timbrado"
+              sequence="30"/>
+
+    <menuitem id="menu_fiscal_py_csc"
+              name="CSC"
+              parent="menu_fiscal_py_configuration"
+              action="action_fiscal_py_csc"
+              sequence="40"/>
+</odoo>
