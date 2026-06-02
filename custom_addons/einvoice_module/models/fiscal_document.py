@@ -160,16 +160,47 @@ class FiscalDocument(models.Model):
 
         locked_documents = self.filtered(lambda document: document.state in LOCKED_FISCAL_STATES)
         if locked_documents:
-            # TODO: create an audit event when administrator override auditing is introduced.
             raise ValidationError(
                 "You cannot edit fiscal documents in locked states: "
                 "submitted, accepted, cancelled, failed final, manual review."
             )
 
     def write(self, vals):
+        override_states = self._admin_override_states()
         self._check_fiscal_edit_lock()
         self._check_idempotency_write(vals)
-        return super().write(vals)
+        result = super().write(vals)
+        self._create_admin_override_events(override_states)
+        return result
+
+    def _admin_override_states(self):
+        if (
+            self.env.context.get(FISCAL_LOCK_BYPASS_CONTEXT)
+            or not self.env.user.has_group("base.group_system")
+        ):
+            return {}
+        return {
+            document.id: document.state
+            for document in self
+            if document.state in LOCKED_FISCAL_STATES
+        }
+
+    def _create_admin_override_events(self, override_states):
+        if not override_states:
+            return
+        event_model = self.env["fiscal.event"]
+        for document in self.filtered(lambda doc: doc.id in override_states):
+            state = override_states[document.id]
+            event_model.create({
+                "document_id": document.id,
+                "event_type": "manual_override",
+                "from_state": state,
+                "to_state": state,
+                "actor_type": "user",
+                "user_id": self.env.user.id,
+                "occurred_at": fields.Datetime.now(),
+                "message": "Admin override edit on locked fiscal document",
+            })
 
     def _check_idempotency_write(self, vals):
         idempotency_fields = {"tenant_id", "document_type", "idempotency_key", "active"}

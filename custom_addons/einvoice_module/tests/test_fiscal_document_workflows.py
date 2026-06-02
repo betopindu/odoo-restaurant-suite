@@ -102,3 +102,43 @@ class TestFiscalDocumentWorkflows(TransactionCase):
                 with self.assertRaises(ValidationError):
                     getattr(document, action)()
                 self.assertEqual(document.state, "queued")
+
+    def test_admin_editing_locked_document_creates_manual_override_event(self):
+        document = self._create_document("accepted")
+        admin = self.env.ref("base.user_admin")
+
+        document.with_user(admin).write({
+            "customer_name": "Admin Override Customer",
+            "customer_email": "override@example.com",
+        })
+
+        events = self.env["fiscal.event"].search([
+            ("document_id", "=", document.id),
+            ("event_type", "=", "manual_override"),
+        ])
+        self.assertEqual(len(events), 1)
+        event = events[0]
+        self.assertEqual(event.from_state, "accepted")
+        self.assertEqual(event.to_state, "accepted")
+        self.assertEqual(event.actor_type, "user")
+        self.assertEqual(event.user_id, admin)
+        self.assertEqual(event.message, "Admin override edit on locked fiscal document")
+
+    def test_normal_user_editing_locked_document_remains_blocked(self):
+        document = self._create_document("accepted", key_suffix="accepted-user")
+        user = self.env["res.users"].with_context(no_reset_password=True).create({
+            "name": "Fiscal Normal User",
+            "login": "fiscal-normal-user",
+            "email": "fiscal-normal-user@example.com",
+            "groups_id": [(6, 0, [self.env.ref("base.group_user").id])],
+            "allowed_fiscal_tenant_ids": [(6, 0, [self.tenant.id])],
+        })
+
+        with self.assertRaises(ValidationError):
+            document.with_user(user).write({"customer_name": "Blocked Edit"})
+
+        events = self.env["fiscal.event"].search([
+            ("document_id", "=", document.id),
+            ("event_type", "=", "manual_override"),
+        ])
+        self.assertFalse(events)
