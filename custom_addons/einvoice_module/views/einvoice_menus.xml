@@ -35,4 +35,9 @@
               parent="menu_fiscal_configuration"
               action="action_fiscal_adapter_config"
               sequence="20"/>
+    <menuitem id="menu_fiscal_document_lock_policies"
+              name="Lock Policies"
+              parent="menu_fiscal_configuration"
+              action="action_fiscal_document_lock_policy"
+              sequence="30"/>
 </odoo>

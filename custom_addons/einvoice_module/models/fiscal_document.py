@@ -7,7 +7,7 @@ from odoo.addons.einvoice_module.services.idempotency import FiscalIdempotencySe
 from odoo.addons.einvoice_module.services.orchestrator import FiscalOrchestrator
 
 
-LOCKED_FISCAL_STATES = {
+FALLBACK_LOCKED_FISCAL_STATES = {
     "submitted",
     "accepted",
     "cancelled",
@@ -149,20 +149,19 @@ class FiscalDocument(models.Model):
         return documents
 
     def _is_fiscal_lock_bypassed(self):
-        return (
-            self.env.context.get(FISCAL_LOCK_BYPASS_CONTEXT)
-            or self.env.user.has_group("base.group_system")
-        )
+        return bool(self.env.context.get(FISCAL_LOCK_BYPASS_CONTEXT))
 
     def _check_fiscal_edit_lock(self):
         if self._is_fiscal_lock_bypassed():
             return
 
-        locked_documents = self.filtered(lambda document: document.state in LOCKED_FISCAL_STATES)
-        if locked_documents:
+        locked_documents = self.filtered(lambda document: document._is_state_locked())
+        blocked_documents = locked_documents.filtered(
+            lambda document: not document._is_admin_override_allowed()
+        )
+        if blocked_documents:
             raise ValidationError(
-                "You cannot edit fiscal documents in locked states: "
-                "submitted, accepted, cancelled, failed final, manual review."
+                "You cannot edit fiscal documents in locked states."
             )
 
     def write(self, vals):
@@ -173,6 +172,24 @@ class FiscalDocument(models.Model):
         self._create_admin_override_events(override_states)
         return result
 
+    def _get_locked_states(self):
+        self.ensure_one()
+        policy = self.tenant_id.lock_policy_id
+        if policy:
+            return set(policy.line_ids.mapped("state"))
+        return set(FALLBACK_LOCKED_FISCAL_STATES)
+
+    def _is_state_locked(self):
+        self.ensure_one()
+        return self.state in self._get_locked_states()
+
+    def _is_admin_override_allowed(self):
+        self.ensure_one()
+        if not self.env.user.has_group("base.group_system"):
+            return False
+        policy = self.tenant_id.lock_policy_id
+        return policy.allow_admin_override if policy else True
+
     def _admin_override_states(self):
         if (
             self.env.context.get(FISCAL_LOCK_BYPASS_CONTEXT)
@@ -182,7 +199,7 @@ class FiscalDocument(models.Model):
         return {
             document.id: document.state
             for document in self
-            if document.state in LOCKED_FISCAL_STATES
+            if document._is_state_locked() and document._is_admin_override_allowed()
         }
 
     def _create_admin_override_events(self, override_states):

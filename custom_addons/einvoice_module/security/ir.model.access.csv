@@ -1,5 +1,7 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_fiscal_tenant_user,access.fiscal.tenant.user,model_fiscal_tenant,base.group_user,1,1,1,1
+access_fiscal_document_lock_policy_user,access.fiscal.document.lock.policy.user,model_fiscal_document_lock_policy,base.group_user,1,1,1,1
+access_fiscal_document_lock_policy_line_user,access.fiscal.document.lock.policy.line.user,model_fiscal_document_lock_policy_line,base.group_user,1,1,1,1
 access_fiscal_document_user,access.fiscal.document.user,model_fiscal_document,base.group_user,1,1,1,1
 access_fiscal_document_line_user,access.fiscal.document.line.user,model_fiscal_document_line,base.group_user,1,1,1,1
 access_fiscal_event_user,access.fiscal.event.user,model_fiscal_event,base.group_user,1,1,1,1

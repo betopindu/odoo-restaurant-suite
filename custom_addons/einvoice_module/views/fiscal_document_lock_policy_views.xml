@@ -1,0 +1,45 @@
+<odoo>
+    <record id="view_fiscal_document_lock_policy_tree" model="ir.ui.view">
+        <field name="name">fiscal.document.lock.policy.tree</field>
+        <field name="model">fiscal.document.lock.policy</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name"/>
+                <field name="allow_admin_override"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_fiscal_document_lock_policy_form" model="ir.ui.view">
+        <field name="name">fiscal.document.lock.policy.form</field>
+        <field name="model">fiscal.document.lock.policy</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="allow_admin_override"/>
+                        <field name="active"/>
+                    </group>
+                    <group string="Locked States">
+                        <field name="line_ids">
+                            <tree editable="bottom">
+                                <field name="state"/>
+                            </tree>
+                        </field>
+                    </group>
+                    <group string="Description">
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_fiscal_document_lock_policy" model="ir.actions.act_window">
+        <field name="name">Lock Policies</field>
+        <field name="res_model">fiscal.document.lock.policy</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

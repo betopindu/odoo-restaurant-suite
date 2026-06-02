@@ -9,6 +9,7 @@
         "security/fiscal_security_rules.xml",
         "data/fiscal_cron.xml",
         "views/res_users_views.xml",
+        "views/fiscal_document_lock_policy_views.xml",
         "views/fiscal_tenant_views.xml",
         "views/fiscal_document_views.xml",
         "views/fiscal_event_views.xml",

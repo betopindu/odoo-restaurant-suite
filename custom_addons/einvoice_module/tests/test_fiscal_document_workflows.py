@@ -38,6 +38,25 @@ class TestFiscalDocumentWorkflows(TransactionCase):
             limit=1,
         )
 
+    def _create_user(self, login):
+        return self.env["res.users"].with_context(no_reset_password=True).create({
+            "name": login,
+            "login": login,
+            "email": f"{login}@example.com",
+            "groups_id": [(6, 0, [self.env.ref("base.group_user").id])],
+            "allowed_fiscal_tenant_ids": [(6, 0, [self.tenant.id])],
+        })
+
+    def _create_lock_policy(self, states, allow_admin_override=True):
+        return self.env["fiscal.document.lock.policy"].create({
+            "name": f"Policy {self._testMethodName}",
+            "allow_admin_override": allow_admin_override,
+            "line_ids": [
+                (0, 0, {"state": state})
+                for state in states
+            ],
+        })
+
     def test_retry_validation_error_requeues_and_creates_user_event(self):
         document = self._create_document("validation_error")
 
@@ -126,17 +145,74 @@ class TestFiscalDocumentWorkflows(TransactionCase):
 
     def test_normal_user_editing_locked_document_remains_blocked(self):
         document = self._create_document("accepted", key_suffix="accepted-user")
-        user = self.env["res.users"].with_context(no_reset_password=True).create({
-            "name": "Fiscal Normal User",
-            "login": "fiscal-normal-user",
-            "email": "fiscal-normal-user@example.com",
-            "groups_id": [(6, 0, [self.env.ref("base.group_user").id])],
-            "allowed_fiscal_tenant_ids": [(6, 0, [self.tenant.id])],
-        })
+        user = self._create_user("fiscal-normal-user")
 
         with self.assertRaises(ValidationError):
             document.with_user(user).write({"customer_name": "Blocked Edit"})
 
+        events = self.env["fiscal.event"].search([
+            ("document_id", "=", document.id),
+            ("event_type", "=", "manual_override"),
+        ])
+        self.assertFalse(events)
+
+    def test_no_tenant_policy_uses_fallback_locked_states(self):
+        document = self._create_document("accepted", key_suffix="fallback-accepted")
+        user = self._create_user("fallback-lock-user")
+
+        with self.assertRaises(ValidationError):
+            document.with_user(user).write({"customer_name": "Blocked Fallback"})
+
+    def test_tenant_policy_can_lock_rejected(self):
+        policy = self._create_lock_policy(["rejected"])
+        self.tenant.lock_policy_id = policy
+        document = self._create_document("rejected")
+        user = self._create_user("rejected-lock-user")
+
+        with self.assertRaises(ValidationError):
+            document.with_user(user).write({"customer_name": "Blocked Rejected"})
+
+    def test_tenant_policy_can_omit_manual_review(self):
+        policy = self._create_lock_policy(["accepted"])
+        self.tenant.lock_policy_id = policy
+        document = self._create_document("manual_review", key_suffix="editable-manual")
+        user = self._create_user("manual-review-edit-user")
+
+        document.with_user(user).write({"customer_name": "Manual Review Editable"})
+
+        self.assertEqual(document.customer_name, "Manual Review Editable")
+        events = self.env["fiscal.event"].search([
+            ("document_id", "=", document.id),
+            ("event_type", "=", "manual_override"),
+        ])
+        self.assertFalse(events)
+
+    def test_tenant_policy_can_disable_admin_override(self):
+        policy = self._create_lock_policy(["accepted"], allow_admin_override=False)
+        self.tenant.lock_policy_id = policy
+        document = self._create_document("accepted", key_suffix="admin-disabled")
+        admin = self.env.ref("base.user_admin")
+
+        with self.assertRaises(ValidationError):
+            document.with_user(admin).write({"customer_name": "Blocked Admin"})
+
+        events = self.env["fiscal.event"].search([
+            ("document_id", "=", document.id),
+            ("event_type", "=", "manual_override"),
+        ])
+        self.assertFalse(events)
+
+    def test_lock_bypass_context_still_allows_system_transition_writes(self):
+        policy = self._create_lock_policy(["accepted"], allow_admin_override=False)
+        self.tenant.lock_policy_id = policy
+        document = self._create_document("accepted", key_suffix="context-bypass")
+        admin = self.env.ref("base.user_admin")
+
+        document.with_user(admin).with_context(
+            einvoice_skip_fiscal_document_lock=True,
+        ).write({"customer_name": "Bypass Edit"})
+
+        self.assertEqual(document.customer_name, "Bypass Edit")
         events = self.env["fiscal.event"].search([
             ("document_id", "=", document.id),
             ("event_type", "=", "manual_override"),
