@@ -38,6 +38,11 @@
                             string="Process Now"
                             class="btn-secondary"
                             invisible="state not in ('ready', 'queued')"/>
+                    <button name="action_retry_validation_error"
+                            type="object"
+                            string="Retry Validation"
+                            class="btn-primary"
+                            invisible="state != 'validation_error'"/>
                     <button name="action_retry_manual_review"
                             type="object"
                             string="Retry"

@@ -217,6 +217,12 @@ class FiscalDocument(models.Model):
             actor_context=self._get_user_actor_context(),
         )
 
+    def action_retry_validation_error(self):
+        return self._get_orchestrator().retry_validation_error(
+            self,
+            actor_context=self._get_user_actor_context(),
+        )
+
     def action_retry_manual_review(self):
         return self._get_orchestrator().retry_manual_review(
             self,

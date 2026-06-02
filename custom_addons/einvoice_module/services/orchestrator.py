@@ -174,6 +174,20 @@ class FiscalOrchestrator:
                 )
         return True
 
+    def retry_validation_error(self, documents, actor_context=None):
+        if any(document.state != "validation_error" for document in documents):
+            raise ValidationError(
+                "Only fiscal documents in validation error can be requeued."
+            )
+        for document in documents:
+            self.transition_to(
+                document,
+                "queued",
+                "Validation error resolved and document requeued",
+                actor_context=actor_context,
+            )
+        return True
+
     def _resolve_manual_review(self, documents, to_state, message, actor_context=None):
         if any(document.state != "manual_review" for document in documents):
             raise ValidationError(
