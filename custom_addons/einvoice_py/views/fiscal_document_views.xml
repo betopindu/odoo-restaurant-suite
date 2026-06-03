@@ -10,6 +10,10 @@
                     <field name="py_point_of_issue_id"/>
                     <field name="py_timbrado_id"/>
                     <field name="py_csc_id"/>
+                    <field name="py_issuer_id"/>
+                    <field name="py_issuer_ruc"/>
+                    <field name="py_issuer_ruc_dv"/>
+                    <field name="py_issuer_taxpayer_type"/>
                     <field name="py_document_number"/>
                     <field name="py_full_number"/>
                 </group>

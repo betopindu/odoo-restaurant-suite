@@ -20,6 +20,13 @@ class PyFakeAdapter(FakeAdapter):
         config = self._select_config(document)
         if not config["point_of_issue"]:
             errors.append("Active Paraguay point of issue is required.")
+        issuer = config["establishment"].issuer_id
+        if not issuer:
+            errors.append("Active Paraguay issuer is required.")
+        elif (issuer.environment or "") != document.environment:
+            errors.append("Paraguay issuer environment must match the document environment.")
+        elif not issuer.ruc or not issuer.ruc_dv or not issuer.taxpayer_type:
+            errors.append("Paraguay issuer RUC, DV, and taxpayer type are required.")
         if not config["timbrado"]:
             errors.append("Active Paraguay timbrado is required.")
         if not config["csc"]:
@@ -49,6 +56,7 @@ class PyFakeAdapter(FakeAdapter):
                 "source": "einvoice_py",
                 "matched_outcome": outcome,
                 "py_establishment_code": config["establishment"].code,
+                "py_issuer_ruc": config["establishment"].issuer_id.ruc,
                 "py_point_of_issue_code": config["point_of_issue"].code,
                 "py_timbrado_number": config["timbrado"].number,
                 "py_id_csc": config["csc"].id_csc,
@@ -124,11 +132,16 @@ class PyFakeAdapter(FakeAdapter):
         )
 
     def _persist_config(self, document, config):
+        issuer = config["establishment"].issuer_id
         document.with_context(einvoice_skip_fiscal_document_lock=True).write({
             "py_establishment_id": config["establishment"].id,
             "py_point_of_issue_id": config["point_of_issue"].id,
             "py_timbrado_id": config["timbrado"].id,
             "py_csc_id": config["csc"].id,
+            "py_issuer_id": issuer.id,
+            "py_issuer_ruc": issuer.ruc,
+            "py_issuer_ruc_dv": issuer.ruc_dv,
+            "py_issuer_taxpayer_type": issuer.taxpayer_type,
         })
 
     def _has_matching_sequence(self, document, config):

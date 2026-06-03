@@ -8,6 +8,12 @@
               name="Establishments"
               parent="menu_fiscal_py_configuration"
               action="action_fiscal_py_establishment"
+              sequence="20"/>
+
+    <menuitem id="menu_fiscal_py_issuers"
+              name="Issuers"
+              parent="menu_fiscal_py_configuration"
+              action="action_fiscal_py_issuer"
               sequence="10"/>
 
     <menuitem id="menu_fiscal_py_points_of_issue"

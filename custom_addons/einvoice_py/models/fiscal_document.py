@@ -24,6 +24,27 @@ class FiscalDocument(models.Model):
         string="Paraguay CSC",
         copy=False,
     )
+    py_issuer_id = fields.Many2one(
+        "fiscal.py.issuer",
+        string="Paraguay Issuer",
+        copy=False,
+    )
+    py_issuer_ruc = fields.Char(
+        string="Paraguay Issuer RUC",
+        copy=False,
+    )
+    py_issuer_ruc_dv = fields.Char(
+        string="Paraguay Issuer RUC DV",
+        copy=False,
+    )
+    py_issuer_taxpayer_type = fields.Selection(
+        [
+            ("1", "Physical Person"),
+            ("2", "Legal Entity"),
+        ],
+        string="Paraguay Issuer Taxpayer Type",
+        copy=False,
+    )
     py_document_number = fields.Char(
         string="Paraguay Document Number",
         copy=False,

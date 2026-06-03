@@ -6,6 +6,7 @@
             <tree>
                 <field name="name"/>
                 <field name="code"/>
+                <field name="issuer_id"/>
                 <field name="tenant_id"/>
                 <field name="company_id"/>
                 <field name="active"/>
@@ -22,6 +23,7 @@
                     <group>
                         <field name="name"/>
                         <field name="code"/>
+                        <field name="issuer_id"/>
                         <field name="tenant_id"/>
                         <field name="company_id"/>
                         <field name="active"/>

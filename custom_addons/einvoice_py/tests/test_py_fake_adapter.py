@@ -21,13 +21,24 @@ class TestPyFakeAdapter(TransactionCase):
         with_sequence=True,
         establishment=None,
         point_of_issue=None,
+        issuer=None,
     ):
         if not establishment:
+            issuer = issuer or self.env["fiscal.py.issuer"].create({
+                "name": f"Py Fake Issuer {point_code}",
+                "tenant_id": self.tenant.id,
+                "company_id": self.env.company.id,
+                "environment": "test",
+                "ruc": "80012345",
+                "ruc_dv": "6",
+                "taxpayer_type": "2",
+            })
             establishment = self.env["fiscal.py.establishment"].create({
                 "name": f"Main Establishment {point_code}",
                 "code": "001",
                 "tenant_id": self.tenant.id,
                 "company_id": self.env.company.id,
+                "issuer_id": issuer.id,
             })
         if not point_of_issue:
             point_of_issue = self.env["fiscal.py.point.of.issue"].create({
@@ -122,6 +133,7 @@ class TestPyFakeAdapter(TransactionCase):
         )[-1:]
         self.assertTrue(event)
         self.assertIn("Active Paraguay point of issue is required.", event.message)
+        self.assertIn("Active Paraguay issuer is required.", event.message)
         self.assertIn("Active Paraguay timbrado is required.", event.message)
         self.assertIn("Active Paraguay CSC is required.", event.message)
 
@@ -135,6 +147,18 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertEqual(document.py_point_of_issue_id, point_of_issue)
         self.assertEqual(document.py_timbrado_id, timbrado)
         self.assertEqual(document.py_csc_id, csc)
+
+    def test_py_fake_persists_issuer_snapshot_fields(self):
+        establishment, point_of_issue, timbrado, csc, sequence = self._create_config()
+        issuer = establishment.issuer_id
+        document = self._create_document()
+
+        self._process(document)
+
+        self.assertEqual(document.py_issuer_id, issuer)
+        self.assertEqual(document.py_issuer_ruc, issuer.ruc)
+        self.assertEqual(document.py_issuer_ruc_dv, issuer.ruc_dv)
+        self.assertEqual(document.py_issuer_taxpayer_type, issuer.taxpayer_type)
 
     def test_sequence_assigns_number_and_increments_next_number(self):
         establishment, point_of_issue, timbrado, csc, sequence = self._create_config(
@@ -222,3 +246,57 @@ class TestPyFakeAdapter(TransactionCase):
         )[-1:]
         self.assertTrue(event)
         self.assertIn("Active Paraguay sequence is required.", event.message)
+
+    def test_missing_issuer_moves_to_validation_error(self):
+        establishment = self.env["fiscal.py.establishment"].create({
+            "name": "Inactive Establishment Without Issuer",
+            "code": "001",
+            "tenant_id": self.tenant.id,
+            "company_id": self.env.company.id,
+            "active": False,
+        })
+        point_of_issue = self.env["fiscal.py.point.of.issue"].create({
+            "name": "Point Without Issuer",
+            "code": "001",
+            "establishment_id": establishment.id,
+        })
+        timbrado = self.env["fiscal.py.timbrado"].create({
+            "number": "12345678",
+            "tenant_id": self.tenant.id,
+            "company_id": self.env.company.id,
+            "environment": "test",
+            "document_type": "invoice",
+            "allowed_point_of_issue_ids": [(6, 0, [point_of_issue.id])],
+        })
+        csc = self.env["fiscal.py.csc"].create({
+            "name": "Test CSC Without Issuer",
+            "id_csc": "001",
+            "csc_value": "test-csc-value",
+            "tenant_id": self.tenant.id,
+            "company_id": self.env.company.id,
+            "environment": "test",
+        })
+        self.env["fiscal.py.sequence"].create({
+            "name": "Sequence Without Issuer",
+            "tenant_id": self.tenant.id,
+            "company_id": self.env.company.id,
+            "timbrado_id": timbrado.id,
+            "establishment_id": establishment.id,
+            "point_of_issue_id": point_of_issue.id,
+            "document_type": "invoice",
+            "next_number": 15,
+            "padding": 7,
+        })
+        document = self._create_document()
+
+        self._process(document)
+
+        self.assertEqual(document.state, "validation_error")
+        event = document.event_ids.filtered(
+            lambda item: (
+                item.event_type == "state_transition"
+                and item.to_state == "validation_error"
+            )
+        )[-1:]
+        self.assertTrue(event)
+        self.assertIn("Active Paraguay issuer is required.", event.message)

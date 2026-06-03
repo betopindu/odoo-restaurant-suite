@@ -28,14 +28,65 @@ class TestFiscalPyConfiguration(TransactionCase):
             "allowed_fiscal_tenant_ids": [(6, 0, [tenant.id])],
         })
 
+    def _create_issuer(self, tenant=None, ruc="80012345", ruc_dv="6", environment="test"):
+        tenant = tenant or self.tenant_a
+        return self.env["fiscal.py.issuer"].sudo().create({
+            "name": f"Issuer {tenant.code} {environment}",
+            "tenant_id": tenant.id,
+            "company_id": self.env.company.id,
+            "environment": environment,
+            "ruc": ruc,
+            "ruc_dv": ruc_dv,
+            "taxpayer_type": "2",
+        })
+
     def _create_establishment(self, tenant=None, code="001"):
         tenant = tenant or self.tenant_a
+        issuer = self.env["fiscal.py.issuer"].sudo().search(
+            [
+                ("tenant_id", "=", tenant.id),
+                ("company_id", "=", self.env.company.id),
+                ("environment", "=", "test"),
+                ("active", "=", True),
+            ],
+            limit=1,
+        ) or self._create_issuer(tenant)
         return self.env["fiscal.py.establishment"].sudo().create({
             "name": f"Establishment {code}",
             "code": code,
             "tenant_id": tenant.id,
             "company_id": self.env.company.id,
+            "issuer_id": issuer.id,
         })
+
+    def test_issuer_ruc_must_be_numeric_and_at_most_eight_digits(self):
+        with self.assertRaises(ValidationError):
+            self._create_issuer(ruc="800ABC")
+
+        with self.assertRaises(ValidationError):
+            self._create_issuer(ruc="123456789")
+
+    def test_issuer_ruc_dv_must_be_one_digit(self):
+        with self.assertRaises(ValidationError):
+            self._create_issuer(ruc_dv="A")
+
+        with self.assertRaises(ValidationError):
+            self._create_issuer(ruc_dv="12")
+
+    def test_only_one_active_issuer_per_tenant_company_environment(self):
+        self._create_issuer()
+
+        with self.assertRaises(ValidationError):
+            self._create_issuer(ruc="80012346", ruc_dv="7")
+
+    def test_active_establishment_requires_issuer(self):
+        with self.assertRaises(ValidationError):
+            self.env["fiscal.py.establishment"].sudo().create({
+                "name": "Establishment Without Issuer",
+                "code": "003",
+                "tenant_id": self.tenant_a.id,
+                "company_id": self.env.company.id,
+            })
 
     def test_establishment_code_must_be_three_digits(self):
         with self.assertRaises(ValidationError):
