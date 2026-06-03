@@ -11,6 +11,7 @@
         "views/fiscal_py_point_of_issue_views.xml",
         "views/fiscal_py_timbrado_views.xml",
         "views/fiscal_py_csc_views.xml",
+        "views/fiscal_py_sequence_views.xml",
         "views/fiscal_document_views.xml",
         "views/einvoice_py_menus.xml",
     ],

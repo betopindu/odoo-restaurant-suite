@@ -24,3 +24,13 @@ class FiscalDocument(models.Model):
         string="Paraguay CSC",
         copy=False,
     )
+    py_document_number = fields.Char(
+        string="Paraguay Document Number",
+        copy=False,
+        index=True,
+    )
+    py_full_number = fields.Char(
+        string="Paraguay Full Number",
+        copy=False,
+        index=True,
+    )

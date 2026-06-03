@@ -6,6 +6,7 @@ from odoo.addons.einvoice_module.services.adapter_registry import (
     FiscalAdapterResult,
 )
 from odoo.addons.einvoice_module.services.validation import FiscalValidationResult
+from odoo.addons.einvoice_py.services.numbering_service import PyNumberingService
 
 
 class PyFakeAdapter(FakeAdapter):
@@ -23,12 +24,15 @@ class PyFakeAdapter(FakeAdapter):
             errors.append("Active Paraguay timbrado is required.")
         if not config["csc"]:
             errors.append("Active Paraguay CSC is required.")
+        if not document.py_document_number and not self._has_matching_sequence(document, config):
+            errors.append("Active Paraguay sequence is required.")
 
         return FiscalValidationResult(errors)
 
     def submit(self, document):
         config = self._select_config(document)
         self._persist_config(document, config)
+        PyNumberingService(self.env).assign_number(document)
         outcome = self._outcome_from_document(document)
         country_identifier = document.country_identifier or f"PY-FAKE-{document.uuid}"
         return FiscalAdapterResult(
@@ -48,6 +52,7 @@ class PyFakeAdapter(FakeAdapter):
                 "py_point_of_issue_code": config["point_of_issue"].code,
                 "py_timbrado_number": config["timbrado"].number,
                 "py_id_csc": config["csc"].id_csc,
+                "py_full_number": document.py_full_number,
             },
         )
 
@@ -125,6 +130,18 @@ class PyFakeAdapter(FakeAdapter):
             "py_timbrado_id": config["timbrado"].id,
             "py_csc_id": config["csc"].id,
         })
+
+    def _has_matching_sequence(self, document, config):
+        if not config["establishment"] or not config["point_of_issue"] or not config["timbrado"]:
+            return False
+        return bool(
+            PyNumberingService(self.env).find_sequence(
+                document,
+                establishment=config["establishment"],
+                point_of_issue=config["point_of_issue"],
+                timbrado=config["timbrado"],
+            )
+        )
 
     def _message_from_outcome(self, outcome):
         return {

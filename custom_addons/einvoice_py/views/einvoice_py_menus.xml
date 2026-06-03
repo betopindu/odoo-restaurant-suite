@@ -27,4 +27,10 @@
               parent="menu_fiscal_py_configuration"
               action="action_fiscal_py_csc"
               sequence="40"/>
+
+    <menuitem id="menu_fiscal_py_sequences"
+              name="Sequences"
+              parent="menu_fiscal_py_configuration"
+              action="action_fiscal_py_sequence"
+              sequence="50"/>
 </odoo>

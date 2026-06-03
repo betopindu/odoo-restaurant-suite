@@ -1,0 +1,53 @@
+<odoo>
+    <record id="view_fiscal_py_sequence_tree" model="ir.ui.view">
+        <field name="name">fiscal.py.sequence.tree</field>
+        <field name="model">fiscal.py.sequence</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name"/>
+                <field name="tenant_id"/>
+                <field name="company_id"/>
+                <field name="timbrado_id"/>
+                <field name="establishment_id"/>
+                <field name="point_of_issue_id"/>
+                <field name="document_type"/>
+                <field name="next_number"/>
+                <field name="padding"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_fiscal_py_sequence_form" model="ir.ui.view">
+        <field name="name">fiscal.py.sequence.form</field>
+        <field name="model">fiscal.py.sequence</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="tenant_id"/>
+                        <field name="company_id"/>
+                        <field name="active"/>
+                    </group>
+                    <group string="Scope">
+                        <field name="timbrado_id"/>
+                        <field name="establishment_id"/>
+                        <field name="point_of_issue_id"/>
+                        <field name="document_type"/>
+                    </group>
+                    <group string="Numbering">
+                        <field name="next_number"/>
+                        <field name="padding"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_fiscal_py_sequence" model="ir.actions.act_window">
+        <field name="name">Paraguay Sequences</field>
+        <field name="res_model">fiscal.py.sequence</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

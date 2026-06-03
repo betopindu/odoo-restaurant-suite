@@ -10,6 +10,8 @@
                     <field name="py_point_of_issue_id"/>
                     <field name="py_timbrado_id"/>
                     <field name="py_csc_id"/>
+                    <field name="py_document_number"/>
+                    <field name="py_full_number"/>
                 </group>
             </xpath>
         </field>
