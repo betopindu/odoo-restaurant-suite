@@ -8,6 +8,7 @@ from odoo.addons.einvoice_module.services.adapter_registry import (
 from odoo.addons.einvoice_module.services.validation import FiscalValidationResult
 from odoo.addons.einvoice_py.services.cdc_service import PyCdcService
 from odoo.addons.einvoice_py.services.numbering_service import PyNumberingService
+from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder
 
 
 class PyFakeAdapter(FakeAdapter):
@@ -43,6 +44,7 @@ class PyFakeAdapter(FakeAdapter):
         self._persist_config(document, config)
         PyNumberingService(self.env).assign_number(document)
         PyCdcService(self.env).generate(document)
+        self._ensure_paraguay_payload_attachment(document)
         outcome = self._outcome_from_document(document)
         return FiscalAdapterResult(
             outcome=outcome,
@@ -170,6 +172,24 @@ class PyFakeAdapter(FakeAdapter):
             point_of_issue=config["point_of_issue"],
             issuer=issuer,
             require_document_number=require_document_number,
+        )
+
+    def _ensure_paraguay_payload_attachment(self, document):
+        existing = self.env["fiscal.attachment"].sudo().search(
+            [
+                ("document_id", "=", document.id),
+                ("attachment_type", "=", "paraguay_payload_json"),
+            ],
+            limit=1,
+        )
+        if existing:
+            return existing
+        payload = PyPayloadBuilder(self.env).build(document)
+        return self.env["fiscal.attachment"].sudo().create_json_payload_attachment(
+            document,
+            "paraguay_payload_json",
+            f"{document.uuid}-paraguay-payload.json",
+            payload,
         )
 
     def _message_from_outcome(self, outcome):

@@ -1,7 +1,12 @@
+import base64
+import json
+
+from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.einvoice_module.services.orchestrator import FiscalOrchestrator
 from odoo.addons.einvoice_py.services.cdc_service import PyCdcService
+from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder
 
 
 class TestPyFakeAdapter(TransactionCase):
@@ -390,3 +395,92 @@ class TestPyFakeAdapter(TransactionCase):
         )[-1:]
         self.assertTrue(event)
         self.assertIn("Paraguay CDC issue datetime is required.", event.message)
+
+    def test_payload_builder_returns_expected_main_sections(self):
+        self._create_config()
+        document = self._create_document()
+        self._process(document)
+
+        payload = PyPayloadBuilder(self.env).build(document)
+
+        self.assertEqual(
+            set(payload),
+            {
+                "version",
+                "cdc",
+                "document",
+                "operation",
+                "issuer",
+                "receiver",
+                "condition",
+                "items",
+                "totals",
+                "paraguay",
+                "warnings",
+            },
+        )
+        self.assertEqual(payload["version"], "150")
+        self.assertEqual(payload["cdc"], document.py_cdc)
+        self.assertEqual(payload["document"]["py_i_tide"], "01")
+        self.assertEqual(payload["issuer"]["ruc"], document.py_issuer_ruc)
+        self.assertEqual(payload["items"][0]["description"], "Paraguay Test Item")
+
+    def test_payload_builder_missing_cdc_fails(self):
+        self._create_config()
+        document = self._create_document()
+
+        with self.assertRaises(ValidationError):
+            PyPayloadBuilder(self.env).build(document)
+
+    def test_payload_builder_returns_warnings_for_defaults_and_missing_optional_fields(self):
+        self._create_config()
+        document = self._create_document()
+        self._process(document)
+
+        payload = PyPayloadBuilder(self.env).build(document)
+
+        self.assertIn("Defaulted transaction type for Paraguay payload.", payload["warnings"])
+        self.assertIn("Receiver RUC/document DV is missing.", payload["warnings"])
+        self.assertIn("Receiver email is missing.", payload["warnings"])
+        self.assertIn("Detailed Paraguay tax buckets are not fully modeled yet.", payload["warnings"])
+
+    def test_payload_attachment_created_during_py_fake_processing(self):
+        self._create_config()
+        document = self._create_document()
+
+        self._process(document)
+
+        attachment = self.env["fiscal.attachment"].search([
+            ("document_id", "=", document.id),
+            ("attachment_type", "=", "paraguay_payload_json"),
+        ])
+        self.assertEqual(len(attachment), 1)
+        self.assertEqual(attachment.mimetype, "application/json")
+        self.assertTrue(attachment.sha256)
+        self.assertTrue(attachment.ir_attachment_id)
+        self.assertTrue(attachment.is_sensitive)
+        content = base64.b64decode(attachment.ir_attachment_id.datas)
+        payload = json.loads(content.decode("utf-8"))
+        self.assertEqual(payload["cdc"], document.py_cdc)
+
+    def test_retry_does_not_duplicate_payload_attachment(self):
+        self._create_config()
+        document = self._create_document(name="PY FAKE RETRY")
+
+        self._process(document)
+        attachments = self.env["fiscal.attachment"].search([
+            ("document_id", "=", document.id),
+            ("attachment_type", "=", "paraguay_payload_json"),
+        ])
+        self.assertEqual(len(attachments), 1)
+
+        FiscalOrchestrator(self.env).process_document(
+            document,
+            actor_context={"actor_type": "system"},
+        )
+
+        attachments = self.env["fiscal.attachment"].search([
+            ("document_id", "=", document.id),
+            ("attachment_type", "=", "paraguay_payload_json"),
+        ])
+        self.assertEqual(len(attachments), 1)
