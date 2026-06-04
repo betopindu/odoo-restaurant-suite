@@ -55,3 +55,30 @@ class FiscalDocument(models.Model):
         copy=False,
         index=True,
     )
+    py_emission_type = fields.Selection(
+        [
+            ("1", "Normal"),
+            ("2", "Contingency"),
+        ],
+        string="Paraguay Emission Type",
+        default="1",
+        copy=False,
+    )
+    py_cod_seg = fields.Char(
+        string="Paraguay Security Code",
+        copy=False,
+    )
+    py_cdc_base = fields.Char(
+        string="Paraguay CDC Base",
+        copy=False,
+        index=True,
+    )
+    py_cdc_dv = fields.Char(
+        string="Paraguay CDC DV",
+        copy=False,
+    )
+    py_cdc = fields.Char(
+        string="Paraguay CDC",
+        copy=False,
+        index=True,
+    )

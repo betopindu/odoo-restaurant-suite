@@ -6,6 +6,7 @@ from odoo.addons.einvoice_module.services.adapter_registry import (
     FiscalAdapterResult,
 )
 from odoo.addons.einvoice_module.services.validation import FiscalValidationResult
+from odoo.addons.einvoice_py.services.cdc_service import PyCdcService
 from odoo.addons.einvoice_py.services.numbering_service import PyNumberingService
 
 
@@ -33,6 +34,7 @@ class PyFakeAdapter(FakeAdapter):
             errors.append("Active Paraguay CSC is required.")
         if not document.py_document_number and not self._has_matching_sequence(document, config):
             errors.append("Active Paraguay sequence is required.")
+        errors.extend(self._cdc_validation_errors(document, config))
 
         return FiscalValidationResult(errors)
 
@@ -40,13 +42,13 @@ class PyFakeAdapter(FakeAdapter):
         config = self._select_config(document)
         self._persist_config(document, config)
         PyNumberingService(self.env).assign_number(document)
+        PyCdcService(self.env).generate(document)
         outcome = self._outcome_from_document(document)
-        country_identifier = document.country_identifier or f"PY-FAKE-{document.uuid}"
         return FiscalAdapterResult(
             outcome=outcome,
             authority_status_code=outcome,
             authority_message=self._message_from_outcome(outcome),
-            country_identifier=country_identifier if outcome == "accepted" else "",
+            country_identifier=document.py_cdc if outcome == "accepted" else "",
             authority_receipt_ref=f"PY-FAKE-{document.uuid}",
             retryable=outcome == "failed_retryable",
             retry_after_seconds=300 if outcome == "failed_retryable" else 0,
@@ -61,6 +63,7 @@ class PyFakeAdapter(FakeAdapter):
                 "py_timbrado_number": config["timbrado"].number,
                 "py_id_csc": config["csc"].id_csc,
                 "py_full_number": document.py_full_number,
+                "py_cdc": document.py_cdc,
             },
         )
 
@@ -154,6 +157,19 @@ class PyFakeAdapter(FakeAdapter):
                 point_of_issue=config["point_of_issue"],
                 timbrado=config["timbrado"],
             )
+        )
+
+    def _cdc_validation_errors(self, document, config):
+        if document.py_cdc:
+            return []
+        issuer = config["establishment"].issuer_id
+        require_document_number = bool(document.py_document_number)
+        return PyCdcService(self.env).validation_errors(
+            document,
+            establishment=config["establishment"],
+            point_of_issue=config["point_of_issue"],
+            issuer=issuer,
+            require_document_number=require_document_number,
         )
 
     def _message_from_outcome(self, outcome):

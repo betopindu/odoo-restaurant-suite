@@ -1,6 +1,7 @@
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.einvoice_module.services.orchestrator import FiscalOrchestrator
+from odoo.addons.einvoice_py.services.cdc_service import PyCdcService
 
 
 class TestPyFakeAdapter(TransactionCase):
@@ -22,6 +23,9 @@ class TestPyFakeAdapter(TransactionCase):
         establishment=None,
         point_of_issue=None,
         issuer=None,
+        issuer_ruc="80012345",
+        issuer_ruc_dv="6",
+        taxpayer_type="2",
     ):
         if not establishment:
             issuer = issuer or self.env["fiscal.py.issuer"].create({
@@ -29,9 +33,9 @@ class TestPyFakeAdapter(TransactionCase):
                 "tenant_id": self.tenant.id,
                 "company_id": self.env.company.id,
                 "environment": "test",
-                "ruc": "80012345",
-                "ruc_dv": "6",
-                "taxpayer_type": "2",
+                "ruc": issuer_ruc,
+                "ruc_dv": issuer_ruc_dv,
+                "taxpayer_type": taxpayer_type,
             })
             establishment = self.env["fiscal.py.establishment"].create({
                 "name": f"Main Establishment {point_code}",
@@ -77,8 +81,14 @@ class TestPyFakeAdapter(TransactionCase):
             })
         return establishment, point_of_issue, timbrado, csc, sequence
 
-    def _create_document(self, name="PY FAKE ACCEPT", document_type="invoice"):
-        return self.env["fiscal.document"].create({
+    def _create_document(
+        self,
+        name="PY FAKE ACCEPT",
+        document_type="invoice",
+        issue_datetime="2026-06-04 12:00:00",
+        extra_vals=None,
+    ):
+        vals = {
             "name": name,
             "tenant_id": self.tenant.id,
             "company_id": self.env.company.id,
@@ -87,6 +97,7 @@ class TestPyFakeAdapter(TransactionCase):
             "environment": "test",
             "adapter_code": "py_fake",
             "customer_name": "Paraguay Test Customer",
+            "issue_datetime": issue_datetime,
             "amount_total": 100,
             "line_ids": [
                 (
@@ -100,7 +111,10 @@ class TestPyFakeAdapter(TransactionCase):
                     },
                 ),
             ],
-        })
+        }
+        if extra_vals:
+            vals.update(extra_vals)
+        return self.env["fiscal.document"].create(vals)
 
     def _process(self, document):
         orchestrator = FiscalOrchestrator(self.env)
@@ -116,7 +130,7 @@ class TestPyFakeAdapter(TransactionCase):
 
         self.assertEqual(document.state, "accepted")
         self.assertEqual(document.authority_status, "accepted")
-        self.assertTrue(document.country_identifier.startswith("PY-FAKE-"))
+        self.assertEqual(document.country_identifier, document.py_cdc)
 
     def test_missing_config_moves_to_validation_error(self):
         document = self._create_document()
@@ -220,6 +234,8 @@ class TestPyFakeAdapter(TransactionCase):
         self._process(document)
         first_number = document.py_document_number
         first_full_number = document.py_full_number
+        first_cod_seg = document.py_cod_seg
+        first_cdc = document.py_cdc
         self.assertEqual(sequence.next_number, 16)
 
         FiscalOrchestrator(self.env).process_document(
@@ -229,6 +245,8 @@ class TestPyFakeAdapter(TransactionCase):
 
         self.assertEqual(document.py_document_number, first_number)
         self.assertEqual(document.py_full_number, first_full_number)
+        self.assertEqual(document.py_cod_seg, first_cod_seg)
+        self.assertEqual(document.py_cdc, first_cdc)
         self.assertEqual(sequence.next_number, 16)
 
     def test_missing_sequence_moves_to_validation_error(self):
@@ -300,3 +318,75 @@ class TestPyFakeAdapter(TransactionCase):
         )[-1:]
         self.assertTrue(event)
         self.assertIn("Active Paraguay issuer is required.", event.message)
+
+    def test_modulo_11_official_example(self):
+        base = "0144444401700100100145282201701251587326098"
+
+        digit, total, remainder = PyCdcService.calculate_check_digit(base)
+
+        self.assertEqual(total, 773)
+        self.assertEqual(remainder, 3)
+        self.assertEqual(digit, 8)
+        self.assertEqual(f"{base}{digit}", "01444444017001001001452822017012515873260988")
+
+    def test_cdc_generated_from_official_example_inputs(self):
+        self._create_config(
+            sequence_next_number=14528,
+            issuer_ruc="44444401",
+            issuer_ruc_dv="7",
+            taxpayer_type="2",
+        )
+        document = self._create_document(
+            issue_datetime="2017-01-25 12:00:00",
+            extra_vals={"py_cod_seg": "587326098"},
+        )
+
+        self._process(document)
+
+        self.assertEqual(document.py_cdc_base, "0144444401700100100145282201701251587326098")
+        self.assertEqual(document.py_cdc_dv, "8")
+        self.assertEqual(document.py_cdc, "01444444017001001001452822017012515873260988")
+
+    def test_cdc_lengths_and_country_identifier(self):
+        self._create_config()
+        document = self._create_document()
+
+        self._process(document)
+
+        self.assertEqual(len(document.py_cdc), 44)
+        self.assertEqual(len(document.py_cdc_base), 43)
+        self.assertEqual(len(document.py_cdc_dv), 1)
+        self.assertEqual(len(document.py_cod_seg), 9)
+        self.assertEqual(document.country_identifier, document.py_cdc)
+
+    def test_unsupported_document_type_moves_to_validation_error(self):
+        self._create_config()
+        document = self._create_document(document_type="receipt")
+
+        self._process(document)
+
+        self.assertEqual(document.state, "validation_error")
+        event = document.event_ids.filtered(
+            lambda item: (
+                item.event_type == "state_transition"
+                and item.to_state == "validation_error"
+            )
+        )[-1:]
+        self.assertTrue(event)
+        self.assertIn("Unsupported Paraguay CDC document type: receipt.", event.message)
+
+    def test_missing_cdc_required_input_moves_to_validation_error(self):
+        self._create_config()
+        document = self._create_document(issue_datetime=False)
+
+        self._process(document)
+
+        self.assertEqual(document.state, "validation_error")
+        event = document.event_ids.filtered(
+            lambda item: (
+                item.event_type == "state_transition"
+                and item.to_state == "validation_error"
+            )
+        )[-1:]
+        self.assertTrue(event)
+        self.assertIn("Paraguay CDC issue datetime is required.", event.message)

@@ -16,6 +16,11 @@
                     <field name="py_issuer_taxpayer_type"/>
                     <field name="py_document_number"/>
                     <field name="py_full_number"/>
+                    <field name="py_emission_type"/>
+                    <field name="py_cod_seg" readonly="1"/>
+                    <field name="py_cdc" readonly="1"/>
+                    <field name="py_cdc_dv" readonly="1"/>
+                    <field name="py_cdc_base" readonly="1"/>
                 </group>
             </xpath>
         </field>
