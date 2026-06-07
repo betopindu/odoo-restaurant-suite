@@ -43,3 +43,14 @@ class FiscalPyTimbrado(models.Model):
         for record in self:
             if record.valid_from and record.valid_to and record.valid_to < record.valid_from:
                 raise ValidationError("Timbrado valid to date must be on or after valid from date.")
+
+    @api.depends("number", "document_type", "environment")
+    def _compute_display_name(self):
+        document_types = dict(self._fields["document_type"].selection)
+        for record in self:
+            label = f"Timbrado {record.number}" if record.number else "Timbrado"
+            if record.document_type:
+                label = f"{label} - {document_types.get(record.document_type, record.document_type)}"
+            if record.environment:
+                label = f"{label} [{record.environment}]"
+            record.display_name = label

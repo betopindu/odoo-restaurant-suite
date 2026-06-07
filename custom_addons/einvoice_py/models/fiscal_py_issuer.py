@@ -30,6 +30,19 @@ class FiscalPyIssuer(models.Model):
     active = fields.Boolean(default=True)
     notes = fields.Text()
 
+    @api.depends("name", "ruc", "ruc_dv", "environment")
+    def _compute_display_name(self):
+        for record in self:
+            full_ruc = record.ruc
+            if record.ruc_dv:
+                full_ruc = f"{full_ruc}-{record.ruc_dv}" if full_ruc else record.ruc_dv
+            label = record.name or "Paraguay Issuer"
+            if full_ruc:
+                label = f"{label} ({full_ruc})"
+            if record.environment:
+                label = f"{label} [{record.environment}]"
+            record.display_name = label
+
     @api.constrains("ruc")
     def _check_ruc(self):
         for record in self:

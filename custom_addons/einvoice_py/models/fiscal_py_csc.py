@@ -30,3 +30,13 @@ class FiscalPyCsc(models.Model):
         for record in self:
             if record.valid_from and record.valid_to and record.valid_to < record.valid_from:
                 raise ValidationError("CSC valid to date must be on or after valid from date.")
+
+    @api.depends("name", "id_csc", "environment")
+    def _compute_display_name(self):
+        for record in self:
+            label = f"IdCSC {record.id_csc}" if record.id_csc else "CSC"
+            if record.name:
+                label = f"{label} - {record.name}"
+            if record.environment:
+                label = f"{label} [{record.environment}]"
+            record.display_name = label

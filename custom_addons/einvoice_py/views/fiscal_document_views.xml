@@ -5,22 +5,28 @@
         <field name="inherit_id" ref="einvoice_module.view_fiscal_document_form"/>
         <field name="arch" type="xml">
             <xpath expr="//sheet/group[field[@name='country_code']]" position="after">
-                <group string="Paraguay Information" invisible="country_code != 'PY'">
-                    <field name="py_establishment_id"/>
-                    <field name="py_point_of_issue_id"/>
-                    <field name="py_timbrado_id"/>
-                    <field name="py_csc_id"/>
-                    <field name="py_issuer_id"/>
-                    <field name="py_issuer_ruc"/>
-                    <field name="py_issuer_ruc_dv"/>
-                    <field name="py_issuer_taxpayer_type"/>
-                    <field name="py_document_number"/>
-                    <field name="py_full_number"/>
-                    <field name="py_emission_type"/>
-                    <field name="py_cod_seg" readonly="1"/>
-                    <field name="py_cdc" readonly="1"/>
-                    <field name="py_cdc_dv" readonly="1"/>
-                    <field name="py_cdc_base" readonly="1"/>
+                <group string="Paraguay Fiscal Identification" invisible="country_code != 'PY'">
+                    <group string="Issuer and Authorization">
+                        <field name="py_issuer_id" string="Issuer"/>
+                        <field name="py_issuer_ruc" string="Issuer RUC Snapshot" readonly="1"/>
+                        <field name="py_issuer_ruc_dv" string="Issuer RUC DV Snapshot" readonly="1"/>
+                        <field name="py_issuer_taxpayer_type" string="Issuer Taxpayer Type Snapshot" readonly="1"/>
+                        <field name="py_timbrado_id" string="Timbrado"/>
+                    </group>
+                    <group string="Numbering and CDC">
+                        <field name="py_establishment_id" string="Establishment"/>
+                        <field name="py_point_of_issue_id" string="Point of Issue"/>
+                        <field name="py_csc_id" string="CSC"/>
+                        <field name="py_document_number" string="Document Number" readonly="1"/>
+                        <field name="py_full_number" string="Full Number" readonly="1"/>
+                        <field name="py_emission_type" string="Emission Type"/>
+                        <field name="py_cdc" string="CDC" readonly="1"/>
+                    </group>
+                    <group string="Technical CDC Values">
+                        <field name="py_cod_seg" string="Security Code" readonly="1"/>
+                        <field name="py_cdc_dv" string="CDC Check Digit" readonly="1"/>
+                        <field name="py_cdc_base" string="CDC Base" readonly="1"/>
+                    </group>
                 </group>
             </xpath>
             <xpath expr="//field[@name='line_ids']/tree" position="inside">
@@ -72,7 +78,7 @@
                 </form>
             </xpath>
             <xpath expr="//notebook" position="inside">
-                <page string="Paraguay Receiver" invisible="country_code != 'PY'">
+                <page string="Paraguay Receiver Information" invisible="country_code != 'PY'">
                     <group>
                         <field name="py_receiver_nature"/>
                         <field name="py_receiver_operation_type"/>
@@ -81,7 +87,7 @@
                         <field name="py_receiver_phone"/>
                     </group>
                 </page>
-                <page string="Paraguay Operation" invisible="country_code != 'PY'">
+                <page string="Paraguay Operation Information" invisible="country_code != 'PY'">
                     <group>
                         <field name="py_transaction_type_code"/>
                         <field name="py_tax_type_code"/>
@@ -89,7 +95,7 @@
                         <field name="py_exchange_rate"/>
                     </group>
                 </page>
-                <page string="Paraguay Payment" invisible="country_code != 'PY'">
+                <page string="Paraguay Payment Information" invisible="country_code != 'PY'">
                     <group>
                         <field name="py_sale_condition_code"/>
                         <field name="py_payment_type_code"/>

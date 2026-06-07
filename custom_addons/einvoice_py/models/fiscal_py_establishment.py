@@ -47,3 +47,13 @@ class FiscalPyEstablishment(models.Model):
                 raise ValidationError(
                     "Paraguay establishment issuer must use the same tenant and company."
                 )
+
+    @api.depends("name", "code", "issuer_id")
+    def _compute_display_name(self):
+        for record in self:
+            label = record.name or "Establishment"
+            if record.code:
+                label = f"{record.code} - {label}"
+            if record.issuer_id and record.issuer_id.ruc:
+                label = f"{label} ({record.issuer_id.ruc}-{record.issuer_id.ruc_dv})"
+            record.display_name = label

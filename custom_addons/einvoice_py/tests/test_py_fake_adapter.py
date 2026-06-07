@@ -502,6 +502,16 @@ class TestPyFakeAdapter(TransactionCase):
             "py_discount_amount": 0,
         })
 
+    def _enrich_standard_cash_invoice(self, document):
+        self._enrich_document_for_payload(document)
+        document.write({
+            "py_transaction_type_code": "2",
+            "py_sale_condition_code": "1",
+            "py_payment_type_code": "1",
+            "py_payment_amount": 100,
+            "py_payment_currency": "PYG",
+        })
+
     def test_payload_uses_explicit_receiver_fields(self):
         self._create_config()
         document = self._create_document()
@@ -608,6 +618,30 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertEqual(totals["subtotal_10"], 90.91)
         self.assertEqual(totals["total_vat_10"], 9.09)
         self.assertEqual(totals["total_vat"], 9.09)
+
+    def test_standard_cash_taxpayer_invoice_generates_clean_payload(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+
+        self._process(document)
+
+        attachment = self.env["fiscal.attachment"].search([
+            ("document_id", "=", document.id),
+            ("attachment_type", "=", "paraguay_payload_json"),
+        ])
+        self.assertEqual(len(attachment), 1)
+        payload = json.loads(base64.b64decode(attachment.ir_attachment_id.datas).decode("utf-8"))
+        self.assertEqual(document.state, "accepted")
+        self.assertTrue(document.py_full_number)
+        self.assertEqual(len(document.py_cdc), 44)
+        self.assertEqual(payload["warnings"], [])
+        self.assertEqual(payload["condition"]["sale_condition_code"], "1")
+        self.assertEqual(payload["condition"]["payment_type_code"], "1")
+        self.assertEqual(payload["receiver"]["nature_code"], "1")
+        self.assertEqual(payload["receiver"]["type_code"], "1")
+        self.assertEqual(payload["totals"]["subtotal_10"], 90.91)
+        self.assertEqual(payload["totals"]["total_vat_10"], 9.09)
 
     def test_warnings_are_reduced_when_explicit_fields_are_populated(self):
         self._create_config()

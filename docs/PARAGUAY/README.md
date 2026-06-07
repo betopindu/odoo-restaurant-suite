@@ -25,6 +25,7 @@ Current implemented Paraguay stages:
 * CDC generation
 * normalized payload builder
 * fiscal data enrichment for receiver, operation, payment, and tax details
+* administrative UI stabilization for validation/support workflows
 
 ## Configuration
 
@@ -176,6 +177,41 @@ Line-level enrichment includes:
 The payload builder uses these explicit fields to reduce warnings and calculate MVP tax buckets for exempt, IVA 5, and IVA 10 lines.
 
 XML remains a future stage.
+
+## Stage 5 Validation
+
+The Fiscal Document form is an administrative and support tool. It is used for troubleshooting, audit, payload validation, and controlled correction flows. It is not intended to become the primary manual invoice-entry interface.
+
+Primary operational channels remain:
+
+* POS
+* ERP integrations
+* SaaS API
+* future country or customer-specific integrations
+
+Administrative users can validate a standard Paraguay invoice with:
+
+* document type: invoice
+* local taxpayer receiver
+* receiver RUC with DV
+* receiver address and email
+* transaction type: service provision
+* tax type: IVA
+* sale condition: cash
+* payment type: cash
+* currency: PYG
+* one line taxed by IVA 10%
+* line tax base and tax amount populated
+
+Expected result:
+
+* Paraguay number assigned
+* CDC assigned and copied to `country_identifier`
+* Paraguay payload attachment generated
+* IVA 10 bucket populated
+* payload warnings empty for the fully populated MVP scenario
+
+Warnings remain meaningful when optional or required-for-fiscal-quality data is missing, such as receiver DV, receiver email/address, receiver fiscal nature, operation type, or item tax details.
 
 ## Future XML
 

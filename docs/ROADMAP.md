@@ -29,6 +29,7 @@
 [x] Paraguay CDC
 [x] Paraguay payload
 [x] Paraguay fiscal data enrichment
+[x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
 
 ## In Progress

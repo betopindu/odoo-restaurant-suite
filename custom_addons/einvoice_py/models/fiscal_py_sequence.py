@@ -77,3 +77,25 @@ class FiscalPySequence(models.Model):
                     "tenant, company, timbrado, establishment, point of issue, "
                     "and document type."
                 )
+
+    @api.depends(
+        "name",
+        "document_type",
+        "establishment_id.code",
+        "point_of_issue_id.code",
+        "timbrado_id.number",
+        "next_number",
+    )
+    def _compute_display_name(self):
+        document_types = dict(self._fields["document_type"].selection)
+        for record in self:
+            parts = []
+            if record.establishment_id.code and record.point_of_issue_id.code:
+                parts.append(f"{record.establishment_id.code}-{record.point_of_issue_id.code}")
+            if record.document_type:
+                parts.append(document_types.get(record.document_type, record.document_type))
+            if record.timbrado_id.number:
+                parts.append(f"Timbrado {record.timbrado_id.number}")
+            if record.next_number:
+                parts.append(f"Next {record.next_number}")
+            record.display_name = " | ".join(parts) or record.name or "Paraguay Sequence"

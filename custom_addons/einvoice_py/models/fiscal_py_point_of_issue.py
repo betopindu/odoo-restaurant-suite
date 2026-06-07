@@ -42,3 +42,13 @@ class FiscalPyPointOfIssue(models.Model):
         for record in self:
             if not record.code or not record.code.isdigit() or len(record.code) != 3:
                 raise ValidationError("Paraguay point of issue code must be exactly 3 digits.")
+
+    @api.depends("name", "code", "establishment_id", "establishment_id.code")
+    def _compute_display_name(self):
+        for record in self:
+            label = record.name or "Point of Issue"
+            if record.code:
+                label = f"{record.code} - {label}"
+            if record.establishment_id and record.establishment_id.code:
+                label = f"{record.establishment_id.code}-{label}"
+            record.display_name = label

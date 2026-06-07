@@ -124,3 +124,32 @@ class TestFiscalPyConfiguration(TransactionCase):
         ])
 
         self.assertEqual(visible, establishment_a)
+
+    def test_paraguay_records_use_business_display_names(self):
+        establishment = self._create_establishment()
+        point_of_issue = self.env["fiscal.py.point.of.issue"].sudo().create({
+            "name": "Main Register",
+            "code": "003",
+            "establishment_id": establishment.id,
+        })
+        timbrado = self.env["fiscal.py.timbrado"].sudo().create({
+            "number": "16056490",
+            "tenant_id": self.tenant_a.id,
+            "company_id": self.env.company.id,
+            "environment": "test",
+            "document_type": "invoice",
+        })
+        sequence = self.env["fiscal.py.sequence"].sudo().create({
+            "name": "Invoice Sequence",
+            "tenant_id": self.tenant_a.id,
+            "company_id": self.env.company.id,
+            "timbrado_id": timbrado.id,
+            "establishment_id": establishment.id,
+            "point_of_issue_id": point_of_issue.id,
+            "document_type": "invoice",
+            "next_number": 15,
+        })
+
+        self.assertIn("Timbrado 16056490", timbrado.display_name)
+        self.assertIn("001-003", sequence.display_name)
+        self.assertIn("Next 15", sequence.display_name)
