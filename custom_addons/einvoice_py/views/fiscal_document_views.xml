@@ -23,6 +23,44 @@
                     <field name="py_cdc_base" readonly="1"/>
                 </group>
             </xpath>
+            <xpath expr="//field[@name='line_ids']/tree" position="inside">
+                <field name="py_internal_code" optional="hide"/>
+                <field name="py_unit_measure_code" optional="hide"/>
+                <field name="py_unit_measure_description" optional="hide"/>
+                <field name="py_tax_affectation" optional="show"/>
+                <field name="py_tax_rate" optional="show"/>
+                <field name="py_tax_base" optional="show"/>
+                <field name="py_tax_amount" optional="show"/>
+                <field name="py_exempt_base" optional="hide"/>
+                <field name="py_discount_amount" optional="hide"/>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="Paraguay Receiver" invisible="country_code != 'PY'">
+                    <group>
+                        <field name="py_receiver_nature"/>
+                        <field name="py_receiver_operation_type"/>
+                        <field name="py_receiver_country_code"/>
+                        <field name="py_receiver_address"/>
+                        <field name="py_receiver_phone"/>
+                    </group>
+                </page>
+                <page string="Paraguay Operation" invisible="country_code != 'PY'">
+                    <group>
+                        <field name="py_transaction_type_code"/>
+                        <field name="py_tax_type_code"/>
+                        <field name="py_currency"/>
+                        <field name="py_exchange_rate"/>
+                    </group>
+                </page>
+                <page string="Paraguay Payment" invisible="country_code != 'PY'">
+                    <group>
+                        <field name="py_sale_condition_code"/>
+                        <field name="py_payment_type_code"/>
+                        <field name="py_payment_amount"/>
+                        <field name="py_payment_currency"/>
+                    </group>
+                </page>
+            </xpath>
         </field>
     </record>
 </odoo>

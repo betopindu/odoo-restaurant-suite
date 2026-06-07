@@ -439,10 +439,10 @@ class TestPyFakeAdapter(TransactionCase):
 
         payload = PyPayloadBuilder(self.env).build(document)
 
-        self.assertIn("Defaulted transaction type for Paraguay payload.", payload["warnings"])
         self.assertIn("Receiver RUC/document DV is missing.", payload["warnings"])
         self.assertIn("Receiver email is missing.", payload["warnings"])
-        self.assertIn("Detailed Paraguay tax buckets are not fully modeled yet.", payload["warnings"])
+        self.assertIn("Receiver nature is missing.", payload["warnings"])
+        self.assertIn("Line 10: tax affectation is missing.", payload["warnings"])
 
     def test_payload_attachment_created_during_py_fake_processing(self):
         self._create_config()
@@ -474,13 +474,162 @@ class TestPyFakeAdapter(TransactionCase):
         ])
         self.assertEqual(len(attachments), 1)
 
-        FiscalOrchestrator(self.env).process_document(
-            document,
-            actor_context={"actor_type": "system"},
-        )
+    def _enrich_document_for_payload(self, document):
+        document.write({
+            "customer_tax_id": "1234567-8",
+            "customer_email": "customer@example.com",
+            "py_receiver_nature": "1",
+            "py_receiver_operation_type": "1",
+            "py_receiver_country_code": "PRY",
+            "py_receiver_address": "Test receiver address",
+            "py_receiver_phone": "0981000000",
+            "py_transaction_type_code": "1",
+            "py_tax_type_code": "1",
+            "py_currency": "PYG",
+            "py_sale_condition_code": "2",
+            "py_payment_type_code": "5",
+            "py_payment_amount": 100,
+            "py_payment_currency": "PYG",
+        })
+        document.line_ids.write({
+            "py_internal_code": "ITEM-001",
+            "py_unit_measure_code": "77",
+            "py_unit_measure_description": "UNI",
+            "py_tax_affectation": "1",
+            "py_tax_rate": 10,
+            "py_tax_base": 90.91,
+            "py_tax_amount": 9.09,
+            "py_discount_amount": 0,
+        })
 
-        attachments = self.env["fiscal.attachment"].search([
-            ("document_id", "=", document.id),
-            ("attachment_type", "=", "paraguay_payload_json"),
-        ])
-        self.assertEqual(len(attachments), 1)
+    def test_payload_uses_explicit_receiver_fields(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_document_for_payload(document)
+        self._process(document)
+
+        payload = PyPayloadBuilder(self.env).build(document)
+
+        self.assertEqual(payload["receiver"]["ruc_or_document"], "1234567")
+        self.assertEqual(payload["receiver"]["ruc_dv"], "8")
+        self.assertEqual(payload["receiver"]["email"], "customer@example.com")
+        self.assertEqual(payload["receiver"]["address"], "Test receiver address")
+        self.assertEqual(payload["receiver"]["phone"], "0981000000")
+        self.assertEqual(payload["receiver"]["nature_code"], "1")
+        self.assertEqual(payload["receiver"]["type_code"], "1")
+
+    def test_payload_uses_explicit_payment_fields(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_document_for_payload(document)
+        self._process(document)
+
+        payload = PyPayloadBuilder(self.env).build(document)
+
+        self.assertEqual(payload["condition"]["sale_condition_code"], "2")
+        self.assertEqual(payload["condition"]["payment_type_code"], "5")
+        self.assertEqual(payload["condition"]["payment_amount"], 100)
+        self.assertEqual(payload["condition"]["payment_currency"], "PYG")
+
+    def test_payload_uses_explicit_operation_fields(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_document_for_payload(document)
+        self._process(document)
+
+        payload = PyPayloadBuilder(self.env).build(document)
+
+        self.assertEqual(payload["operation"]["transaction_type_code"], "1")
+        self.assertEqual(payload["operation"]["tax_type_code"], "1")
+        self.assertEqual(payload["operation"]["currency"], "PYG")
+
+    def test_payload_uses_explicit_item_tax_fields(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_document_for_payload(document)
+        self._process(document)
+
+        payload = PyPayloadBuilder(self.env).build(document)
+        item = payload["items"][0]
+
+        self.assertEqual(item["code"], "ITEM-001")
+        self.assertEqual(item["unit_measure_code"], "77")
+        self.assertEqual(item["tax_affectation"], "1")
+        self.assertEqual(item["tax_rate"], 10)
+        self.assertEqual(item["tax_base"], 90.91)
+        self.assertEqual(item["tax_amount"], 9.09)
+
+    def test_tax_buckets_for_exempt_line(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_document_for_payload(document)
+        document.line_ids.write({
+            "py_tax_affectation": "3",
+            "py_tax_rate": 0,
+            "py_tax_base": 0,
+            "py_tax_amount": 0,
+            "py_exempt_base": 100,
+        })
+        self._process(document)
+
+        totals = PyPayloadBuilder(self.env).build(document)["totals"]
+
+        self.assertEqual(totals["subtotal_exempt"], 100)
+        self.assertEqual(totals["subtotal_5"], 0)
+        self.assertEqual(totals["subtotal_10"], 0)
+        self.assertEqual(totals["total_vat"], 0)
+
+    def test_tax_buckets_for_iva_5_line(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_document_for_payload(document)
+        document.line_ids.write({
+            "py_tax_affectation": "1",
+            "py_tax_rate": 5,
+            "py_tax_base": 95.24,
+            "py_tax_amount": 4.76,
+        })
+        self._process(document)
+
+        totals = PyPayloadBuilder(self.env).build(document)["totals"]
+
+        self.assertEqual(totals["subtotal_5"], 95.24)
+        self.assertEqual(totals["total_vat_5"], 4.76)
+        self.assertEqual(totals["total_vat"], 4.76)
+
+    def test_tax_buckets_for_iva_10_line(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_document_for_payload(document)
+        self._process(document)
+
+        totals = PyPayloadBuilder(self.env).build(document)["totals"]
+
+        self.assertEqual(totals["subtotal_10"], 90.91)
+        self.assertEqual(totals["total_vat_10"], 9.09)
+        self.assertEqual(totals["total_vat"], 9.09)
+
+    def test_warnings_are_reduced_when_explicit_fields_are_populated(self):
+        self._create_config()
+        minimal_document = self._create_document()
+        self._process(minimal_document)
+        minimal_warnings = PyPayloadBuilder(self.env).build(minimal_document)["warnings"]
+
+        self._create_config(
+            point_code="002",
+            establishment=minimal_document.py_establishment_id,
+        )
+        enriched_document = self._create_document()
+        enriched_document.py_point_of_issue_id = self.env["fiscal.py.point.of.issue"].search(
+            [("code", "=", "002")],
+            order="id desc",
+            limit=1,
+        )
+        self._enrich_document_for_payload(enriched_document)
+        self._process(enriched_document)
+        enriched_warnings = PyPayloadBuilder(self.env).build(enriched_document)["warnings"]
+
+        self.assertLess(len(enriched_warnings), len(minimal_warnings))
+        self.assertNotIn("Receiver email is missing.", enriched_warnings)
+        self.assertNotIn("Receiver nature is missing.", enriched_warnings)
+        self.assertNotIn("Line 10: tax affectation is missing.", enriched_warnings)

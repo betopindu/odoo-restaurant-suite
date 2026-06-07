@@ -28,18 +28,15 @@
 [x] Paraguay numbering
 [x] Paraguay CDC
 [x] Paraguay payload
+[x] Paraguay fiscal data enrichment
 [x] Initial ADR documentation
 
 ## In Progress
 
-[ ] Paraguay fiscal data normalization
 [ ] Project documentation
 
 ## Next
 
-[ ] Paraguay receiver fiscal data
-[ ] Paraguay payment conditions
-[ ] Paraguay tax breakdown
 [ ] Paraguay XML builder
 [ ] Paraguay XML validation tests
 [ ] Paraguay QR generation

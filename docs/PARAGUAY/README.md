@@ -24,6 +24,7 @@ Current implemented Paraguay stages:
 * numbering
 * CDC generation
 * normalized payload builder
+* fiscal data enrichment for receiver, operation, payment, and tax details
 
 ## Configuration
 
@@ -145,6 +146,36 @@ The payload includes:
 The payload is persisted as a sensitive fiscal attachment of type `paraguay_payload_json`.
 
 See [ADR-003 Payload Before XML](../ADR/ADR-003-payload-before-xml.md).
+
+## Fiscal Data Enrichment
+
+Stage 5.5 enriches the Paraguay payload data model with explicit fiscal fields on documents and document lines.
+
+Document-level enrichment includes:
+
+* receiver nature and operation type
+* receiver country, address, and phone
+* transaction type
+* tax type
+* currency and exchange rate
+* sale condition
+* payment type, amount, and currency
+
+Line-level enrichment includes:
+
+* internal item code
+* unit measure code and description
+* tax affectation
+* tax rate
+* tax proportion
+* tax base
+* tax amount
+* exempt base
+* discount amount
+
+The payload builder uses these explicit fields to reduce warnings and calculate MVP tax buckets for exempt, IVA 5, and IVA 10 lines.
+
+XML remains a future stage.
 
 ## Future XML
 

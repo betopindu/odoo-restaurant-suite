@@ -5,4 +5,5 @@ from . import fiscal_py_timbrado
 from . import fiscal_py_csc
 from . import fiscal_py_sequence
 from . import fiscal_document
+from . import fiscal_document_line
 from . import fiscal_attachment
