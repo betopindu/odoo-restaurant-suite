@@ -1,0 +1,140 @@
+# e-Invoice Platform Documentation
+
+[Documentation Home](README.md)
+-> [Architecture](ARCHITECTURE.md)
+-> [ADRs](index.md#adrs)
+-> [Paraguay](PARAGUAY/README.md)
+-> [Diagrams](diagrams/README.md)
+
+## Project Overview
+
+The e-Invoice Platform is a multi-tenant electronic invoicing platform built on Odoo.
+
+It is organized around a country-neutral fiscal core, country-specific addons, API-first integration, tenant isolation, auditability, and an adapter pattern for future tax authority integrations.
+
+Current country implementation:
+
+* Paraguay, in progress through `einvoice_py`
+
+## Documentation Map
+
+* [Documentation Index](index.md): table of contents for the documentation portal
+* [Architecture](ARCHITECTURE.md): modules, decisions, and processing flow
+* [Roadmap](ROADMAP.md): completed, in-progress, next, and future work
+* [ADRs](ADR/ADR-001-country-addons.md): architectural decision records
+* [Paraguay Documentation](PARAGUAY/README.md): Paraguay-specific configuration and processing
+* [Diagrams](diagrams/README.md): Mermaid diagrams for architecture and workflows
+
+## How To Read This Documentation
+
+### New Developers
+
+1. Start with this page.
+2. Read the [Documentation Index](index.md).
+3. Read [Architecture](ARCHITECTURE.md).
+4. Review the [Fiscal State Machine](diagrams/fiscal-state-machine.mmd).
+5. Read [Paraguay Documentation](PARAGUAY/README.md) if working on Paraguay features.
+
+### Architects
+
+1. Read [Architecture](ARCHITECTURE.md).
+2. Review all [ADRs](ADR/ADR-001-country-addons.md), especially:
+   * [ADR-001 Country Addons](ADR/ADR-001-country-addons.md)
+   * [ADR-004 Multi-Tenant Shared Core](ADR/ADR-004-multi-tenant-shared-core.md)
+   * [ADR-007 Fiscal Attachments](ADR/ADR-007-fiscal-attachments.md)
+3. Review [Architecture Diagram](diagrams/architecture.mmd).
+4. Review [Roadmap](ROADMAP.md).
+
+### Product Owners
+
+1. Read [Project Overview](#project-overview).
+2. Read [Current Implementation Status](#current-implementation-status).
+3. Review [Roadmap](ROADMAP.md).
+4. Review [Paraguay Documentation](PARAGUAY/README.md) for country scope.
+
+### Country Implementation Developers
+
+1. Read [ADR-001 Country Addons](ADR/ADR-001-country-addons.md).
+2. Read [Paraguay Documentation](PARAGUAY/README.md).
+3. Review [ADR-008 Paraguay Numbering Before CDC](ADR/ADR-008-paraguay-numbering-before-cdc.md).
+4. Review [ADR-009 CSC Only For QR](ADR/ADR-009-csc-only-for-qr.md).
+5. Review [Paraguay Processing Diagram](diagrams/paraguay-processing.mmd).
+
+## Quick Links
+
+### Core
+
+* [Architecture](ARCHITECTURE.md)
+* [Roadmap](ROADMAP.md)
+* [Architecture Diagram](diagrams/architecture.mmd)
+* [Workflow Diagram](diagrams/workflow.mmd)
+* [Fiscal State Machine](diagrams/fiscal-state-machine.mmd)
+
+### ADRs
+
+* [ADR-001 Country Addons](ADR/ADR-001-country-addons.md)
+* [ADR-002 CDC as Country Identifier](ADR/ADR-002-cdc-country-identifier.md)
+* [ADR-003 Payload Before XML](ADR/ADR-003-payload-before-xml.md)
+* [ADR-004 Multi-Tenant Shared Core](ADR/ADR-004-multi-tenant-shared-core.md)
+* [ADR-005 Fiscal Lock Policies](ADR/ADR-005-fiscal-lock-policies.md)
+* [ADR-006 API Processing Modes](ADR/ADR-006-api-processing-modes.md)
+* [ADR-007 Fiscal Attachments](ADR/ADR-007-fiscal-attachments.md)
+* [ADR-008 Paraguay Numbering Before CDC](ADR/ADR-008-paraguay-numbering-before-cdc.md)
+* [ADR-009 CSC Only For QR](ADR/ADR-009-csc-only-for-qr.md)
+
+### Paraguay
+
+* [Paraguay Documentation](PARAGUAY/README.md)
+* [Paraguay Processing Diagram](diagrams/paraguay-processing.mmd)
+
+## Current Implementation Status
+
+Implemented:
+
+* Core fiscal workflow
+* Fiscal events and audit trail
+* Fiscal attachments
+* Retry processing
+* Fiscal lock policies
+* API
+* API status endpoint
+* API sync processing with timeout fallback
+* Idempotency
+* Tenant isolation
+* Paraguay issuer configuration
+* Paraguay establishment configuration
+* Paraguay point of issue configuration
+* Paraguay timbrado configuration
+* Paraguay CSC configuration
+* Paraguay sequence configuration
+* Paraguay numbering
+* Paraguay CDC generation
+* Paraguay normalized payload builder
+
+Not implemented yet:
+
+* Paraguay XML generation
+* Paraguay digital signature
+* Paraguay QR generation
+* Paraguay SIFEN integration
+* Paraguay KuDE/PDF
+* Delivery by email or WhatsApp
+
+## Diagrams
+
+* [Architecture Diagram](diagrams/architecture.mmd)
+* [Workflow Diagram](diagrams/workflow.mmd)
+* [Fiscal State Machine](diagrams/fiscal-state-machine.mmd)
+* [Paraguay Processing Diagram](diagrams/paraguay-processing.mmd)
+
+## Related Documents
+
+* [Documentation Index](index.md)
+* [Architecture](ARCHITECTURE.md)
+* [Roadmap](ROADMAP.md)
+* [Paraguay Documentation](PARAGUAY/README.md)
+
+## Next Recommended Reading
+
+* [Documentation Index](index.md)
+* [Architecture](ARCHITECTURE.md)

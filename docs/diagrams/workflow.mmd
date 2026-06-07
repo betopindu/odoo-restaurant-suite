@@ -1,0 +1,14 @@
+flowchart TD
+
+A[Draft]
+--> B[Ready]
+
+B --> C[Queued]
+
+C --> D[Accepted]
+
+C --> E[Rejected]
+
+C --> F[Manual Review]
+
+C --> G[Validation Error]

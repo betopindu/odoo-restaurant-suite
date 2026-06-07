@@ -1,0 +1,16 @@
+flowchart TD
+
+A[Fiscal API]
+--> B[Fiscal Document]
+
+B --> C[Orchestrator]
+
+C --> D[Country Adapter]
+
+D --> E[Payload]
+
+E --> F[XML Future]
+
+F --> G[Signature Future]
+
+G --> H[Tax Authority]

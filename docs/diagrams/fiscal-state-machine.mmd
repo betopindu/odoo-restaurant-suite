@@ -1,0 +1,26 @@
+stateDiagram-v2
+    [*] --> draft
+
+    draft --> ready: mark ready
+    ready --> queued: queue
+    queued --> submitted: submit
+
+    submitted --> accepted: accepted
+    submitted --> rejected: rejected
+    submitted --> failed_retryable: retryable failure
+    submitted --> failed_final: final failure
+    submitted --> manual_review: manual review
+
+    queued --> validation_error: validation failed
+    validation_error --> queued: retry validation
+
+    failed_retryable --> queued: retry
+
+    manual_review --> queued: retry
+    manual_review --> failed_final: mark failed final
+    manual_review --> cancelled: cancel
+
+    accepted --> [*]
+    rejected --> [*]
+    failed_final --> [*]
+    cancelled --> [*]
