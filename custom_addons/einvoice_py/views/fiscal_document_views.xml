@@ -29,10 +29,47 @@
                 <field name="py_unit_measure_description" optional="hide"/>
                 <field name="py_tax_affectation" optional="show"/>
                 <field name="py_tax_rate" optional="show"/>
+                <field name="py_tax_proportion" optional="hide"/>
                 <field name="py_tax_base" optional="show"/>
                 <field name="py_tax_amount" optional="show"/>
                 <field name="py_exempt_base" optional="hide"/>
                 <field name="py_discount_amount" optional="hide"/>
+            </xpath>
+            <xpath expr="//field[@name='line_ids']" position="inside">
+                <form>
+                    <sheet>
+                        <group>
+                            <group>
+                                <field name="sequence"/>
+                                <field name="product_name"/>
+                                <field name="description"/>
+                                <field name="quantity"/>
+                                <field name="price_unit"/>
+                            </group>
+                            <group>
+                                <field name="subtotal"/>
+                                <field name="tax_amount"/>
+                                <field name="total"/>
+                            </group>
+                        </group>
+                        <group string="Paraguay Tax Details">
+                            <group>
+                                <field name="py_internal_code" string="Internal Code"/>
+                                <field name="py_unit_measure_code" string="Unit Measure Code"/>
+                                <field name="py_unit_measure_description" string="Unit Measure Description"/>
+                                <field name="py_tax_affectation" string="Tax Affectation"/>
+                                <field name="py_tax_rate" string="Tax Rate"/>
+                            </group>
+                            <group>
+                                <field name="py_tax_proportion" string="Tax Proportion"/>
+                                <field name="py_tax_base" string="Tax Base"/>
+                                <field name="py_tax_amount" string="Tax Amount"/>
+                                <field name="py_exempt_base" string="Exempt Base"/>
+                                <field name="py_discount_amount" string="Discount Amount"/>
+                            </group>
+                        </group>
+                    </sheet>
+                </form>
             </xpath>
             <xpath expr="//notebook" position="inside">
                 <page string="Paraguay Receiver" invisible="country_code != 'PY'">
