@@ -15,6 +15,8 @@ The core owns common fiscal concepts such as document lifecycle, events, transmi
 
 Country addons own country-specific concepts such as numbering, fiscal identifiers, payloads, authority-specific configuration, and future XML/signing/authority integration.
 
+Administrative UI labels should remain country-neutral whenever a generic concept exists. Country-specific terminology should be used only when there is no meaningful cross-country abstraction, such as Timbrado, CDC, CSC, issuer RUC, establishment, or point of issue.
+
 ## 1. Core Modules
 
 * `einvoice_module`

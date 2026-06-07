@@ -5,7 +5,7 @@
         <field name="inherit_id" ref="einvoice_module.view_fiscal_document_form"/>
         <field name="arch" type="xml">
             <xpath expr="//sheet/group[field[@name='country_code']]" position="after">
-                <group string="Paraguay Fiscal Identification" invisible="country_code != 'PY'">
+                <group string="Fiscal Identification" invisible="country_code != 'PY'">
                     <group string="Issuer and Authorization">
                         <field name="py_issuer_id" string="Issuer"/>
                         <field name="py_issuer_ruc" string="Issuer RUC Snapshot" readonly="1"/>
@@ -34,10 +34,10 @@
                 <field name="py_unit_measure_code" optional="hide"/>
                 <field name="py_unit_measure_description" optional="hide"/>
                 <field name="py_tax_affectation" optional="show"/>
-                <field name="py_tax_rate" optional="show"/>
+                <field name="py_tax_rate" string="Tax Rate" optional="show"/>
                 <field name="py_tax_proportion" optional="hide"/>
                 <field name="py_tax_base" optional="show"/>
-                <field name="py_tax_amount" optional="show"/>
+                <field name="py_tax_amount" string="Tax Amount" optional="show"/>
                 <field name="py_exempt_base" optional="hide"/>
                 <field name="py_discount_amount" optional="hide"/>
             </xpath>
@@ -58,7 +58,7 @@
                                 <field name="total"/>
                             </group>
                         </group>
-                        <group string="Paraguay Tax Details">
+                        <group string="Tax Details">
                             <group>
                                 <field name="py_internal_code" string="Internal Code"/>
                                 <field name="py_unit_measure_code" string="Unit Measure Code"/>
@@ -78,7 +78,7 @@
                 </form>
             </xpath>
             <xpath expr="//notebook" position="inside">
-                <page string="Paraguay Receiver Information" invisible="country_code != 'PY'">
+                <page string="Receiver Information" invisible="country_code != 'PY'">
                     <group>
                         <field name="py_receiver_nature"/>
                         <field name="py_receiver_operation_type"/>
@@ -87,15 +87,15 @@
                         <field name="py_receiver_phone"/>
                     </group>
                 </page>
-                <page string="Paraguay Operation Information" invisible="country_code != 'PY'">
+                <page string="Operation Information" invisible="country_code != 'PY'">
                     <group>
                         <field name="py_transaction_type_code"/>
                         <field name="py_tax_type_code"/>
-                        <field name="py_currency"/>
+                        <field name="py_currency" string="Currency"/>
                         <field name="py_exchange_rate"/>
                     </group>
                 </page>
-                <page string="Paraguay Payment Information" invisible="country_code != 'PY'">
+                <page string="Payment Information" invisible="country_code != 'PY'">
                     <group>
                         <field name="py_sale_condition_code"/>
                         <field name="py_payment_type_code"/>

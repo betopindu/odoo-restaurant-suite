@@ -182,6 +182,28 @@ XML remains a future stage.
 
 The Fiscal Document form is an administrative and support tool. It is used for troubleshooting, audit, payload validation, and controlled correction flows. It is not intended to become the primary manual invoice-entry interface.
 
+Stage 5.6.1 applies the shared UI terminology rule: labels should be country-neutral whenever a generic concept exists. Country-specific terms remain only when they represent genuine Paraguay fiscal concepts.
+
+Keep Paraguay-specific terms:
+
+* Timbrado
+* CDC
+* CSC
+* Issuer RUC
+* Issuer RUC DV
+* Establishment
+* Point of Issue
+
+Use generic labels for shared concepts:
+
+* Receiver Information
+* Operation Information
+* Payment Information
+* Tax Affectation
+* Tax Base
+* Tax Amount
+* Tax Rate
+
 Primary operational channels remain:
 
 * POS
