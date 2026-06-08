@@ -1,5 +1,7 @@
 import base64
+from copy import deepcopy
 import json
+from xml.etree import ElementTree as ET
 
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
@@ -7,6 +9,7 @@ from odoo.tests.common import TransactionCase
 from odoo.addons.einvoice_module.services.orchestrator import FiscalOrchestrator
 from odoo.addons.einvoice_py.services.cdc_service import PyCdcService
 from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder
+from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import PyUnsignedXmlBuilder
 
 
 class TestPyFakeAdapter(TransactionCase):
@@ -463,6 +466,20 @@ class TestPyFakeAdapter(TransactionCase):
         payload = json.loads(content.decode("utf-8"))
         self.assertEqual(payload["cdc"], document.py_cdc)
 
+    def test_incomplete_debug_payload_processing_skips_unsigned_xml(self):
+        self._create_config()
+        document = self._create_document()
+
+        self._process(document)
+
+        payload_attachment = self.env["fiscal.attachment"].search([
+            ("document_id", "=", document.id),
+            ("attachment_type", "=", "paraguay_payload_json"),
+        ])
+        self.assertEqual(document.state, "accepted")
+        self.assertEqual(len(payload_attachment), 1)
+        self.assertFalse(self._xml_attachment(document))
+
     def test_retry_does_not_duplicate_payload_attachment(self):
         self._create_config()
         document = self._create_document(name="PY FAKE RETRY")
@@ -511,6 +528,16 @@ class TestPyFakeAdapter(TransactionCase):
             "py_payment_amount": 100,
             "py_payment_currency": "PYG",
         })
+
+    def _xml_attachment(self, document):
+        return self.env["fiscal.attachment"].search([
+            ("document_id", "=", document.id),
+            ("attachment_type", "=", "paraguay_xml_unsigned"),
+        ])
+
+    def _xml_root_from_attachment(self, attachment):
+        content = base64.b64decode(attachment.ir_attachment_id.datas)
+        return ET.fromstring(content)
 
     def test_payload_uses_explicit_receiver_fields(self):
         self._create_config()
@@ -642,6 +669,148 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertEqual(payload["receiver"]["type_code"], "1")
         self.assertEqual(payload["totals"]["subtotal_10"], 90.91)
         self.assertEqual(payload["totals"]["total_vat_10"], 9.09)
+
+    def test_unsigned_xml_can_be_parsed_and_has_key_groups(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+
+        attachment = self._xml_attachment(document)
+        self.assertEqual(len(attachment), 1)
+        root = self._xml_root_from_attachment(attachment)
+
+        self.assertEqual(root.tag, "rDE")
+        self.assertEqual(root.attrib["version"], "150")
+        self.assertIsNotNone(root.find("DE/gTimb"))
+        self.assertIsNotNone(root.find("DE/gDatGralOpe"))
+        self.assertIsNotNone(root.find("DE/gDatGralOpe/gOpeCom"))
+        self.assertIsNotNone(root.find("DE/gDatGralOpe/gEmis"))
+        self.assertIsNotNone(root.find("DE/gDatGralOpe/gDatRec"))
+        self.assertIsNotNone(root.find("DE/gDtipDE"))
+        self.assertIsNotNone(root.find("DE/gTotSub"))
+
+    def test_unsigned_xml_contains_expected_values(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+
+        root = self._xml_root_from_attachment(self._xml_attachment(document))
+        de = root.find("DE")
+
+        self.assertEqual(de.attrib["Id"], document.py_cdc)
+        self.assertEqual(root.findtext("DE/gTimb/dNumTim"), document.py_timbrado_id.number)
+        self.assertEqual(root.findtext("DE/gTimb/dEst"), "001")
+        self.assertEqual(root.findtext("DE/gTimb/dPunExp"), "001")
+        self.assertEqual(root.findtext("DE/gTimb/dNumDoc"), "0000015")
+        self.assertEqual(root.findtext("DE/gDatGralOpe/gEmis/dRucEm"), document.py_issuer_ruc)
+        self.assertEqual(root.findtext("DE/gDatGralOpe/gEmis/dDVEmi"), document.py_issuer_ruc_dv)
+        self.assertEqual(root.findtext("DE/gDatGralOpe/gDatRec/dNomRec"), document.customer_name)
+        self.assertEqual(root.findtext("DE/gDtipDE/gCamItem/dDesProSer"), "Paraguay Test Item")
+        self.assertEqual(float(root.findtext("DE/gDtipDE/gCamItem/gCamIVA/dTasaIVA")), 10.0)
+        self.assertEqual(root.findtext("DE/gTotSub/dTotIVA10"), "9.09")
+
+    def test_unsigned_xml_repeated_item_count_is_correct(self):
+        self._create_config()
+        document = self._create_document(
+            extra_vals={
+                "line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "product_name": "Item A",
+                            "quantity": 1,
+                            "price_unit": 100,
+                            "total": 100,
+                        },
+                    ),
+                    (
+                        0,
+                        0,
+                        {
+                            "product_name": "Item B",
+                            "quantity": 2,
+                            "price_unit": 50,
+                            "total": 100,
+                        },
+                    ),
+                ],
+                "amount_total": 200,
+            },
+        )
+        self._enrich_standard_cash_invoice(document)
+        document.write({"py_payment_amount": 200})
+        document.line_ids.write({
+            "py_tax_affectation": "1",
+            "py_tax_rate": 10,
+            "py_tax_base": 90.91,
+            "py_tax_amount": 9.09,
+        })
+        self._process(document)
+
+        root = self._xml_root_from_attachment(self._xml_attachment(document))
+
+        self.assertEqual(len(root.findall("DE/gDtipDE/gCamItem")), 2)
+
+    def test_unsigned_xml_missing_blocking_field_raises(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+        payload = PyPayloadBuilder(self.env).build(document)
+        invalid_payload = deepcopy(payload)
+        invalid_payload["receiver"]["nature_code"] = None
+
+        with self.assertRaises(ValidationError):
+            PyUnsignedXmlBuilder(self.env).build_from_payload(invalid_payload)
+
+    def test_unsigned_xml_non_blocking_warnings_are_allowed(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+        payload = PyPayloadBuilder(self.env).build(document)
+        payload["receiver"]["email"] = None
+        payload["warnings"] = ["Receiver email is missing."]
+
+        xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        root = ET.fromstring(xml_bytes)
+
+        self.assertEqual(root.find("DE").attrib["Id"], document.py_cdc)
+
+    def test_fake_adapter_creates_payload_and_unsigned_xml_attachments(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+
+        self._process(document)
+
+        payload_attachment = self.env["fiscal.attachment"].search([
+            ("document_id", "=", document.id),
+            ("attachment_type", "=", "paraguay_payload_json"),
+        ])
+        xml_attachment = self._xml_attachment(document)
+        self.assertEqual(len(payload_attachment), 1)
+        self.assertEqual(len(xml_attachment), 1)
+        self.assertEqual(xml_attachment.mimetype, "application/xml")
+        self.assertTrue(xml_attachment.sha256)
+        self.assertTrue(xml_attachment.ir_attachment_id)
+        self.assertTrue(xml_attachment.is_sensitive)
+
+    def test_retry_does_not_duplicate_unsigned_xml_attachment(self):
+        self._create_config()
+        document = self._create_document(name="PY FAKE RETRY")
+        self._enrich_standard_cash_invoice(document)
+
+        self._process(document)
+        FiscalOrchestrator(self.env).process_document(
+            document,
+            actor_context={"actor_type": "system"},
+        )
+
+        self.assertEqual(len(self._xml_attachment(document)), 1)
 
     def test_warnings_are_reduced_when_explicit_fields_are_populated(self):
         self._create_config()

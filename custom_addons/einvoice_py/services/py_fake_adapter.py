@@ -1,4 +1,9 @@
+import base64
+import hashlib
+import json
+
 from odoo import fields
+from odoo.exceptions import ValidationError
 
 from odoo.addons.einvoice_module.services.adapter_registry import (
     FakeAdapter,
@@ -9,6 +14,7 @@ from odoo.addons.einvoice_module.services.validation import FiscalValidationResu
 from odoo.addons.einvoice_py.services.cdc_service import PyCdcService
 from odoo.addons.einvoice_py.services.numbering_service import PyNumberingService
 from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder
+from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import PyUnsignedXmlBuilder
 
 
 class PyFakeAdapter(FakeAdapter):
@@ -45,6 +51,7 @@ class PyFakeAdapter(FakeAdapter):
         PyNumberingService(self.env).assign_number(document)
         PyCdcService(self.env).generate(document)
         self._ensure_paraguay_payload_attachment(document)
+        self._ensure_unsigned_xml_attachment(document)
         outcome = self._outcome_from_document(document)
         return FiscalAdapterResult(
             outcome=outcome,
@@ -191,6 +198,47 @@ class PyFakeAdapter(FakeAdapter):
             f"{document.uuid}-paraguay-payload.json",
             payload,
         )
+
+    def _ensure_unsigned_xml_attachment(self, document):
+        existing = self.env["fiscal.attachment"].sudo().search(
+            [
+                ("document_id", "=", document.id),
+                ("attachment_type", "=", "paraguay_xml_unsigned"),
+            ],
+            limit=1,
+        )
+        if existing:
+            return existing
+        payload_attachment = self._ensure_paraguay_payload_attachment(document)
+        payload = self._read_payload_attachment(payload_attachment)
+        try:
+            content_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        except ValidationError:
+            # XML draft generation is intentionally stricter than fake acceptance.
+            # Keep the existing fake adapter flow usable for incomplete admin/debug payloads.
+            return self.env["fiscal.attachment"]
+        filename = f"{document.uuid}-paraguay-unsigned.xml"
+        ir_attachment = self.env["ir.attachment"].sudo().create({
+            "name": filename,
+            "datas": base64.b64encode(content_bytes),
+            "mimetype": "application/xml",
+            "res_model": "fiscal.document",
+            "res_id": document.id,
+        })
+        return self.env["fiscal.attachment"].sudo().create({
+            "name": filename,
+            "document_id": document.id,
+            "attachment_type": "paraguay_xml_unsigned",
+            "mimetype": "application/xml",
+            "filename": filename,
+            "ir_attachment_id": ir_attachment.id,
+            "sha256": hashlib.sha256(content_bytes).hexdigest(),
+            "is_sensitive": True,
+        })
+
+    def _read_payload_attachment(self, attachment):
+        content = base64.b64decode(attachment.ir_attachment_id.datas or b"")
+        return json.loads(content.decode("utf-8"))
 
     def _message_from_outcome(self, outcome):
         return {

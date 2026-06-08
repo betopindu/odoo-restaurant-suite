@@ -24,6 +24,7 @@ Current implemented Paraguay stages:
 * numbering
 * CDC generation
 * normalized payload builder
+* unsigned SIFEN-oriented XML draft builder
 * fiscal data enrichment for receiver, operation, payment, and tax details
 * administrative UI stabilization for validation/support workflows
 
@@ -148,6 +149,39 @@ The payload is persisted as a sensitive fiscal attachment of type `paraguay_payl
 
 See [ADR-003 Payload Before XML](../ADR/ADR-003-payload-before-xml.md).
 
+## Unsigned XML Draft
+
+Stage 6 adds `PyUnsignedXmlBuilder`, the first cut of the Paraguay unsigned XML builder.
+
+Input:
+
+* normalized Paraguay payload JSON produced by `PyPayloadBuilder`
+
+Output:
+
+* unsigned SIFEN-oriented XML draft
+* fiscal attachment type `paraguay_xml_unsigned`
+* filename format `<document_uuid>-paraguay-unsigned.xml`
+* mimetype `application/xml`
+
+The XML builder stays inside `einvoice_py` and uses the normalized payload as its source of truth. It does not read scattered fiscal document fields directly when building XML from payload.
+
+The Paraguay fake adapter now attempts to create both attachments during processing:
+
+* `paraguay_payload_json`
+* `paraguay_xml_unsigned`
+
+If the payload is complete enough for XML, the unsigned XML attachment is created. Incomplete admin/debug payloads may skip XML generation while still preserving fake adapter processing and payload attachment persistence.
+
+Out of scope for Stage 6:
+
+* digital signature
+* QR generation
+* CSC QR/hash logic
+* SIFEN submission
+* KuDE/PDF
+* XSD validation
+
 ## Fiscal Data Enrichment
 
 Stage 5.5 enriches the Paraguay payload data model with explicit fiscal fields on documents and document lines.
@@ -175,8 +209,6 @@ Line-level enrichment includes:
 * discount amount
 
 The payload builder uses these explicit fields to reduce warnings and calculate MVP tax buckets for exempt, IVA 5, and IVA 10 lines.
-
-XML remains a future stage.
 
 ## Stage 5 Validation
 
@@ -234,12 +266,6 @@ Expected result:
 * payload warnings empty for the fully populated MVP scenario
 
 Warnings remain meaningful when optional or required-for-fiscal-quality data is missing, such as receiver DV, receiver email/address, receiver fiscal nature, operation type, or item tax details.
-
-## Future XML
-
-XML generation is not implemented yet.
-
-The expected future direction is to transform the normalized Paraguay payload into SIFEN XML.
 
 ## Future QR
 

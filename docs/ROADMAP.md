@@ -28,6 +28,7 @@
 [x] Paraguay numbering
 [x] Paraguay CDC
 [x] Paraguay payload
+[x] Paraguay unsigned XML draft builder
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -38,7 +39,6 @@
 
 ## Next
 
-[ ] Paraguay XML builder
 [ ] Paraguay XML validation tests
 [ ] Paraguay QR generation
 [ ] Paraguay SIFEN test integration
@@ -46,6 +46,8 @@
 ## Future
 
 [ ] Paraguay digital signature
+[ ] Paraguay XML signature integration
+[ ] Paraguay XSD validation
 [ ] Certificate/key management
 [ ] Paraguay SIFEN production integration
 [ ] SIFEN error normalization
