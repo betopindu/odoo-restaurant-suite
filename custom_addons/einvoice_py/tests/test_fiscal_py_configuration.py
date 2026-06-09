@@ -60,6 +60,23 @@ class TestFiscalPyConfiguration(TransactionCase):
             "issuer_id": issuer.id,
         })
 
+    def _create_document(self, extra_vals=None):
+        vals = {
+            "name": f"PY Config Document {self._testMethodName}",
+            "tenant_id": self.tenant_a.id,
+            "company_id": self.env.company.id,
+            "document_type": "invoice",
+            "country_code": "PY",
+            "environment": "test",
+            "adapter_code": "py_fake",
+            "customer_name": "Paraguay Receiver",
+            "issue_datetime": "2026-06-04 12:00:00",
+            "amount_total": 100,
+        }
+        if extra_vals:
+            vals.update(extra_vals)
+        return self.env["fiscal.document"].sudo().create(vals)
+
     def test_issuer_ruc_must_be_numeric_and_at_most_eight_digits(self):
         with self.assertRaises(ValidationError):
             self._create_issuer(ruc="800ABC")
@@ -118,6 +135,88 @@ class TestFiscalPyConfiguration(TransactionCase):
         self.assertEqual(establishment.city_code, "1")
         self.assertEqual(establishment.city_name, "ASUNCION")
         self.assertEqual(establishment.branch_name, "CASA MATRIZ")
+
+    def test_receiver_schema_snapshot_defaults_are_applied(self):
+        document = self._create_document()
+
+        self.assertEqual(document.py_receiver_country_description, "Paraguay")
+        self.assertEqual(document.py_receiver_house_number, "0")
+
+    def test_receiver_taxpayer_type_can_be_stored(self):
+        document = self._create_document({
+            "py_receiver_taxpayer_type": "1",
+        })
+
+        self.assertEqual(document.py_receiver_taxpayer_type, "1")
+
+    def test_receiver_identity_fields_can_be_stored(self):
+        document = self._create_document({
+            "py_receiver_nature": "2",
+            "py_receiver_id_type": "1",
+            "py_receiver_id_type_description": "Cedula paraguaya",
+            "py_receiver_id_number": "1234567",
+        })
+
+        self.assertEqual(document.py_receiver_nature, "2")
+        self.assertEqual(document.py_receiver_id_type, "1")
+        self.assertEqual(document.py_receiver_id_type_description, "Cedula paraguaya")
+        self.assertEqual(document.py_receiver_id_number, "1234567")
+
+    def test_receiver_geography_and_customer_code_fields_can_be_stored(self):
+        document = self._create_document({
+            "py_receiver_country_code": "PRY",
+            "py_receiver_country_description": "Paraguay",
+            "py_receiver_address": "Av. Test 123",
+            "py_receiver_house_number": "123",
+            "py_receiver_phone": "0981000000",
+            "py_receiver_department_code": "1",
+            "py_receiver_department_name": "CAPITAL",
+            "py_receiver_district_code": "1",
+            "py_receiver_district_name": "ASUNCION",
+            "py_receiver_city_code": "1",
+            "py_receiver_city_name": "ASUNCION",
+            "py_receiver_customer_code": "CUST-001",
+        })
+
+        self.assertEqual(document.py_receiver_country_code, "PRY")
+        self.assertEqual(document.py_receiver_country_description, "Paraguay")
+        self.assertEqual(document.py_receiver_address, "Av. Test 123")
+        self.assertEqual(document.py_receiver_house_number, "123")
+        self.assertEqual(document.py_receiver_phone, "0981000000")
+        self.assertEqual(document.py_receiver_department_code, "1")
+        self.assertEqual(document.py_receiver_department_name, "CAPITAL")
+        self.assertEqual(document.py_receiver_district_code, "1")
+        self.assertEqual(document.py_receiver_district_name, "ASUNCION")
+        self.assertEqual(document.py_receiver_city_code, "1")
+        self.assertEqual(document.py_receiver_city_name, "ASUNCION")
+        self.assertEqual(document.py_receiver_customer_code, "CUST-001")
+
+    def test_receiver_operation_type_selection_is_sifen_aligned(self):
+        selection = dict(
+            self.env["fiscal.document"].fields_get(["py_receiver_operation_type"])[
+                "py_receiver_operation_type"
+            ]["selection"]
+        )
+
+        self.assertEqual(selection["1"], "B2B")
+        self.assertEqual(selection["2"], "B2C")
+        self.assertEqual(selection["3"], "B2G")
+        self.assertEqual(selection["4"], "B2F")
+        self.assertNotEqual(selection["3"], "Foreign")
+
+    def test_receiver_operation_type_code_three_is_not_foreign(self):
+        document = self._create_document({
+            "py_receiver_operation_type": "3",
+        })
+        selection = dict(
+            self.env["fiscal.document"].fields_get(["py_receiver_operation_type"])[
+                "py_receiver_operation_type"
+            ]["selection"]
+        )
+
+        self.assertEqual(document.py_receiver_operation_type, "3")
+        self.assertEqual(selection[document.py_receiver_operation_type], "B2G")
+        self.assertNotEqual(selection[document.py_receiver_operation_type], "Foreign")
 
     def test_economic_activity_can_be_created_and_displayed(self):
         issuer = self._create_issuer()

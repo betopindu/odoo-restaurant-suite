@@ -27,6 +27,7 @@ Current implemented Paraguay stages:
 * unsigned SIFEN-oriented XML draft builder
 * SIFEN-oriented XML structural alignment
 * issuer schema-readiness configuration for future `gEmis`
+* receiver schema-readiness snapshot fields for future `gDatRec`
 * fiscal data enrichment for receiver, operation, payment, and tax details
 * administrative UI stabilization for validation/support workflows
 
@@ -240,12 +241,34 @@ Stage 6.5.2B-1 completed issuer-side schema-readiness configuration:
 
 These fields support future schema-ready `gEmis` and repeated `gActEco` output. They are not integrated into `PyPayloadBuilder` or `PyUnsignedXmlBuilder` yet.
 
+Stage 6.5.2B-2 completed receiver-side schema-readiness snapshot fields on `fiscal.document`:
+
+* receiver taxpayer type for future `iTiContRec`
+* receiver ID type, description, and number for non-taxpayer receivers
+* receiver country description
+* receiver house number
+* receiver department, district, and city codes and names
+* receiver customer code
+
+Receiver operation type is aligned for future SIFEN readiness:
+
+* `1 = B2B`
+* `2 = B2C`
+* `3 = B2G`
+* `4 = B2F`
+
+No migration was performed for older records where `3` had previously been exposed as `Foreign`. Existing records with receiver operation type `3` must be reviewed before schema-ready XML use.
+
+These receiver fields are optional at the ORM and administrative UI level for now. They will be required later only by payload/XML readiness validation where applicable.
+
 Still pending:
 
-* receiver fiscal identity fields
-* receiver geography fields
 * payload integration for issuer schema-readiness data
+* payload integration for receiver schema-readiness data
 * XML integration for `gEmis` and `gActEco`
+* XML integration for richer `gDatRec`
+
+Next stage note: `py_payload_builder.py` still needs its receiver operation mapping updated from the older `3 = Foreign` description to the SIFEN-aligned values, including `4 = B2F`.
 
 ## Fiscal Data Enrichment
 

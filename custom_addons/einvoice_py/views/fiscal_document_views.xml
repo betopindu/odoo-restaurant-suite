@@ -80,11 +80,28 @@
             <xpath expr="//notebook" position="inside">
                 <page string="Receiver Information" invisible="country_code != 'PY'">
                     <group>
-                        <field name="py_receiver_nature"/>
-                        <field name="py_receiver_operation_type"/>
-                        <field name="py_receiver_country_code"/>
-                        <field name="py_receiver_address"/>
-                        <field name="py_receiver_phone"/>
+                        <group string="Receiver Fiscal Identity">
+                            <field name="py_receiver_nature"/>
+                            <field name="py_receiver_taxpayer_type"/>
+                            <field name="py_receiver_operation_type"/>
+                            <field name="py_receiver_id_type"/>
+                            <field name="py_receiver_id_type_description"/>
+                            <field name="py_receiver_id_number"/>
+                            <field name="py_receiver_customer_code"/>
+                        </group>
+                        <group string="Receiver Contact and Geography">
+                            <field name="py_receiver_country_code"/>
+                            <field name="py_receiver_country_description"/>
+                            <field name="py_receiver_address"/>
+                            <field name="py_receiver_house_number"/>
+                            <field name="py_receiver_phone"/>
+                            <field name="py_receiver_department_code"/>
+                            <field name="py_receiver_department_name"/>
+                            <field name="py_receiver_district_code"/>
+                            <field name="py_receiver_district_name"/>
+                            <field name="py_receiver_city_code"/>
+                            <field name="py_receiver_city_name"/>
+                        </group>
                     </group>
                 </page>
                 <page string="Operation Information" invisible="country_code != 'PY'">

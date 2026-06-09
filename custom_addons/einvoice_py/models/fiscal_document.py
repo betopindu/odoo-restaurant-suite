@@ -91,17 +91,53 @@ class FiscalDocument(models.Model):
         copy=False,
         help="Receiver fiscal nature for the Paraguay payload: taxpayer or non-taxpayer.",
     )
+    py_receiver_taxpayer_type = fields.Selection(
+        [
+            ("1", "Physical Person"),
+            ("2", "Legal Entity"),
+        ],
+        string="Receiver Taxpayer Type",
+        copy=False,
+        help="Receiver taxpayer type for later SIFEN iTiContRec mapping.",
+    )
     py_receiver_operation_type = fields.Selection(
         [
             ("1", "B2B"),
             ("2", "B2C"),
-            ("3", "Foreign"),
+            ("3", "B2G"),
+            ("4", "B2F"),
         ],
         string="Receiver Operation Type",
         copy=False,
-        # SIFEN XSD expects 1=B2B, 2=B2C, 3=B2G, 4=B2F. The current
-        # "3=Foreign" value is not silently reinterpreted in Stage 6.5.2A.
-        help="Operation type for the receiver: B2B, B2C, or foreign.",
+        # Compatibility note: older Stage 5.5 data exposed "3" as Foreign.
+        # Stage 6.5.2B-2 aligns labels with SIFEN but does not migrate or
+        # reinterpret existing stored values; integrations should review
+        # historical "3" values before using them for schema-ready XML.
+        help="SIFEN receiver operation type: B2B, B2C, B2G, or B2F.",
+    )
+    py_receiver_id_type = fields.Selection(
+        [
+            ("1", "Paraguayan ID"),
+            ("2", "Passport"),
+            ("3", "Foreign ID"),
+            ("4", "Residence Card"),
+            ("5", "Unnamed"),
+            ("6", "Diplomatic Tax Exemption Card"),
+            ("9", "Other"),
+        ],
+        string="Receiver ID Type",
+        copy=False,
+        help="Receiver identity document type for non-taxpayer SIFEN receiver data.",
+    )
+    py_receiver_id_type_description = fields.Char(
+        string="Receiver ID Type Description",
+        copy=False,
+        help="Description for the receiver identity document type, such as Cedula paraguaya.",
+    )
+    py_receiver_id_number = fields.Char(
+        string="Receiver ID Number",
+        copy=False,
+        help="Receiver identity document number for non-taxpayer SIFEN receiver data.",
     )
     py_receiver_country_code = fields.Char(
         string="Receiver Country",
@@ -109,15 +145,62 @@ class FiscalDocument(models.Model):
         copy=False,
         help="ISO-style receiver country code used in the Paraguay payload. Use PRY for Paraguay.",
     )
+    py_receiver_country_description = fields.Char(
+        string="Receiver Country Description",
+        default="Paraguay",
+        copy=False,
+        help="Receiver country description for later SIFEN receiver geography mapping.",
+    )
     py_receiver_address = fields.Text(
         string="Receiver Address",
         copy=False,
         help="Receiver address included in the normalized Paraguay payload.",
     )
+    py_receiver_house_number = fields.Char(
+        string="Receiver House Number",
+        default="0",
+        copy=False,
+        help="Receiver house number for later SIFEN receiver geography mapping. Use 0 when not available.",
+    )
     py_receiver_phone = fields.Char(
         string="Receiver Phone",
         copy=False,
         help="Receiver phone included in the normalized Paraguay payload when available.",
+    )
+    py_receiver_department_code = fields.Char(
+        string="Receiver Department Code",
+        copy=False,
+        help="Receiver department code for later SIFEN receiver geography mapping.",
+    )
+    py_receiver_department_name = fields.Char(
+        string="Receiver Department Name",
+        copy=False,
+        help="Receiver department name for later SIFEN receiver geography mapping.",
+    )
+    py_receiver_district_code = fields.Char(
+        string="Receiver District Code",
+        copy=False,
+        help="Receiver district code for later SIFEN receiver geography mapping.",
+    )
+    py_receiver_district_name = fields.Char(
+        string="Receiver District Name",
+        copy=False,
+        help="Receiver district name for later SIFEN receiver geography mapping.",
+    )
+    py_receiver_city_code = fields.Char(
+        string="Receiver City Code",
+        copy=False,
+        help="Receiver city code for later SIFEN receiver geography mapping.",
+    )
+    py_receiver_city_name = fields.Char(
+        string="Receiver City Name",
+        copy=False,
+        help="Receiver city name for later SIFEN receiver geography mapping.",
+    )
+    py_receiver_customer_code = fields.Char(
+        string="Receiver Customer Code",
+        copy=False,
+        help="Customer code snapshot for later SIFEN receiver data mapping.",
     )
     py_transaction_type_code = fields.Selection(
         [
