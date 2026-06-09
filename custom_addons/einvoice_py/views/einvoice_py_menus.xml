@@ -16,6 +16,12 @@
               action="action_fiscal_py_issuer"
               sequence="10"/>
 
+    <menuitem id="menu_fiscal_py_economic_activities"
+              name="Economic Activities"
+              parent="menu_fiscal_py_configuration"
+              action="action_fiscal_py_economic_activity"
+              sequence="15"/>
+
     <menuitem id="menu_fiscal_py_points_of_issue"
               name="Points of Issue"
               parent="menu_fiscal_py_configuration"

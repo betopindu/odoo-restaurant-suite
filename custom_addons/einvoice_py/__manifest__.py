@@ -8,6 +8,7 @@
         "security/ir.model.access.csv",
         "security/fiscal_py_security_rules.xml",
         "views/fiscal_py_issuer_views.xml",
+        "views/fiscal_py_economic_activity_views.xml",
         "views/fiscal_py_establishment_views.xml",
         "views/fiscal_py_point_of_issue_views.xml",
         "views/fiscal_py_timbrado_views.xml",

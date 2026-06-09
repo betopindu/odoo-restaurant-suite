@@ -29,6 +29,11 @@ class FiscalPyIssuer(models.Model):
     )
     active = fields.Boolean(default=True)
     notes = fields.Text()
+    economic_activity_ids = fields.One2many(
+        "fiscal.py.economic.activity",
+        "issuer_id",
+        string="Economic Activities",
+    )
 
     @api.depends("name", "ruc", "ruc_dv", "environment")
     def _compute_display_name(self):

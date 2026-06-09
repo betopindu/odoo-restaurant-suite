@@ -13,6 +13,20 @@
         <field name="groups" eval="[(4, ref('base.group_system'))]"/>
     </record>
 
+    <record id="rule_fiscal_py_economic_activity_user_allowed" model="ir.rule">
+        <field name="name">Paraguay economic activities: allowed tenants</field>
+        <field name="model_id" ref="model_fiscal_py_economic_activity"/>
+        <field name="domain_force">[('tenant_id', 'in', user.allowed_fiscal_tenant_ids.ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="rule_fiscal_py_economic_activity_admin_all" model="ir.rule">
+        <field name="name">Paraguay economic activities: administrators all</field>
+        <field name="model_id" ref="model_fiscal_py_economic_activity"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+    </record>
+
     <record id="rule_fiscal_py_establishment_user_allowed" model="ir.rule">
         <field name="name">Paraguay establishments: allowed tenants</field>
         <field name="model_id" ref="model_fiscal_py_establishment"/>

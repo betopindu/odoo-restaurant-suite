@@ -30,8 +30,18 @@
                     </group>
                     <group string="Contact">
                         <field name="address"/>
+                        <field name="house_number"/>
                         <field name="phone"/>
                         <field name="email"/>
+                    </group>
+                    <group string="SIFEN Location">
+                        <field name="branch_name"/>
+                        <field name="department_code"/>
+                        <field name="department_name"/>
+                        <field name="district_code"/>
+                        <field name="district_name"/>
+                        <field name="city_code"/>
+                        <field name="city_name"/>
                     </group>
                 </sheet>
             </form>

@@ -1,0 +1,45 @@
+<odoo>
+    <record id="view_fiscal_py_economic_activity_tree" model="ir.ui.view">
+        <field name="name">fiscal.py.economic.activity.tree</field>
+        <field name="model">fiscal.py.economic.activity</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="sequence"/>
+                <field name="code"/>
+                <field name="description"/>
+                <field name="issuer_id"/>
+                <field name="tenant_id"/>
+                <field name="company_id"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_fiscal_py_economic_activity_form" model="ir.ui.view">
+        <field name="name">fiscal.py.economic.activity.form</field>
+        <field name="model">fiscal.py.economic.activity</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="issuer_id"/>
+                        <field name="tenant_id"/>
+                        <field name="company_id"/>
+                        <field name="active"/>
+                    </group>
+                    <group string="Economic Activity">
+                        <field name="sequence"/>
+                        <field name="code"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_fiscal_py_economic_activity" model="ir.actions.act_window">
+        <field name="name">Paraguay Economic Activities</field>
+        <field name="res_model">fiscal.py.economic.activity</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

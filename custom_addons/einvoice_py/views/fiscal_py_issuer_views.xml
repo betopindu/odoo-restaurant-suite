@@ -34,6 +34,16 @@
                         <field name="ruc_dv"/>
                         <field name="taxpayer_type"/>
                     </group>
+                    <group string="Economic Activities">
+                        <field name="economic_activity_ids" nolabel="1">
+                            <tree editable="bottom">
+                                <field name="sequence" widget="handle"/>
+                                <field name="code"/>
+                                <field name="description"/>
+                                <field name="active"/>
+                            </tree>
+                        </field>
+                    </group>
                     <group string="Notes">
                         <field name="notes"/>
                     </group>

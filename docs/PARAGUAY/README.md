@@ -26,6 +26,7 @@ Current implemented Paraguay stages:
 * normalized payload builder
 * unsigned SIFEN-oriented XML draft builder
 * SIFEN-oriented XML structural alignment
+* issuer schema-readiness configuration for future `gEmis`
 * fiscal data enrichment for receiver, operation, payment, and tax details
 * administrative UI stabilization for validation/support workflows
 
@@ -40,17 +41,40 @@ Key data:
 * RUC without DV
 * RUC DV
 * taxpayer type
+* economic activities
 * tenant
 * company
 * environment
 
 Issuer data is snapshotted onto the fiscal document during Paraguay processing so historical documents remain stable if configuration changes later.
 
+`fiscal.py.economic.activity` stores Paraguay issuer economic activities needed later for schema-ready `gEmis/gActEco` output.
+
+Economic activity data includes:
+
+* code
+* description
+* sequence
+* active flag
+* tenant and company derived from the issuer
+
+Economic activities belong to the Paraguay issuer. They are Paraguay-specific configuration in `einvoice_py`, not country-neutral core data.
+
 ### Establishment
 
 `fiscal.py.establishment` represents the Paraguay establishment code.
 
 An active establishment belongs to an issuer and carries tenant/company scope.
+
+Stage 6.5.2B-1 adds optional SIFEN location fields to the establishment for future schema-ready `gEmis` output:
+
+* house number
+* department code and name
+* district code and name
+* city code and name
+* branch name / `dDenSuc`
+
+These fields are optional at the ORM and administrative UI level for now. They will be required later only by XML-readiness validation when generating schema-ready issuer data.
 
 ### Point Of Issue
 
@@ -204,7 +228,24 @@ Out of scope for Stage 6:
 * SIFEN submission
 * KuDE/PDF
 * XSD validation
-* new database fields for geography or economic activities
+
+## Schema Readiness
+
+ADR-010 defines the distinction between pre-signature schema readiness and full official SIFEN XSD validation.
+
+Stage 6.5.2B-1 completed issuer-side schema-readiness configuration:
+
+* establishment SIFEN location fields
+* issuer economic activities
+
+These fields support future schema-ready `gEmis` and repeated `gActEco` output. They are not integrated into `PyPayloadBuilder` or `PyUnsignedXmlBuilder` yet.
+
+Still pending:
+
+* receiver fiscal identity fields
+* receiver geography fields
+* payload integration for issuer schema-readiness data
+* XML integration for `gEmis` and `gActEco`
 
 ## Fiscal Data Enrichment
 

@@ -15,6 +15,14 @@ class FiscalPyEstablishment(models.Model):
     address = fields.Char()
     phone = fields.Char()
     email = fields.Char()
+    house_number = fields.Char(default="0")
+    department_code = fields.Char()
+    department_name = fields.Char()
+    district_code = fields.Char()
+    district_name = fields.Char()
+    city_code = fields.Char()
+    city_name = fields.Char()
+    branch_name = fields.Char(string="Branch Name")
     active = fields.Boolean(default=True)
 
     _sql_constraints = [
