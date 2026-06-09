@@ -25,6 +25,7 @@ Current implemented Paraguay stages:
 * CDC generation
 * normalized payload builder
 * unsigned SIFEN-oriented XML draft builder
+* SIFEN-oriented XML structural alignment
 * fiscal data enrichment for receiver, operation, payment, and tax details
 * administrative UI stabilization for validation/support workflows
 
@@ -153,6 +154,8 @@ See [ADR-003 Payload Before XML](../ADR/ADR-003-payload-before-xml.md).
 
 Stage 6 adds `PyUnsignedXmlBuilder`, the first cut of the Paraguay unsigned XML builder.
 
+Stage 6.5.1 aligns that draft closer to the official SIFEN XML structure while keeping it unsigned and draft-only.
+
 Input:
 
 * normalized Paraguay payload JSON produced by `PyPayloadBuilder`
@@ -165,6 +168,26 @@ Output:
 * mimetype `application/xml`
 
 The XML builder stays inside `einvoice_py` and uses the normalized payload as its source of truth. It does not read scattered fiscal document fields directly when building XML from payload.
+
+Stage 6.5.1 XML alignment includes:
+
+* official SIFEN default namespace: `http://ekuatia.set.gov.py/sifen/xsd`
+* `xsi` namespace and `schemaLocation` for `siRecepDE_v150.xsd`
+* root `rDE` with `dVerFor`
+* `DE` preamble fields `dDVId` and `dSisFact`
+* no `dFecFirma`, because that belongs to the future digital signature stage
+* `gOpeDE` for emission fields such as `iTipEmi`, `dDesTipEmi`, and `dCodSeg`
+* aligned `gTimb` with document type description
+* invoice group `gCamFE`
+* item value structure with `gValorItem` and nested `gValorRestaItem`
+* `gCamIVA` with VAT affectation description
+* updated `gTotSub` totals using SIFEN-oriented tags such as `dIVA5`, `dIVA10`, `dBaseGrav5`, `dBaseGrav10`, and `dTBasGraIVA`
+
+Formatter decisions are local to XML output:
+
+* money and decimal formatting are normalized when generating XML
+* integer code normalization is applied when generating XML, for example `01` becomes `1` where SIFEN-oriented tags expect an integer code
+* these formatter choices do not change the normalized payload or stored document data
 
 The Paraguay fake adapter now attempts to create both attachments during processing:
 
@@ -181,6 +204,7 @@ Out of scope for Stage 6:
 * SIFEN submission
 * KuDE/PDF
 * XSD validation
+* new database fields for geography or economic activities
 
 ## Fiscal Data Enrichment
 

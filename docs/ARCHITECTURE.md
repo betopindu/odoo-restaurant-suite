@@ -14,7 +14,7 @@ The e-Invoice Platform is built around a country-neutral fiscal core, country-sp
 The core owns common fiscal concepts such as document lifecycle, events, transmissions, attachments, tenant isolation, idempotency, lock policies, and orchestration.
 
 Country addons own country-specific concepts such as numbering, fiscal identifiers, payloads, authority-specific configuration, and future XML/signing/authority integration.
-Paraguay already includes an unsigned SIFEN-oriented XML draft builder. Digital signature, QR, SIFEN submission, KuDE/PDF, and XSD validation remain future stages.
+Paraguay already includes an unsigned SIFEN-oriented XML draft builder with structural alignment for official namespace, schema location, and key SIFEN groups. Digital signature, QR, SIFEN submission, KuDE/PDF, XSD validation, and new geography/economic-activity database fields remain future stages.
 
 Administrative UI labels should remain country-neutral whenever a generic concept exists. Country-specific terminology should be used only when there is no meaningful cross-country abstraction, such as Timbrado, CDC, CSC, issuer RUC, establishment, or point of issue.
 
@@ -51,6 +51,7 @@ Administrative UI labels should remain country-neutral whenever a generic concep
   * Paraguay CDC
   * Paraguay payload builder
   * Paraguay unsigned XML draft builder
+  * Paraguay XML structural alignment
 * future `einvoice_cr`
 * future `einvoice_ar`
 

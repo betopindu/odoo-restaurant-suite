@@ -8,7 +8,7 @@ This page is the visual navigation hub for the e-Invoice Platform.
 
 **Purpose:** Show the high-level platform flow.
 
-**Short description:** The architecture diagram shows how the Fiscal API creates fiscal documents, how the orchestrator delegates to country adapters, and where payload, future XML, future signature, and future tax authority integration fit.
+**Short description:** The architecture diagram shows how the Fiscal API creates fiscal documents, how the orchestrator delegates to country adapters, and where payload, schema-oriented unsigned XML, future signature, and future tax authority integration fit.
 
 **Diagram:** [architecture.mmd](architecture.mmd)
 
@@ -49,7 +49,7 @@ This page is the visual navigation hub for the e-Invoice Platform.
 
 **Purpose:** Show the implemented Paraguay-specific processing order.
 
-**Short description:** The Paraguay processing diagram shows how a fiscal document uses issuer, establishment, point of issue, sequence, CDC, and payload JSON before the current fake adapter outcome.
+**Short description:** The Paraguay processing diagram shows how a fiscal document uses issuer, establishment, point of issue, sequence, CDC, payload JSON, and schema-oriented unsigned XML before the current fake adapter outcome.
 
 **Diagram:** [paraguay-processing.mmd](paraguay-processing.mmd)
 
