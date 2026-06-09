@@ -29,6 +29,7 @@
 [x] Paraguay CDC
 [x] Paraguay payload
 [x] Paraguay unsigned XML draft builder
+[x] Paraguay XML structural alignment with SIFEN-oriented namespace and groups
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -39,7 +40,8 @@
 
 ## Next
 
-[ ] Paraguay XML validation tests
+[ ] Paraguay pre-signature XML validation tests
+[ ] Paraguay Stage 6.5.2 XSD strategy and pre-signature schema readiness
 [ ] Paraguay QR generation
 [ ] Paraguay SIFEN test integration
 
@@ -47,7 +49,7 @@
 
 [ ] Paraguay digital signature
 [ ] Paraguay XML signature integration
-[ ] Paraguay XSD validation
+[ ] Paraguay full official XSD validation after signature and QR
 [ ] Certificate/key management
 [ ] Paraguay SIFEN production integration
 [ ] SIFEN error normalization

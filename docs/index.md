@@ -30,6 +30,7 @@ Start here if you are new to the project or trying to understand what has alread
 [Paraguay](PARAGUAY/README.md)
 -> [ADR-008](ADR/ADR-008-paraguay-numbering-before-cdc.md)
 -> [ADR-009](ADR/ADR-009-csc-only-for-qr.md)
+-> [ADR-010](ADR/ADR-010-sifen-xsd-validation-strategy.md)
 -> [Diagrams](diagrams/README.md)
 
 ### Product Owner
@@ -66,6 +67,7 @@ Use ADRs to understand why the platform is shaped the way it is.
 * [ADR-007 Fiscal Attachments](ADR/ADR-007-fiscal-attachments.md): persist fiscal artifacts as attachments.
 * [ADR-008 Paraguay Numbering Before CDC](ADR/ADR-008-paraguay-numbering-before-cdc.md): assign Paraguay number before CDC.
 * [ADR-009 CSC Only For QR](ADR/ADR-009-csc-only-for-qr.md): reserve CSC for future QR, not CDC.
+* [ADR-010 SIFEN XSD Validation Strategy](ADR/ADR-010-sifen-xsd-validation-strategy.md): distinguish pre-signature schema readiness from full official XSD validation.
 
 ## Country Implementations
 
