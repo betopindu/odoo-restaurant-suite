@@ -539,6 +539,16 @@ class TestPyFakeAdapter(TransactionCase):
         content = base64.b64decode(attachment.ir_attachment_id.datas)
         return ET.fromstring(content)
 
+    def _xml_path(self, path):
+        namespace = PyUnsignedXmlBuilder.SIFEN_NS
+        return "/".join(f"{{{namespace}}}{part}" for part in path.split("/"))
+
+    def _xml_find(self, root, path):
+        return root.find(self._xml_path(path))
+
+    def _xml_findtext(self, root, path):
+        return root.findtext(self._xml_path(path))
+
     def test_payload_uses_explicit_receiver_fields(self):
         self._create_config()
         document = self._create_document()
@@ -564,9 +574,12 @@ class TestPyFakeAdapter(TransactionCase):
         payload = PyPayloadBuilder(self.env).build(document)
 
         self.assertEqual(payload["condition"]["sale_condition_code"], "2")
+        self.assertEqual(payload["condition"]["sale_condition_description"], "Crédito")
         self.assertEqual(payload["condition"]["payment_type_code"], "5")
+        self.assertEqual(payload["condition"]["payment_type_description"], "Transferencia bancaria")
         self.assertEqual(payload["condition"]["payment_amount"], 100)
         self.assertEqual(payload["condition"]["payment_currency"], "PYG")
+        self.assertEqual(payload["condition"]["payment_currency_description"], "Guarani")
 
     def test_payload_uses_explicit_operation_fields(self):
         self._create_config()
@@ -577,8 +590,11 @@ class TestPyFakeAdapter(TransactionCase):
         payload = PyPayloadBuilder(self.env).build(document)
 
         self.assertEqual(payload["operation"]["transaction_type_code"], "1")
+        self.assertEqual(payload["operation"]["transaction_type_description"], "Venta de mercadería")
         self.assertEqual(payload["operation"]["tax_type_code"], "1")
+        self.assertEqual(payload["operation"]["tax_type_description"], "IVA")
         self.assertEqual(payload["operation"]["currency"], "PYG")
+        self.assertEqual(payload["operation"]["currency_description"], "Guarani")
 
     def test_payload_uses_explicit_item_tax_fields(self):
         self._create_config()
@@ -592,9 +608,14 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertEqual(item["code"], "ITEM-001")
         self.assertEqual(item["unit_measure_code"], "77")
         self.assertEqual(item["tax_affectation"], "1")
+        self.assertEqual(item["tax_affectation_description"], "Gravado IVA")
         self.assertEqual(item["tax_rate"], 10)
         self.assertEqual(item["tax_base"], 90.91)
         self.assertEqual(item["tax_amount"], 9.09)
+        self.assertEqual(item["discount_percent"], 0)
+        self.assertEqual(item["global_discount"], 0)
+        self.assertEqual(item["unit_advance"], 0)
+        self.assertEqual(item["global_advance"], 0)
 
     def test_tax_buckets_for_exempt_line(self):
         self._create_config()
@@ -680,15 +701,20 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertEqual(len(attachment), 1)
         root = self._xml_root_from_attachment(attachment)
 
-        self.assertEqual(root.tag, "rDE")
-        self.assertEqual(root.attrib["version"], "150")
-        self.assertIsNotNone(root.find("DE/gTimb"))
-        self.assertIsNotNone(root.find("DE/gDatGralOpe"))
-        self.assertIsNotNone(root.find("DE/gDatGralOpe/gOpeCom"))
-        self.assertIsNotNone(root.find("DE/gDatGralOpe/gEmis"))
-        self.assertIsNotNone(root.find("DE/gDatGralOpe/gDatRec"))
-        self.assertIsNotNone(root.find("DE/gDtipDE"))
-        self.assertIsNotNone(root.find("DE/gTotSub"))
+        self.assertEqual(root.tag, self._xml_path("rDE"))
+        self.assertNotIn("version", root.attrib)
+        self.assertEqual(
+            root.attrib[f"{{{PyUnsignedXmlBuilder.XSI_NS}}}schemaLocation"],
+            PyUnsignedXmlBuilder.SCHEMA_LOCATION,
+        )
+        self.assertIsNotNone(self._xml_find(root, "DE/gOpeDE"))
+        self.assertIsNotNone(self._xml_find(root, "DE/gTimb"))
+        self.assertIsNotNone(self._xml_find(root, "DE/gDatGralOpe"))
+        self.assertIsNotNone(self._xml_find(root, "DE/gDatGralOpe/gOpeCom"))
+        self.assertIsNotNone(self._xml_find(root, "DE/gDatGralOpe/gEmis"))
+        self.assertIsNotNone(self._xml_find(root, "DE/gDatGralOpe/gDatRec"))
+        self.assertIsNotNone(self._xml_find(root, "DE/gDtipDE"))
+        self.assertIsNotNone(self._xml_find(root, "DE/gTotSub"))
 
     def test_unsigned_xml_contains_expected_values(self):
         self._create_config()
@@ -697,19 +723,97 @@ class TestPyFakeAdapter(TransactionCase):
         self._process(document)
 
         root = self._xml_root_from_attachment(self._xml_attachment(document))
-        de = root.find("DE")
+        de = self._xml_find(root, "DE")
 
         self.assertEqual(de.attrib["Id"], document.py_cdc)
-        self.assertEqual(root.findtext("DE/gTimb/dNumTim"), document.py_timbrado_id.number)
-        self.assertEqual(root.findtext("DE/gTimb/dEst"), "001")
-        self.assertEqual(root.findtext("DE/gTimb/dPunExp"), "001")
-        self.assertEqual(root.findtext("DE/gTimb/dNumDoc"), "0000015")
-        self.assertEqual(root.findtext("DE/gDatGralOpe/gEmis/dRucEm"), document.py_issuer_ruc)
-        self.assertEqual(root.findtext("DE/gDatGralOpe/gEmis/dDVEmi"), document.py_issuer_ruc_dv)
-        self.assertEqual(root.findtext("DE/gDatGralOpe/gDatRec/dNomRec"), document.customer_name)
-        self.assertEqual(root.findtext("DE/gDtipDE/gCamItem/dDesProSer"), "Paraguay Test Item")
-        self.assertEqual(float(root.findtext("DE/gDtipDE/gCamItem/gCamIVA/dTasaIVA")), 10.0)
-        self.assertEqual(root.findtext("DE/gTotSub/dTotIVA10"), "9.09")
+        self.assertEqual(self._xml_findtext(root, "DE/dDVId"), document.py_cdc_dv)
+        self.assertEqual(self._xml_findtext(root, "DE/dSisFact"), "1")
+        self.assertIsNone(self._xml_find(root, "DE/dFecFirma"))
+        self.assertEqual(self._xml_findtext(root, "DE/gOpeDE/iTipEmi"), "1")
+        self.assertEqual(self._xml_findtext(root, "DE/gOpeDE/dDesTipEmi"), "Normal")
+        self.assertEqual(self._xml_findtext(root, "DE/gOpeDE/dCodSeg"), document.py_cod_seg)
+        self.assertIsNone(self._xml_find(root, "DE/gDatGralOpe/iTipEmi"))
+        self.assertIsNone(self._xml_find(root, "DE/gDatGralOpe/dCodSeg"))
+        self.assertEqual(self._xml_findtext(root, "DE/gTimb/iTiDE"), "1")
+        self.assertEqual(self._xml_findtext(root, "DE/gTimb/dDesTiDE"), "Factura electrónica")
+        self.assertEqual(self._xml_findtext(root, "DE/gTimb/dNumTim"), document.py_timbrado_id.number)
+        self.assertEqual(self._xml_findtext(root, "DE/gTimb/dEst"), "001")
+        self.assertEqual(self._xml_findtext(root, "DE/gTimb/dPunExp"), "001")
+        self.assertEqual(self._xml_findtext(root, "DE/gTimb/dNumDoc"), "0000015")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gEmis/dRucEm"), document.py_issuer_ruc)
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gEmis/dDVEmi"), document.py_issuer_ruc_dv)
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dNomRec"), document.customer_name)
+        self.assertEqual(
+            self._xml_findtext(root, "DE/gDatGralOpe/gOpeCom/dDesTipTra"),
+            "Prestación de servicios",
+        )
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gOpeCom/dDesTImp"), "IVA")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gOpeCom/dDesMoneOpe"), "Guarani")
+        self.assertEqual(self._xml_findtext(root, "DE/gDtipDE/gCamFE/iIndPres"), "1")
+        self.assertEqual(self._xml_findtext(root, "DE/gDtipDE/gCamCond/dDCondOpe"), "Contado")
+        self.assertEqual(
+            self._xml_findtext(root, "DE/gDtipDE/gCamCond/gPaConEIni/dDesTiPag"),
+            "Efectivo",
+        )
+        self.assertEqual(
+            self._xml_findtext(root, "DE/gDtipDE/gCamCond/gPaConEIni/dDMoneTiPag"),
+            "Guarani",
+        )
+        self.assertEqual(self._xml_findtext(root, "DE/gDtipDE/gCamItem/dDesProSer"), "Paraguay Test Item")
+        self.assertEqual(
+            self._xml_findtext(root, "DE/gDtipDE/gCamItem/gValorItem/gValorRestaItem/dTotOpeItem"),
+            "100.00000000",
+        )
+        self.assertEqual(
+            self._xml_findtext(root, "DE/gDtipDE/gCamItem/gValorItem/gValorRestaItem/dPorcDesIt"),
+            "0.00000000",
+        )
+        self.assertEqual(
+            self._xml_findtext(root, "DE/gDtipDE/gCamItem/gValorItem/gValorRestaItem/dDescGloItem"),
+            "0.00000000",
+        )
+        self.assertEqual(
+            self._xml_findtext(root, "DE/gDtipDE/gCamItem/gValorItem/gValorRestaItem/dAntPreUniIt"),
+            "0.00000000",
+        )
+        self.assertEqual(
+            self._xml_findtext(root, "DE/gDtipDE/gCamItem/gValorItem/gValorRestaItem/dAntGloPreUniIt"),
+            "0.00000000",
+        )
+        self.assertEqual(float(self._xml_findtext(root, "DE/gDtipDE/gCamItem/gCamIVA/dTasaIVA")), 10.0)
+        self.assertEqual(
+            self._xml_findtext(root, "DE/gDtipDE/gCamItem/gCamIVA/dDesAfecIVA"),
+            "Gravado IVA",
+        )
+        self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dIVA10"), "9.09000000")
+        self.assertIsNone(self._xml_find(root, "DE/gTotSub/dTotIVA10"))
+        self.assertIsNone(self._xml_find(root, "DE/gTotSub/dTotIVA5"))
+        self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dBaseGrav10"), "90.91000000")
+        self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dTBasGraIVA"), "90.91000000")
+
+    def test_unsigned_xml_gcamiva_child_order_is_schema_ready(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+
+        root = self._xml_root_from_attachment(self._xml_attachment(document))
+        tax = self._xml_find(root, "DE/gDtipDE/gCamItem/gCamIVA")
+        namespace = PyUnsignedXmlBuilder.SIFEN_NS
+        names = [child.tag.replace(f"{{{namespace}}}", "") for child in tax]
+
+        self.assertEqual(
+            names,
+            [
+                "iAfecIVA",
+                "dDesAfecIVA",
+                "dPropIVA",
+                "dTasaIVA",
+                "dBasGravIVA",
+                "dLiqIVAItem",
+                "dBasExe",
+            ],
+        )
 
     def test_unsigned_xml_repeated_item_count_is_correct(self):
         self._create_config()
@@ -752,7 +856,7 @@ class TestPyFakeAdapter(TransactionCase):
 
         root = self._xml_root_from_attachment(self._xml_attachment(document))
 
-        self.assertEqual(len(root.findall("DE/gDtipDE/gCamItem")), 2)
+        self.assertEqual(len(root.findall(self._xml_path("DE/gDtipDE/gCamItem"))), 2)
 
     def test_unsigned_xml_missing_blocking_field_raises(self):
         self._create_config()
@@ -766,6 +870,44 @@ class TestPyFakeAdapter(TransactionCase):
         with self.assertRaises(ValidationError):
             PyUnsignedXmlBuilder(self.env).build_from_payload(invalid_payload)
 
+    def test_unsigned_xml_missing_item_code_blocks_schema_readiness(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+        payload = PyPayloadBuilder(self.env).build(document)
+        invalid_payload = deepcopy(payload)
+        invalid_payload["items"][0]["code"] = None
+
+        with self.assertRaisesRegex(ValidationError, "item 1 internal code"):
+            PyUnsignedXmlBuilder(self.env).build_from_payload(invalid_payload)
+
+    def test_unsigned_xml_unknown_required_code_mapping_blocks_schema_readiness(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+        payload = PyPayloadBuilder(self.env).build(document)
+        invalid_payload = deepcopy(payload)
+        invalid_payload["operation"]["transaction_type_code"] = "99"
+        invalid_payload["operation"]["transaction_type_description"] = None
+
+        with self.assertRaisesRegex(
+            ValidationError,
+            "official transaction type description mapping",
+        ):
+            PyUnsignedXmlBuilder(self.env).build_from_payload(invalid_payload)
+
+    def test_unsigned_xml_formatter_helpers(self):
+        builder = PyUnsignedXmlBuilder(self.env)
+
+        self.assertEqual(builder._format_money(9.09), "9.09000000")
+        self.assertEqual(builder._format_decimal(0, places=4), "0.0000")
+        self.assertEqual(builder._format_rate(10.0), "10")
+        self.assertEqual(builder._format_date("2026-06-04T12:00:00"), "2026-06-04")
+        self.assertEqual(builder._format_datetime("2026-06-04 12:00:00"), "2026-06-04T12:00:00")
+        self.assertEqual(builder._normalize_int_code("01"), "1")
+
     def test_unsigned_xml_non_blocking_warnings_are_allowed(self):
         self._create_config()
         document = self._create_document()
@@ -778,7 +920,7 @@ class TestPyFakeAdapter(TransactionCase):
         xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
         root = ET.fromstring(xml_bytes)
 
-        self.assertEqual(root.find("DE").attrib["Id"], document.py_cdc)
+        self.assertEqual(self._xml_find(root, "DE").attrib["Id"], document.py_cdc)
 
     def test_fake_adapter_creates_payload_and_unsigned_xml_attachments(self):
         self._create_config()

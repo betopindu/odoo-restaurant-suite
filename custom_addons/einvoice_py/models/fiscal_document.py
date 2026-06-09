@@ -99,6 +99,8 @@ class FiscalDocument(models.Model):
         ],
         string="Receiver Operation Type",
         copy=False,
+        # SIFEN XSD expects 1=B2B, 2=B2C, 3=B2G, 4=B2F. The current
+        # "3=Foreign" value is not silently reinterpreted in Stage 6.5.2A.
         help="Operation type for the receiver: B2B, B2C, or foreign.",
     )
     py_receiver_country_code = fields.Char(

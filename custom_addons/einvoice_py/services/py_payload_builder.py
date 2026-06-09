@@ -7,12 +7,12 @@ from odoo.addons.einvoice_py.services.numbering_service import PyNumberingServic
 class PyPayloadBuilder:
     VERSION = "150"
     TRANSACTION_TYPES = {
-        "1": "Sale of goods",
-        "2": "Prestacion de servicios",
+        "1": "Venta de mercadería",
+        "2": "Prestación de servicios",
     }
     TAX_TYPES = {
         "1": "IVA",
-        "4": "None",
+        "4": "Ninguno",
     }
     RECEIVER_NATURES = {
         "1": "Taxpayer",
@@ -25,13 +25,21 @@ class PyPayloadBuilder:
     }
     SALE_CONDITIONS = {
         "1": "Contado",
-        "2": "Credito",
+        "2": "Crédito",
     }
     PAYMENT_TYPES = {
         "1": "Efectivo",
-        "3": "Tarjeta de credito",
+        "3": "Tarjeta de crédito",
         "5": "Transferencia bancaria",
-        "17": "Pago movil",
+        "17": "Pago Móvil",
+    }
+    VAT_AFFECTATIONS = {
+        "1": "Gravado IVA",
+        "3": "Exento",
+        "4": "Gravado parcial (Grav- Exento)",
+    }
+    CURRENCIES = {
+        "PYG": "Guarani",
     }
 
     def __init__(self, env):
@@ -116,6 +124,7 @@ class PyPayloadBuilder:
             "tax_type_code": tax_type_code,
             "tax_type_description": self.TAX_TYPES.get(tax_type_code),
             "currency": currency or "PYG",
+            "currency_description": self._currency_description(currency),
             "exchange_rate": document.py_exchange_rate or None,
         }
 
@@ -194,6 +203,7 @@ class PyPayloadBuilder:
             "payment_type_description": self.PAYMENT_TYPES.get(payment_type_code),
             "payment_amount": document.py_payment_amount or document.amount_total,
             "payment_currency": payment_currency,
+            "payment_currency_description": self._currency_description(payment_currency),
         }
 
     def _items_section(self, document, warnings):
@@ -218,8 +228,13 @@ class PyPayloadBuilder:
                 "unit_measure_description": line.py_unit_measure_description or "UNI",
                 "price_unit": line.price_unit,
                 "discount": line.py_discount_amount or line.discount,
+                "discount_percent": 0,
+                "global_discount": 0,
+                "unit_advance": 0,
+                "global_advance": 0,
                 "total": line.total,
                 "tax_affectation": line.py_tax_affectation,
+                "tax_affectation_description": self.VAT_AFFECTATIONS.get(line.py_tax_affectation),
                 "tax_rate": tax_rate,
                 "tax_proportion": line.py_tax_proportion,
                 "tax_base": tax_base,
@@ -294,3 +309,8 @@ class PyPayloadBuilder:
         if len(parts) == 2 and parts[1].isdigit() and len(parts[1]) == 1:
             return parts[0], parts[1]
         return value, None
+
+    def _currency_description(self, code):
+        if not code:
+            return None
+        return self.CURRENCIES.get(code, code)

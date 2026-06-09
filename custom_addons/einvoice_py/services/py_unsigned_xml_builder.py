@@ -1,3 +1,5 @@
+from datetime import date, datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from xml.etree import ElementTree as ET
 
 from odoo.exceptions import ValidationError
@@ -7,6 +9,26 @@ from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder
 
 class PyUnsignedXmlBuilder:
     """Build an unsigned SIFEN-oriented Paraguay XML draft from normalized payload."""
+
+    SIFEN_NS = "http://ekuatia.set.gov.py/sifen/xsd"
+    XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
+    SCHEMA_LOCATION = "http://ekuatia.set.gov.py/sifen/xsd siRecepDE_v150.xsd"
+    EMISSION_TYPE_DESCRIPTIONS = {
+        "1": "Normal",
+        "2": "Contingencia",
+    }
+    DOCUMENT_TYPE_DESCRIPTIONS = {
+        "01": "Factura electrónica",
+        "04": "Autofactura electrónica",
+        "05": "Nota de crédito electrónica",
+        "06": "Nota de débito electrónica",
+        "07": "Nota de remisión electrónica",
+    }
+    VAT_AFFECTATION_DESCRIPTIONS = {
+        "1": "Gravado IVA",
+        "3": "Exento",
+        "4": "Gravado parcial (Grav- Exento)",
+    }
 
     def __init__(self, env):
         self.env = env
@@ -21,10 +43,18 @@ class PyUnsignedXmlBuilder:
 
     def build_from_payload(self, payload):
         self._validate_payload(payload)
-        root = ET.Element("rDE", {"version": str(payload["version"])})
+        self._validate_xml_readiness(payload)
+        ET.register_namespace("", self.SIFEN_NS)
+        ET.register_namespace("xsi", self.XSI_NS)
+        root = ET.Element(
+            self._tag("rDE"),
+            {self._xsi_tag("schemaLocation"): self.SCHEMA_LOCATION},
+        )
         self._text(root, "dVerFor", payload["version"])
 
-        de = ET.SubElement(root, "DE", {"Id": payload["cdc"]})
+        de = ET.SubElement(root, self._tag("DE"), {"Id": payload["cdc"]})
+        self._build_de_preamble(de, payload)
+        self._build_electronic_document_operation(de, payload)
         self._build_timbrado(de, payload)
         self._build_general_operation(de, payload)
         self._build_document_type(de, payload)
@@ -33,43 +63,57 @@ class PyUnsignedXmlBuilder:
         ET.indent(root, space="  ")
         return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
+    def _build_de_preamble(self, parent, payload):
+        document = payload["document"]
+        self._text(parent, "dDVId", document["py_cdc_dv"])
+        self._text(parent, "dSisFact", "1")
+
+    def _build_electronic_document_operation(self, parent, payload):
+        document = payload["document"]
+        emission_type = self._normalize_int_code(document["py_emission_type"])
+        group = self._sub(parent, "gOpeDE")
+        self._text(group, "iTipEmi", emission_type)
+        self._text(group, "dDesTipEmi", self.EMISSION_TYPE_DESCRIPTIONS[emission_type])
+        self._text(group, "dCodSeg", document["py_cod_seg"])
+
     def _build_timbrado(self, parent, payload):
         document = payload["document"]
         issuer = payload["issuer"]
-        group = ET.SubElement(parent, "gTimb")
-        self._text(group, "iTiDE", document["py_i_tide"])
+        document_type_code = document["py_i_tide"]
+        group = self._sub(parent, "gTimb")
+        self._text(group, "iTiDE", self._normalize_int_code(document_type_code))
+        self._text(group, "dDesTiDE", self.DOCUMENT_TYPE_DESCRIPTIONS[document_type_code])
         self._text(group, "dNumTim", issuer["timbrado_number"])
         self._text(group, "dEst", issuer["establishment_code"])
         self._text(group, "dPunExp", issuer["point_of_issue_code"])
         self._text(group, "dNumDoc", document["py_document_number"])
-        self._text(group, "dFeIniT", issuer.get("timbrado_valid_from"))
+        self._text(group, "dFeIniT", self._format_date(issuer.get("timbrado_valid_from")))
 
     def _build_general_operation(self, parent, payload):
         document = payload["document"]
-        group = ET.SubElement(parent, "gDatGralOpe")
-        self._text(group, "dFeEmiDE", document["issue_datetime"])
-        self._text(group, "iTipEmi", document["py_emission_type"])
-        self._text(group, "dCodSeg", document.get("py_cod_seg"))
+        group = self._sub(parent, "gDatGralOpe")
+        self._text(group, "dFeEmiDE", self._format_datetime(document["issue_datetime"]))
         self._build_commercial_operation(group, payload)
         self._build_issuer(group, payload)
         self._build_receiver(group, payload)
 
     def _build_commercial_operation(self, parent, payload):
         operation = payload["operation"]
-        group = ET.SubElement(parent, "gOpeCom")
-        self._text(group, "iTipTra", operation["transaction_type_code"])
+        group = self._sub(parent, "gOpeCom")
+        self._text(group, "iTipTra", self._normalize_int_code(operation["transaction_type_code"]))
         self._text(group, "dDesTipTra", operation.get("transaction_type_description"))
-        self._text(group, "iTImp", operation["tax_type_code"])
+        self._text(group, "iTImp", self._normalize_int_code(operation["tax_type_code"]))
         self._text(group, "dDesTImp", operation.get("tax_type_description"))
         self._text(group, "cMoneOpe", operation["currency"])
-        self._text(group, "dTiCam", operation.get("exchange_rate"))
+        self._text(group, "dDesMoneOpe", operation.get("currency_description"))
+        self._text(group, "dTiCam", self._format_decimal(operation.get("exchange_rate")))
 
     def _build_issuer(self, parent, payload):
         issuer = payload["issuer"]
-        group = ET.SubElement(parent, "gEmis")
+        group = self._sub(parent, "gEmis")
         self._text(group, "dRucEm", issuer["ruc"])
         self._text(group, "dDVEmi", issuer["ruc_dv"])
-        self._text(group, "iTipCont", issuer["taxpayer_type"])
+        self._text(group, "iTipCont", self._normalize_int_code(issuer["taxpayer_type"]))
         self._text(group, "dNomEmi", issuer["name"])
         self._text(group, "dDirEmi", issuer.get("address"))
         self._text(group, "dTelEmi", issuer.get("phone"))
@@ -77,9 +121,9 @@ class PyUnsignedXmlBuilder:
 
     def _build_receiver(self, parent, payload):
         receiver = payload["receiver"]
-        group = ET.SubElement(parent, "gDatRec")
-        self._text(group, "iNatRec", receiver["nature_code"])
-        self._text(group, "iTiOpe", receiver["type_code"])
+        group = self._sub(parent, "gDatRec")
+        self._text(group, "iNatRec", self._normalize_int_code(receiver["nature_code"]))
+        self._text(group, "iTiOpe", self._normalize_int_code(receiver["type_code"]))
         self._text(group, "cPaisRec", receiver.get("country_code"))
         self._text(group, "dRucRec", receiver["ruc_or_document"])
         self._text(group, "dDVRec", receiver.get("ruc_dv"))
@@ -89,55 +133,83 @@ class PyUnsignedXmlBuilder:
         self._text(group, "dEmailRec", receiver.get("email"))
 
     def _build_document_type(self, parent, payload):
-        group = ET.SubElement(parent, "gDtipDE")
+        group = self._sub(parent, "gDtipDE")
+        if payload["document"]["py_i_tide"] == "01":
+            self._build_invoice_fields(group)
         self._build_condition(group, payload)
         for item in payload["items"]:
             self._build_item(group, item)
 
+    def _build_invoice_fields(self, parent):
+        group = self._sub(parent, "gCamFE")
+        self._text(group, "iIndPres", "1")
+        self._text(group, "dDesIndPres", "Operación presencial")
+
     def _build_condition(self, parent, payload):
         condition = payload["condition"]
-        group = ET.SubElement(parent, "gCamCond")
-        self._text(group, "iCondOpe", condition["sale_condition_code"])
+        group = self._sub(parent, "gCamCond")
+        self._text(group, "iCondOpe", self._normalize_int_code(condition["sale_condition_code"]))
         self._text(group, "dDCondOpe", condition.get("sale_condition_description"))
-        payment = ET.SubElement(group, "gPaConEIni")
-        self._text(payment, "iTiPago", condition.get("payment_type_code"))
+        payment = self._sub(group, "gPaConEIni")
+        self._text(payment, "iTiPago", self._normalize_int_code(condition.get("payment_type_code")))
         self._text(payment, "dDesTiPag", condition.get("payment_type_description"))
-        self._text(payment, "dMonTiPag", condition.get("payment_amount"))
+        self._text(payment, "dMonTiPag", self._format_money(condition.get("payment_amount")))
         self._text(payment, "cMoneTiPag", condition.get("payment_currency"))
+        self._text(payment, "dDMoneTiPag", condition.get("payment_currency_description"))
 
     def _build_item(self, parent, item):
-        group = ET.SubElement(parent, "gCamItem")
+        group = self._sub(parent, "gCamItem")
         self._text(group, "dCodInt", item.get("code"))
         self._text(group, "dDesProSer", item["description"])
         self._text(group, "cUniMed", item.get("unit_measure_code"))
         self._text(group, "dDesUniMed", item.get("unit_measure_description"))
-        self._text(group, "dCantProSer", item["quantity"])
+        self._text(group, "dCantProSer", self._format_decimal(item["quantity"]))
 
-        values = ET.SubElement(group, "gValorItem")
-        self._text(values, "dPUniProSer", item["price_unit"])
-        self._text(values, "dDescItem", item.get("discount"))
-        self._text(values, "dTotBruOpeItem", item["total"])
+        values = self._sub(group, "gValorItem")
+        self._text(values, "dPUniProSer", self._format_money(item["price_unit"]))
+        self._text(values, "dTotBruOpeItem", self._format_money(item["total"]))
+        remainder = self._sub(values, "gValorRestaItem")
+        self._text(remainder, "dDescItem", self._format_money(item.get("discount") or 0))
+        self._text(remainder, "dPorcDesIt", self._format_decimal(item.get("discount_percent") or 0))
+        self._text(remainder, "dDescGloItem", self._format_money(item.get("global_discount") or 0))
+        self._text(remainder, "dAntPreUniIt", self._format_money(item.get("unit_advance") or 0))
+        self._text(remainder, "dAntGloPreUniIt", self._format_money(item.get("global_advance") or 0))
+        self._text(remainder, "dTotOpeItem", self._format_money(item["total"]))
 
-        tax = ET.SubElement(group, "gCamIVA")
-        self._text(tax, "iAfecIVA", item["tax_affectation"])
-        self._text(tax, "dTasaIVA", item.get("tax_rate"))
-        self._text(tax, "dPropIVA", item.get("tax_proportion"))
-        self._text(tax, "dBasGravIVA", item.get("tax_base"))
-        self._text(tax, "dLiqIVAItem", item.get("tax_amount"))
-        self._text(tax, "dBasExe", item.get("exempt_base"))
+        tax = self._sub(group, "gCamIVA")
+        affectation = item["tax_affectation"]
+        self._text(tax, "iAfecIVA", self._normalize_int_code(affectation))
+        self._text(tax, "dDesAfecIVA", item.get("tax_affectation_description"))
+        self._text(tax, "dPropIVA", self._format_decimal(item.get("tax_proportion")))
+        self._text(tax, "dTasaIVA", self._format_rate(item.get("tax_rate")))
+        self._text(tax, "dBasGravIVA", self._format_money(item.get("tax_base")))
+        self._text(tax, "dLiqIVAItem", self._format_money(item.get("tax_amount")))
+        self._text(tax, "dBasExe", self._format_money(item.get("exempt_base") or 0))
 
     def _build_totals(self, parent, payload):
         totals = payload["totals"]
-        group = ET.SubElement(parent, "gTotSub")
-        self._text(group, "dSubExe", totals.get("subtotal_exempt"))
-        self._text(group, "dSub5", totals.get("subtotal_5"))
-        self._text(group, "dSub10", totals.get("subtotal_10"))
-        self._text(group, "dTotOpe", totals.get("total_operation"))
-        self._text(group, "dTotDesc", totals.get("total_discount"))
-        self._text(group, "dTotIVA5", totals.get("total_vat_5"))
-        self._text(group, "dTotIVA10", totals.get("total_vat_10"))
-        self._text(group, "dTotIVA", totals.get("total_vat"))
-        self._text(group, "dTotGralOpe", totals["total_general"])
+        subtotal_5 = totals.get("subtotal_5") or 0
+        subtotal_10 = totals.get("subtotal_10") or 0
+        group = self._sub(parent, "gTotSub")
+        self._text(group, "dSubExe", self._format_money(totals.get("subtotal_exempt")))
+        self._text(group, "dSub5", self._format_money(subtotal_5))
+        self._text(group, "dSub10", self._format_money(subtotal_10))
+        self._text(group, "dTotOpe", self._format_money(totals.get("total_operation")))
+        self._text(group, "dTotDesc", self._format_money(totals.get("total_discount")))
+        self._text(group, "dTotDescGlotem", self._format_money(0))
+        self._text(group, "dTotAntItem", self._format_money(0))
+        self._text(group, "dTotAnt", self._format_money(0))
+        self._text(group, "dPorcDescTotal", self._format_decimal(0))
+        self._text(group, "dDescTotal", self._format_money(0))
+        self._text(group, "dAnticipo", self._format_money(0))
+        self._text(group, "dRedon", self._format_decimal(0, places=4))
+        self._text(group, "dTotGralOpe", self._format_money(totals["total_general"]))
+        self._text(group, "dIVA5", self._format_money(totals.get("total_vat_5")))
+        self._text(group, "dIVA10", self._format_money(totals.get("total_vat_10")))
+        self._text(group, "dTotIVA", self._format_money(totals.get("total_vat")))
+        self._text(group, "dBaseGrav5", self._format_money(subtotal_5))
+        self._text(group, "dBaseGrav10", self._format_money(subtotal_10))
+        self._text(group, "dTBasGraIVA", self._format_money(self._decimal(subtotal_5) + self._decimal(subtotal_10)))
 
     def _validate_payload(self, payload):
         missing = []
@@ -153,8 +225,10 @@ class PyUnsignedXmlBuilder:
         self._require(missing, payload, "cdc", "payload CDC")
         self._require(missing, document, "py_i_tide", "document type code")
         self._require(missing, document, "py_document_number", "document number")
+        self._require(missing, document, "py_cdc_dv", "CDC check digit")
         self._require(missing, document, "issue_datetime", "issue datetime")
         self._require(missing, document, "py_emission_type", "emission type")
+        self._require(missing, document, "py_cod_seg", "security code")
         self._require(missing, issuer, "ruc", "issuer RUC")
         self._require(missing, issuer, "ruc_dv", "issuer RUC DV")
         self._require(missing, issuer, "name", "issuer name")
@@ -174,6 +248,14 @@ class PyUnsignedXmlBuilder:
 
         if payload.get("cdc") != document.get("py_cdc"):
             missing.append("payload CDC must match document CDC")
+        if document.get("py_i_tide") and document.get("py_i_tide") not in self.DOCUMENT_TYPE_DESCRIPTIONS:
+            missing.append("document type description mapping")
+        if (
+            document.get("py_emission_type")
+            and self._normalize_int_code(document.get("py_emission_type"))
+            not in self.EMISSION_TYPE_DESCRIPTIONS
+        ):
+            missing.append("emission type description mapping")
         if not items:
             missing.append("at least one item")
         for index, item in enumerate(items, start=1):
@@ -183,6 +265,11 @@ class PyUnsignedXmlBuilder:
             self._require(missing, item, "price_unit", f"{prefix} price unit")
             self._require(missing, item, "total", f"{prefix} total")
             self._require(missing, item, "tax_affectation", f"{prefix} tax affectation")
+            if (
+                item.get("tax_affectation")
+                and item.get("tax_affectation") not in self.VAT_AFFECTATION_DESCRIPTIONS
+            ):
+                missing.append(f"{prefix} VAT affectation description mapping")
             if item.get("tax_affectation") in ("1", "4"):
                 self._require(missing, item, "tax_rate", f"{prefix} tax rate")
                 self._require(missing, item, "tax_base", f"{prefix} tax base")
@@ -194,6 +281,45 @@ class PyUnsignedXmlBuilder:
                 + "; ".join(missing)
             )
 
+    def _validate_xml_readiness(self, payload):
+        missing = []
+        document = payload.get("document") or {}
+        operation = payload.get("operation") or {}
+        condition = payload.get("condition") or {}
+        items = payload.get("items") or []
+
+        emission_type = self._normalize_int_code(document.get("py_emission_type"))
+        if emission_type and emission_type not in self.EMISSION_TYPE_DESCRIPTIONS:
+            missing.append("official emission type description mapping")
+        if operation.get("transaction_type_code") and not operation.get("transaction_type_description"):
+            missing.append("official transaction type description mapping")
+        if operation.get("tax_type_code") and not operation.get("tax_type_description"):
+            missing.append("official tax type description mapping")
+        if operation.get("currency") and not operation.get("currency_description"):
+            missing.append("currency description")
+        if condition.get("sale_condition_code") and not condition.get("sale_condition_description"):
+            missing.append("official sale condition description mapping")
+        if condition.get("payment_type_code") and not condition.get("payment_type_description"):
+            missing.append("official payment type description mapping")
+        if condition.get("payment_currency") and not condition.get("payment_currency_description"):
+            missing.append("payment currency description")
+
+        for index, item in enumerate(items, start=1):
+            prefix = f"item {index}"
+            if not self._has_value(item.get("code")):
+                missing.append(f"{prefix} internal code")
+            affectation = item.get("tax_affectation")
+            if affectation and affectation not in self.VAT_AFFECTATION_DESCRIPTIONS:
+                missing.append(f"{prefix} official VAT affectation description mapping")
+            if affectation and not item.get("tax_affectation_description"):
+                missing.append(f"{prefix} VAT affectation description")
+
+        if missing:
+            raise ValidationError(
+                "Cannot build Paraguay unsigned XML; payload is not schema-ready: "
+                + "; ".join(missing)
+            )
+
     def _require(self, missing, section, key, label):
         if not self._has_value(section.get(key)):
             missing.append(label)
@@ -201,9 +327,77 @@ class PyUnsignedXmlBuilder:
     def _has_value(self, value):
         return value is not None and value is not False and value != ""
 
+    def _tag(self, tag):
+        return f"{{{self.SIFEN_NS}}}{tag}"
+
+    def _xsi_tag(self, tag):
+        return f"{{{self.XSI_NS}}}{tag}"
+
+    def _sub(self, parent, tag):
+        return ET.SubElement(parent, self._tag(tag))
+
     def _text(self, parent, tag, value):
         if not self._has_value(value):
             return None
-        child = ET.SubElement(parent, tag)
+        child = self._sub(parent, tag)
         child.text = str(value)
         return child
+
+    def _decimal(self, value):
+        if not self._has_value(value):
+            return Decimal("0")
+        try:
+            return Decimal(str(value))
+        except (InvalidOperation, ValueError) as error:
+            raise ValidationError(f"Invalid numeric value for XML: {value}") from error
+
+    def _format_decimal(self, value, places=8):
+        if not self._has_value(value):
+            return None
+        quant = Decimal("1").scaleb(-places)
+        return format(self._decimal(value).quantize(quant, rounding=ROUND_HALF_UP), "f")
+
+    def _format_money(self, value):
+        return self._format_decimal(value, places=8)
+
+    def _format_rate(self, value):
+        if not self._has_value(value):
+            return None
+        decimal_value = self._decimal(value)
+        if decimal_value == decimal_value.to_integral_value():
+            return str(decimal_value.quantize(Decimal("1")))
+        return self._format_decimal(decimal_value, places=4)
+
+    def _format_date(self, value):
+        if not self._has_value(value):
+            return None
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+        if isinstance(value, date):
+            return value.isoformat()
+        text = str(value)
+        if "T" in text:
+            return text.split("T", 1)[0]
+        if " " in text:
+            return text.split(" ", 1)[0]
+        return text
+
+    def _format_datetime(self, value):
+        if not self._has_value(value):
+            return None
+        if isinstance(value, datetime):
+            return value.replace(microsecond=0).isoformat()
+        text = str(value)
+        if "T" in text:
+            return text.split(".", 1)[0]
+        if " " in text:
+            return text.split(".", 1)[0].replace(" ", "T", 1)
+        return text
+
+    def _normalize_int_code(self, value):
+        if not self._has_value(value):
+            return None
+        text = str(value)
+        if text.isdigit():
+            return str(int(text))
+        return text
