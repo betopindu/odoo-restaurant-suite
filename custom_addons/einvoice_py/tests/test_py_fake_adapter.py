@@ -34,6 +34,7 @@ class TestPyFakeAdapter(TransactionCase):
         issuer_ruc="80012345",
         issuer_ruc_dv="6",
         taxpayer_type="2",
+        schema_ready=True,
     ):
         if not establishment:
             issuer = issuer or self.env["fiscal.py.issuer"].create({
@@ -45,12 +46,27 @@ class TestPyFakeAdapter(TransactionCase):
                 "ruc_dv": issuer_ruc_dv,
                 "taxpayer_type": taxpayer_type,
             })
+            if schema_ready and not issuer.economic_activity_ids:
+                self.env["fiscal.py.economic.activity"].create({
+                    "issuer_id": issuer.id,
+                    "code": "620100",
+                    "description": "DESARROLLO DE SOFTWARE",
+                    "sequence": 10,
+                })
             establishment = self.env["fiscal.py.establishment"].create({
                 "name": f"Main Establishment {point_code}",
                 "code": "001",
                 "tenant_id": self.tenant.id,
                 "company_id": self.env.company.id,
                 "issuer_id": issuer.id,
+                "house_number": "123",
+                "department_code": "1",
+                "department_name": "CAPITAL",
+                "district_code": "1",
+                "district_name": "ASUNCION",
+                "city_code": "1",
+                "city_name": "ASUNCION",
+                "branch_name": "CASA MATRIZ",
             })
         if not point_of_issue:
             point_of_issue = self.env["fiscal.py.point.of.issue"].create({
@@ -496,10 +512,20 @@ class TestPyFakeAdapter(TransactionCase):
             "customer_tax_id": "1234567-8",
             "customer_email": "customer@example.com",
             "py_receiver_nature": "1",
+            "py_receiver_taxpayer_type": "1",
             "py_receiver_operation_type": "1",
             "py_receiver_country_code": "PRY",
+            "py_receiver_country_description": "Paraguay",
             "py_receiver_address": "Test receiver address",
+            "py_receiver_house_number": "456",
             "py_receiver_phone": "0981000000",
+            "py_receiver_department_code": "1",
+            "py_receiver_department_name": "CAPITAL",
+            "py_receiver_district_code": "1",
+            "py_receiver_district_name": "ASUNCION",
+            "py_receiver_city_code": "1",
+            "py_receiver_city_name": "ASUNCION",
+            "py_receiver_customer_code": "CUST-001",
             "py_transaction_type_code": "1",
             "py_tax_type_code": "1",
             "py_currency": "PYG",
@@ -562,8 +588,141 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertEqual(payload["receiver"]["email"], "customer@example.com")
         self.assertEqual(payload["receiver"]["address"], "Test receiver address")
         self.assertEqual(payload["receiver"]["phone"], "0981000000")
+        self.assertEqual(payload["receiver"]["country_description"], "Paraguay")
         self.assertEqual(payload["receiver"]["nature_code"], "1")
+        self.assertEqual(payload["receiver"]["taxpayer_type"], "1")
         self.assertEqual(payload["receiver"]["type_code"], "1")
+        self.assertEqual(payload["receiver"]["type_description"], "B2B")
+        self.assertEqual(payload["receiver"]["house_number"], "456")
+        self.assertEqual(payload["receiver"]["department_code"], "1")
+        self.assertEqual(payload["receiver"]["department_name"], "CAPITAL")
+        self.assertEqual(payload["receiver"]["district_code"], "1")
+        self.assertEqual(payload["receiver"]["district_name"], "ASUNCION")
+        self.assertEqual(payload["receiver"]["city_code"], "1")
+        self.assertEqual(payload["receiver"]["city_name"], "ASUNCION")
+        self.assertEqual(payload["receiver"]["customer_code"], "CUST-001")
+
+    def test_payload_uses_issuer_schema_readiness_fields(self):
+        establishment, point_of_issue, timbrado, csc, sequence = self._create_config()
+        issuer = establishment.issuer_id
+        self.env["fiscal.py.economic.activity"].create({
+            "issuer_id": issuer.id,
+            "code": "471100",
+            "description": "COMERCIO AL POR MENOR",
+            "sequence": 5,
+        })
+        self.env["fiscal.py.economic.activity"].create({
+            "issuer_id": issuer.id,
+            "code": "999999",
+            "description": "INACTIVE ACTIVITY",
+            "sequence": 1,
+            "active": False,
+        })
+        document = self._create_document()
+        self._enrich_document_for_payload(document)
+        self._process(document)
+
+        issuer_payload = PyPayloadBuilder(self.env).build(document)["issuer"]
+
+        self.assertEqual(issuer_payload["house_number"], "123")
+        self.assertEqual(issuer_payload["department_code"], "1")
+        self.assertEqual(issuer_payload["department_name"], "CAPITAL")
+        self.assertEqual(issuer_payload["district_code"], "1")
+        self.assertEqual(issuer_payload["district_name"], "ASUNCION")
+        self.assertEqual(issuer_payload["city_code"], "1")
+        self.assertEqual(issuer_payload["city_name"], "ASUNCION")
+        self.assertEqual(issuer_payload["branch_name"], "CASA MATRIZ")
+        self.assertEqual(
+            issuer_payload["economic_activities"],
+            [
+                {
+                    "code": "471100",
+                    "description": "COMERCIO AL POR MENOR",
+                },
+                {
+                    "code": "620100",
+                    "description": "DESARROLLO DE SOFTWARE",
+                },
+            ],
+        )
+
+    def test_payload_uses_non_taxpayer_receiver_identity_fields(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_document_for_payload(document)
+        document.write({
+            "py_receiver_nature": "2",
+            "py_receiver_taxpayer_type": False,
+            "py_receiver_id_type": "1",
+            "py_receiver_id_type_description": "Cedula paraguaya",
+            "py_receiver_id_number": "1234567",
+        })
+        self._process(document)
+
+        receiver = PyPayloadBuilder(self.env).build(document)["receiver"]
+
+        self.assertEqual(receiver["nature_code"], "2")
+        self.assertFalse(receiver["taxpayer_type"])
+        self.assertEqual(receiver["id_type"], "1")
+        self.assertEqual(receiver["id_type_description"], "Cedula paraguaya")
+        self.assertEqual(receiver["id_number"], "1234567")
+
+    def test_payload_receiver_operation_type_mapping_is_sifen_aligned(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_document_for_payload(document)
+        document.write({"py_receiver_operation_type": "4"})
+        self._process(document)
+
+        receiver = PyPayloadBuilder(self.env).build(document)["receiver"]
+
+        self.assertEqual(receiver["type_code"], "4")
+        self.assertEqual(receiver["type_description"], "B2F")
+
+        document.write({"py_receiver_operation_type": "3"})
+        receiver = PyPayloadBuilder(self.env).build(document)["receiver"]
+        self.assertEqual(receiver["type_code"], "3")
+        self.assertEqual(receiver["type_description"], "B2G")
+        self.assertNotEqual(receiver["type_description"], "Foreign")
+
+    def test_missing_schema_readiness_fields_warn_without_blocking_payload(self):
+        establishment, point_of_issue, timbrado, csc, sequence = self._create_config()
+        establishment.write({
+            "house_number": False,
+            "department_code": False,
+            "department_name": False,
+            "district_code": False,
+            "district_name": False,
+            "city_code": False,
+            "city_name": False,
+            "branch_name": False,
+        })
+        establishment.issuer_id.economic_activity_ids.write({"active": False})
+        document = self._create_document()
+        self._enrich_document_for_payload(document)
+        document.write({
+            "py_receiver_country_description": False,
+            "py_receiver_taxpayer_type": False,
+            "py_receiver_house_number": False,
+            "py_receiver_department_code": False,
+            "py_receiver_department_name": False,
+            "py_receiver_district_code": False,
+            "py_receiver_district_name": False,
+            "py_receiver_city_code": False,
+            "py_receiver_city_name": False,
+        })
+        self._process(document)
+
+        payload = PyPayloadBuilder(self.env).build(document)
+
+        self.assertEqual(payload["cdc"], document.py_cdc)
+        self.assertIn("Issuer establishment house number is missing.", payload["warnings"])
+        self.assertIn("Issuer establishment department code is missing.", payload["warnings"])
+        self.assertIn("Issuer economic activities are missing.", payload["warnings"])
+        self.assertIn("Receiver country description is missing.", payload["warnings"])
+        self.assertIn("Receiver taxpayer type is missing.", payload["warnings"])
+        self.assertIn("Receiver house number is missing.", payload["warnings"])
+        self.assertIn("Receiver city name is missing.", payload["warnings"])
 
     def test_payload_uses_explicit_payment_fields(self):
         self._create_config()

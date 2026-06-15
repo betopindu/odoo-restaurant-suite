@@ -21,7 +21,8 @@ class PyPayloadBuilder:
     RECEIVER_OPERATION_TYPES = {
         "1": "B2B",
         "2": "B2C",
-        "3": "Foreign",
+        "3": "B2G",
+        "4": "B2F",
     }
     SALE_CONDITIONS = {
         "1": "Contado",
@@ -133,6 +134,10 @@ class PyPayloadBuilder:
         timbrado = document.py_timbrado_id
         issuer = document.py_issuer_id
         company = document.company_id
+        economic_activities = issuer.economic_activity_ids.filtered("active").sorted(
+            lambda activity: (activity.sequence, activity.code or "")
+        )
+        self._add_missing_issuer_schema_warnings(establishment, economic_activities, warnings)
         return {
             "ruc": document.py_issuer_ruc,
             "ruc_dv": document.py_issuer_ruc_dv,
@@ -150,6 +155,21 @@ class PyPayloadBuilder:
                 if timbrado.valid_from
                 else None
             ),
+            "house_number": establishment.house_number,
+            "department_code": establishment.department_code,
+            "department_name": establishment.department_name,
+            "district_code": establishment.district_code,
+            "district_name": establishment.district_name,
+            "city_code": establishment.city_code,
+            "city_name": establishment.city_name,
+            "branch_name": establishment.branch_name,
+            "economic_activities": [
+                {
+                    "code": activity.code,
+                    "description": activity.description,
+                }
+                for activity in economic_activities
+            ],
         }
 
     def _receiver_section(self, document, warnings):
@@ -167,6 +187,7 @@ class PyPayloadBuilder:
             warnings.append("Receiver nature is missing.")
         if not document.py_receiver_operation_type:
             warnings.append("Receiver operation type is missing.")
+        self._add_missing_receiver_schema_warnings(document, warnings)
         return {
             "name": document.customer_name or partner.name,
             "ruc_or_document": tax_id,
@@ -178,12 +199,25 @@ class PyPayloadBuilder:
                 document.py_receiver_country_code
                 or (partner.country_id.code if partner and partner.country_id else "PRY")
             ),
+            "country_description": document.py_receiver_country_description,
             "nature_code": document.py_receiver_nature,
             "nature_description": self.RECEIVER_NATURES.get(document.py_receiver_nature),
+            "taxpayer_type": document.py_receiver_taxpayer_type,
+            "id_type": document.py_receiver_id_type,
+            "id_type_description": document.py_receiver_id_type_description,
+            "id_number": document.py_receiver_id_number,
             "type_code": document.py_receiver_operation_type,
             "type_description": self.RECEIVER_OPERATION_TYPES.get(
                 document.py_receiver_operation_type
             ),
+            "house_number": document.py_receiver_house_number,
+            "department_code": document.py_receiver_department_code,
+            "department_name": document.py_receiver_department_name,
+            "district_code": document.py_receiver_district_code,
+            "district_name": document.py_receiver_district_name,
+            "city_code": document.py_receiver_city_code,
+            "city_name": document.py_receiver_city_name,
+            "customer_code": document.py_receiver_customer_code,
         }
 
     def _condition_section(self, document, warnings):
@@ -309,6 +343,48 @@ class PyPayloadBuilder:
         if len(parts) == 2 and parts[1].isdigit() and len(parts[1]) == 1:
             return parts[0], parts[1]
         return value, None
+
+    def _add_missing_issuer_schema_warnings(self, establishment, economic_activities, warnings):
+        fields_to_check = [
+            ("house_number", "Issuer establishment house number is missing."),
+            ("department_code", "Issuer establishment department code is missing."),
+            ("department_name", "Issuer establishment department name is missing."),
+            ("district_code", "Issuer establishment district code is missing."),
+            ("district_name", "Issuer establishment district name is missing."),
+            ("city_code", "Issuer establishment city code is missing."),
+            ("city_name", "Issuer establishment city name is missing."),
+            ("branch_name", "Issuer establishment branch name is missing."),
+        ]
+        for field_name, message in fields_to_check:
+            if not establishment[field_name]:
+                warnings.append(message)
+        if not economic_activities:
+            warnings.append("Issuer economic activities are missing.")
+
+    def _add_missing_receiver_schema_warnings(self, document, warnings):
+        if not document.py_receiver_country_description:
+            warnings.append("Receiver country description is missing.")
+        if document.py_receiver_nature == "1" and not document.py_receiver_taxpayer_type:
+            warnings.append("Receiver taxpayer type is missing.")
+        if document.py_receiver_nature == "2":
+            if not document.py_receiver_id_type:
+                warnings.append("Receiver ID type is missing.")
+            if not document.py_receiver_id_type_description:
+                warnings.append("Receiver ID type description is missing.")
+            if not document.py_receiver_id_number:
+                warnings.append("Receiver ID number is missing.")
+        fields_to_check = [
+            ("py_receiver_house_number", "Receiver house number is missing."),
+            ("py_receiver_department_code", "Receiver department code is missing."),
+            ("py_receiver_department_name", "Receiver department name is missing."),
+            ("py_receiver_district_code", "Receiver district code is missing."),
+            ("py_receiver_district_name", "Receiver district name is missing."),
+            ("py_receiver_city_code", "Receiver city code is missing."),
+            ("py_receiver_city_name", "Receiver city name is missing."),
+        ]
+        for field_name, message in fields_to_check:
+            if not document[field_name]:
+                warnings.append(message)
 
     def _currency_description(self, code):
         if not code:

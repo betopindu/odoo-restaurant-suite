@@ -32,6 +32,7 @@
 [x] Paraguay XML structural alignment with SIFEN-oriented namespace and groups
 [x] Paraguay issuer schema-readiness configuration
 [x] Paraguay receiver schema-readiness snapshot fields
+[x] Paraguay payload schema-readiness extensions
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -43,7 +44,7 @@
 ## Next
 
 [ ] Paraguay pre-signature XML validation tests
-[ ] Paraguay Stage 6.5.2 payload/XML schema-readiness integration
+[ ] Paraguay Stage 6.5.2 XML schema-readiness emission
 [ ] Paraguay QR generation
 [ ] Paraguay SIFEN test integration
 

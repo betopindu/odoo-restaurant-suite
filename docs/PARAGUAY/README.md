@@ -28,6 +28,7 @@ Current implemented Paraguay stages:
 * SIFEN-oriented XML structural alignment
 * issuer schema-readiness configuration for future `gEmis`
 * receiver schema-readiness snapshot fields for future `gDatRec`
+* payload schema-readiness extensions for future XML emission
 * fiscal data enrichment for receiver, operation, payment, and tax details
 * administrative UI stabilization for validation/support workflows
 
@@ -173,6 +174,10 @@ The payload includes:
 
 The payload is persisted as a sensitive fiscal attachment of type `paraguay_payload_json`.
 
+Stage 6.5.2B-3 extends `paraguay_payload_json` with pre-signature schema-readiness data. The issuer section now includes establishment SIFEN location fields and ordered active economic activities. The receiver section now includes taxpayer/non-taxpayer identity, country description, geography fields, and customer code.
+
+Missing schema-readiness data is reported as payload warnings but does not block payload generation yet.
+
 See [ADR-003 Payload Before XML](../ADR/ADR-003-payload-before-xml.md).
 
 ## Unsigned XML Draft
@@ -239,7 +244,7 @@ Stage 6.5.2B-1 completed issuer-side schema-readiness configuration:
 * establishment SIFEN location fields
 * issuer economic activities
 
-These fields support future schema-ready `gEmis` and repeated `gActEco` output. They are not integrated into `PyPayloadBuilder` or `PyUnsignedXmlBuilder` yet.
+These fields support future schema-ready `gEmis` and repeated `gActEco` output.
 
 Stage 6.5.2B-2 completed receiver-side schema-readiness snapshot fields on `fiscal.document`:
 
@@ -261,14 +266,33 @@ No migration was performed for older records where `3` had previously been expos
 
 These receiver fields are optional at the ORM and administrative UI level for now. They will be required later only by payload/XML readiness validation where applicable.
 
+Stage 6.5.2B-3 completed payload schema-readiness extensions. `paraguay_payload_json` now includes issuer schema-readiness data:
+
+* establishment SIFEN location fields
+* ordered active economic activities
+
+It also includes receiver schema-readiness snapshot data:
+
+* taxpayer and non-taxpayer identity
+* country description
+* geography fields
+* customer code
+
+Receiver operation mapping is now SIFEN-aligned in the payload:
+
+* `1 = B2B`
+* `2 = B2C`
+* `3 = B2G`
+* `4 = B2F`
+
+Missing schema-readiness data creates warnings but does not block payload generation. XML output is intentionally unchanged in this stage.
+
 Still pending:
 
-* payload integration for issuer schema-readiness data
-* payload integration for receiver schema-readiness data
 * XML integration for `gEmis` and `gActEco`
 * XML integration for richer `gDatRec`
 
-Next stage note: `py_payload_builder.py` still needs its receiver operation mapping updated from the older `3 = Foreign` description to the SIFEN-aligned values, including `4 = B2F`.
+Next stage: emit these payload fields in the unsigned XML draft.
 
 ## Fiscal Data Enrichment
 
