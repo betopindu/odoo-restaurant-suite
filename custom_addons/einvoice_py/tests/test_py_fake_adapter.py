@@ -575,6 +575,11 @@ class TestPyFakeAdapter(TransactionCase):
     def _xml_findtext(self, root, path):
         return root.findtext(self._xml_path(path))
 
+    def _payload_for_xml(self, document):
+        if not document.py_cdc:
+            self._process(document)
+        return PyPayloadBuilder(self.env).build(document)
+
     def test_payload_uses_explicit_receiver_fields(self):
         self._create_config()
         document = self._create_document()
@@ -901,7 +906,27 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertEqual(self._xml_findtext(root, "DE/gTimb/dNumDoc"), "0000015")
         self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gEmis/dRucEm"), document.py_issuer_ruc)
         self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gEmis/dDVEmi"), document.py_issuer_ruc_dv)
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gEmis/dNumCas"), "123")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gEmis/cDepEmi"), "1")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gEmis/dDesDepEmi"), "CAPITAL")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gEmis/cDisEmi"), "1")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gEmis/dDesDisEmi"), "ASUNCION")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gEmis/cCiuEmi"), "1")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gEmis/dDesCiuEmi"), "ASUNCION")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gEmis/dDenSuc"), "CASA MATRIZ")
         self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dNomRec"), document.customer_name)
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/iTiContRec"), "1")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dRucRec"), "1234567")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dDVRec"), "8")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dDesPaisRe"), "Paraguay")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dNumCasRec"), "456")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/cDepRec"), "1")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dDesDepRec"), "CAPITAL")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/cDisRec"), "1")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dDesDisRec"), "ASUNCION")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/cCiuRec"), "1")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dDesCiuRec"), "ASUNCION")
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dCodCliente"), "CUST-001")
         self.assertEqual(
             self._xml_findtext(root, "DE/gDatGralOpe/gOpeCom/dDesTipTra"),
             "Prestación de servicios",
@@ -949,6 +974,76 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertIsNone(self._xml_find(root, "DE/gTotSub/dTotIVA5"))
         self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dBaseGrav10"), "90.91000000")
         self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dTBasGraIVA"), "90.91000000")
+
+    def test_unsigned_xml_emits_repeated_economic_activities_in_payload_order(self):
+        establishment, point_of_issue, timbrado, csc, sequence = self._create_config()
+        self.env["fiscal.py.economic.activity"].create({
+            "issuer_id": establishment.issuer_id.id,
+            "code": "471100",
+            "description": "COMERCIO AL POR MENOR",
+            "sequence": 5,
+        })
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+
+        root = self._xml_root_from_attachment(self._xml_attachment(document))
+        activities = self._xml_find(root, "DE/gDatGralOpe/gEmis").findall(
+            self._xml_path("gActEco")
+        )
+
+        self.assertEqual(len(activities), 2)
+        self.assertEqual(activities[0].findtext(self._xml_path("cActEco")), "471100")
+        self.assertEqual(
+            activities[0].findtext(self._xml_path("dDesActEco")),
+            "COMERCIO AL POR MENOR",
+        )
+        self.assertEqual(activities[1].findtext(self._xml_path("cActEco")), "620100")
+        self.assertEqual(
+            activities[1].findtext(self._xml_path("dDesActEco")),
+            "DESARROLLO DE SOFTWARE",
+        )
+
+    def test_unsigned_xml_emits_non_taxpayer_receiver_identity_only(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        document.write({
+            "customer_tax_id": False,
+            "py_receiver_nature": "2",
+            "py_receiver_taxpayer_type": False,
+            "py_receiver_id_type": "1",
+            "py_receiver_id_type_description": "Cedula paraguaya",
+            "py_receiver_id_number": "1234567",
+        })
+        self._process(document)
+
+        root = self._xml_root_from_attachment(self._xml_attachment(document))
+        receiver = self._xml_find(root, "DE/gDatGralOpe/gDatRec")
+
+        self.assertEqual(receiver.findtext(self._xml_path("iNatRec")), "2")
+        self.assertEqual(receiver.findtext(self._xml_path("iTipIDRec")), "1")
+        self.assertEqual(receiver.findtext(self._xml_path("dDTipIDRec")), "Cedula paraguaya")
+        self.assertEqual(receiver.findtext(self._xml_path("dNumIDRec")), "1234567")
+        self.assertIsNone(receiver.find(self._xml_path("iTiContRec")))
+        self.assertIsNone(receiver.find(self._xml_path("dRucRec")))
+        self.assertIsNone(receiver.find(self._xml_path("dDVRec")))
+
+    def test_unsigned_xml_receiver_operation_type_b2g_b2f(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        document.write({"py_receiver_operation_type": "3"})
+        payload = self._payload_for_xml(document)
+        xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        root = ET.fromstring(xml_bytes)
+
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/iTiOpe"), "3")
+
+        payload["receiver"]["type_code"] = "4"
+        xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        root = ET.fromstring(xml_bytes)
+        self.assertEqual(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/iTiOpe"), "4")
 
     def test_unsigned_xml_gcamiva_child_order_is_schema_ready(self):
         self._create_config()
@@ -1056,6 +1151,82 @@ class TestPyFakeAdapter(TransactionCase):
             "official transaction type description mapping",
         ):
             PyUnsignedXmlBuilder(self.env).build_from_payload(invalid_payload)
+
+    def test_unsigned_xml_missing_issuer_geography_blocks_schema_readiness(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        payload = self._payload_for_xml(document)
+        payload["issuer"]["city_name"] = None
+
+        with self.assertRaisesRegex(ValidationError, "issuer establishment city name"):
+            PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+
+    def test_unsigned_xml_missing_economic_activities_blocks_schema_readiness(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        payload = self._payload_for_xml(document)
+        payload["issuer"]["economic_activities"] = []
+
+        with self.assertRaisesRegex(ValidationError, "issuer economic activities"):
+            PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+
+        payload = self._payload_for_xml(document)
+        payload["issuer"]["economic_activities"][0]["description"] = None
+        with self.assertRaisesRegex(
+            ValidationError,
+            "issuer economic activity 1 description",
+        ):
+            PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+
+    def test_unsigned_xml_missing_taxpayer_identity_blocks_schema_readiness(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        payload = self._payload_for_xml(document)
+        payload["receiver"]["taxpayer_type"] = None
+
+        with self.assertRaisesRegex(ValidationError, "receiver taxpayer type"):
+            PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+
+        payload = self._payload_for_xml(document)
+        payload["receiver"]["ruc_dv"] = None
+        with self.assertRaisesRegex(ValidationError, "receiver RUC DV"):
+            PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+
+    def test_unsigned_xml_missing_non_taxpayer_identity_blocks_schema_readiness(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        document.write({
+            "customer_tax_id": False,
+            "py_receiver_nature": "2",
+            "py_receiver_taxpayer_type": False,
+            "py_receiver_id_type": "1",
+            "py_receiver_id_type_description": "Cedula paraguaya",
+            "py_receiver_id_number": "1234567",
+        })
+        payload = self._payload_for_xml(document)
+        payload["receiver"]["id_number"] = None
+
+        with self.assertRaisesRegex(ValidationError, "receiver ID number"):
+            PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+
+    def test_unsigned_xml_receiver_readiness_blocks_unknown_nature_and_type(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        payload = self._payload_for_xml(document)
+        payload["receiver"]["nature_code"] = "9"
+
+        with self.assertRaisesRegex(ValidationError, "receiver nature mapping"):
+            PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+
+        payload = self._payload_for_xml(document)
+        payload["receiver"]["type_code"] = "9"
+        with self.assertRaisesRegex(ValidationError, "receiver operation type mapping"):
+            PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
 
     def test_unsigned_xml_formatter_helpers(self):
         builder = PyUnsignedXmlBuilder(self.env)

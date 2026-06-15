@@ -29,6 +29,8 @@ class PyUnsignedXmlBuilder:
         "3": "Exento",
         "4": "Gravado parcial (Grav- Exento)",
     }
+    RECEIVER_OPERATION_TYPES = {"1", "2", "3", "4"}
+    RECEIVER_NATURES = {"1", "2"}
 
     def __init__(self, env):
         self.env = env
@@ -116,21 +118,49 @@ class PyUnsignedXmlBuilder:
         self._text(group, "iTipCont", self._normalize_int_code(issuer["taxpayer_type"]))
         self._text(group, "dNomEmi", issuer["name"])
         self._text(group, "dDirEmi", issuer.get("address"))
+        self._text(group, "dNumCas", issuer.get("house_number"))
+        self._text(group, "cDepEmi", issuer.get("department_code"))
+        self._text(group, "dDesDepEmi", issuer.get("department_name"))
+        self._text(group, "cDisEmi", issuer.get("district_code"))
+        self._text(group, "dDesDisEmi", issuer.get("district_name"))
+        self._text(group, "cCiuEmi", issuer.get("city_code"))
+        self._text(group, "dDesCiuEmi", issuer.get("city_name"))
         self._text(group, "dTelEmi", issuer.get("phone"))
         self._text(group, "dEmailE", issuer.get("email"))
+        self._text(group, "dDenSuc", issuer.get("branch_name"))
+        for activity in issuer.get("economic_activities") or []:
+            activity_group = self._sub(group, "gActEco")
+            self._text(activity_group, "cActEco", activity.get("code"))
+            self._text(activity_group, "dDesActEco", activity.get("description"))
 
     def _build_receiver(self, parent, payload):
         receiver = payload["receiver"]
+        nature_code = self._normalize_int_code(receiver["nature_code"])
         group = self._sub(parent, "gDatRec")
-        self._text(group, "iNatRec", self._normalize_int_code(receiver["nature_code"]))
+        self._text(group, "iNatRec", nature_code)
         self._text(group, "iTiOpe", self._normalize_int_code(receiver["type_code"]))
         self._text(group, "cPaisRec", receiver.get("country_code"))
-        self._text(group, "dRucRec", receiver["ruc_or_document"])
-        self._text(group, "dDVRec", receiver.get("ruc_dv"))
+        self._text(group, "dDesPaisRe", receiver.get("country_description"))
+        if nature_code == "1":
+            self._text(group, "iTiContRec", self._normalize_int_code(receiver.get("taxpayer_type")))
+            self._text(group, "dRucRec", receiver.get("ruc_or_document"))
+            self._text(group, "dDVRec", receiver.get("ruc_dv"))
+        elif nature_code == "2":
+            self._text(group, "iTipIDRec", self._normalize_int_code(receiver.get("id_type")))
+            self._text(group, "dDTipIDRec", receiver.get("id_type_description"))
+            self._text(group, "dNumIDRec", receiver.get("id_number"))
         self._text(group, "dNomRec", receiver["name"])
         self._text(group, "dDirRec", receiver.get("address"))
+        self._text(group, "dNumCasRec", receiver.get("house_number"))
+        self._text(group, "cDepRec", receiver.get("department_code"))
+        self._text(group, "dDesDepRec", receiver.get("department_name"))
+        self._text(group, "cDisRec", receiver.get("district_code"))
+        self._text(group, "dDesDisRec", receiver.get("district_name"))
+        self._text(group, "cCiuRec", receiver.get("city_code"))
+        self._text(group, "dDesCiuRec", receiver.get("city_name"))
         self._text(group, "dTelRec", receiver.get("phone"))
         self._text(group, "dEmailRec", receiver.get("email"))
+        self._text(group, "dCodCliente", receiver.get("customer_code"))
 
     def _build_document_type(self, parent, payload):
         group = self._sub(parent, "gDtipDE")
@@ -236,10 +266,9 @@ class PyUnsignedXmlBuilder:
         self._require(missing, issuer, "establishment_code", "establishment code")
         self._require(missing, issuer, "point_of_issue_code", "point of issue code")
         self._require(missing, issuer, "timbrado_number", "timbrado number")
-        self._require(missing, receiver, "name", "receiver name")
-        self._require(missing, receiver, "ruc_or_document", "receiver RUC/document")
         self._require(missing, receiver, "nature_code", "receiver nature")
         self._require(missing, receiver, "type_code", "receiver operation type")
+        self._require(missing, receiver, "name", "receiver name")
         self._require(missing, operation, "transaction_type_code", "transaction type")
         self._require(missing, operation, "tax_type_code", "tax type")
         self._require(missing, operation, "currency", "currency")
@@ -284,6 +313,8 @@ class PyUnsignedXmlBuilder:
     def _validate_xml_readiness(self, payload):
         missing = []
         document = payload.get("document") or {}
+        issuer = payload.get("issuer") or {}
+        receiver = payload.get("receiver") or {}
         operation = payload.get("operation") or {}
         condition = payload.get("condition") or {}
         items = payload.get("items") or []
@@ -303,6 +334,8 @@ class PyUnsignedXmlBuilder:
             missing.append("official payment type description mapping")
         if condition.get("payment_currency") and not condition.get("payment_currency_description"):
             missing.append("payment currency description")
+        self._validate_issuer_schema_readiness(issuer, missing)
+        self._validate_receiver_schema_readiness(receiver, missing)
 
         for index, item in enumerate(items, start=1):
             prefix = f"item {index}"
@@ -319,6 +352,63 @@ class PyUnsignedXmlBuilder:
                 "Cannot build Paraguay unsigned XML; payload is not schema-ready: "
                 + "; ".join(missing)
             )
+
+    def _validate_issuer_schema_readiness(self, issuer, missing):
+        required_fields = [
+            ("house_number", "issuer establishment house number"),
+            ("department_code", "issuer establishment department code"),
+            ("department_name", "issuer establishment department name"),
+            ("district_code", "issuer establishment district code"),
+            ("district_name", "issuer establishment district name"),
+            ("city_code", "issuer establishment city code"),
+            ("city_name", "issuer establishment city name"),
+            ("branch_name", "issuer establishment branch name"),
+        ]
+        for key, label in required_fields:
+            self._require(missing, issuer, key, label)
+
+        activities = issuer.get("economic_activities") or []
+        if not activities:
+            missing.append("issuer economic activities")
+            return
+        for index, activity in enumerate(activities, start=1):
+            self._require(missing, activity, "code", f"issuer economic activity {index} code")
+            self._require(
+                missing,
+                activity,
+                "description",
+                f"issuer economic activity {index} description",
+            )
+
+    def _validate_receiver_schema_readiness(self, receiver, missing):
+        nature_code = self._normalize_int_code(receiver.get("nature_code"))
+        type_code = self._normalize_int_code(receiver.get("type_code"))
+        if nature_code and nature_code not in self.RECEIVER_NATURES:
+            missing.append("receiver nature mapping")
+        if type_code and type_code not in self.RECEIVER_OPERATION_TYPES:
+            missing.append("receiver operation type mapping")
+
+        required_fields = [
+            ("country_description", "receiver country description"),
+            ("house_number", "receiver house number"),
+            ("department_code", "receiver department code"),
+            ("department_name", "receiver department name"),
+            ("district_code", "receiver district code"),
+            ("district_name", "receiver district name"),
+            ("city_code", "receiver city code"),
+            ("city_name", "receiver city name"),
+        ]
+        for key, label in required_fields:
+            self._require(missing, receiver, key, label)
+
+        if nature_code == "1":
+            self._require(missing, receiver, "taxpayer_type", "receiver taxpayer type")
+            self._require(missing, receiver, "ruc_or_document", "receiver RUC")
+            self._require(missing, receiver, "ruc_dv", "receiver RUC DV")
+        elif nature_code == "2":
+            self._require(missing, receiver, "id_type", "receiver ID type")
+            self._require(missing, receiver, "id_type_description", "receiver ID type description")
+            self._require(missing, receiver, "id_number", "receiver ID number")
 
     def _require(self, missing, section, key, label):
         if not self._has_value(section.get(key)):

@@ -29,6 +29,7 @@ Current implemented Paraguay stages:
 * issuer schema-readiness configuration for future `gEmis`
 * receiver schema-readiness snapshot fields for future `gDatRec`
 * payload schema-readiness extensions for future XML emission
+* XML schema-readiness emission for issuer and receiver data
 * fiscal data enrichment for receiver, operation, payment, and tax details
 * administrative UI stabilization for validation/support workflows
 
@@ -226,9 +227,25 @@ The Paraguay fake adapter now attempts to create both attachments during process
 
 If the payload is complete enough for XML, the unsigned XML attachment is created. Incomplete admin/debug payloads may skip XML generation while still preserving fake adapter processing and payload attachment persistence.
 
+Stage 6.5.2B-4 emits schema-readiness payload fields in the unsigned XML draft while keeping the builder payload-first.
+
+Issuer XML emission now includes:
+
+* establishment SIFEN location fields in `gEmis`
+* repeated issuer economic activities in `gEmis/gActEco`
+
+Receiver XML emission now includes:
+
+* taxpayer receiver identity
+* non-taxpayer receiver ID identity
+* receiver geography fields
+* customer code
+
 Out of scope for Stage 6:
 
 * digital signature
+* `dFecFirma`
+* `ds:Signature`
 * QR generation
 * CSC QR/hash logic
 * SIFEN submission
@@ -285,14 +302,19 @@ Receiver operation mapping is now SIFEN-aligned in the payload:
 * `3 = B2G`
 * `4 = B2F`
 
-Missing schema-readiness data creates warnings but does not block payload generation. XML output is intentionally unchanged in this stage.
+Missing schema-readiness data creates warnings but does not block payload generation.
 
-Still pending:
+Stage 6.5.2B-4 completed XML schema-readiness emission. The unsigned XML draft now emits the issuer and receiver schema-readiness fields already present in `paraguay_payload_json`:
 
-* XML integration for `gEmis` and `gActEco`
-* XML integration for richer `gDatRec`
+* establishment SIFEN location fields in `gEmis`
+* repeated issuer economic activities in `gActEco`
+* taxpayer receiver identity in `gDatRec`
+* non-taxpayer receiver ID identity in `gDatRec`
+* receiver geography and customer code in `gDatRec`
 
-Next stage: emit these payload fields in the unsigned XML draft.
+`PyUnsignedXmlBuilder` remains payload-first and does not read Odoo document/configuration models directly for these fields.
+
+Full official XSD validation remains out of scope until later signature and QR stages. The unsigned draft still does not include `dFecFirma`, `ds:Signature`, QR/CSC QR data, SIFEN submission, KuDE, or PDF generation.
 
 ## Fiscal Data Enrichment
 
