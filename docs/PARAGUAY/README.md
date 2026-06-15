@@ -338,6 +338,44 @@ Full official XSD validation remains out of scope until later signature and QR s
 
 Stage 6.5.3 completed the pre-signature XML validation harness with `PyXmlValidationService`. The service validates project-owned readiness rules for unsigned XML, including structure, receiver identity, required unsigned groups, and absence of signing/QR elements. It does not perform official XSD validation and is not automatically called by the fake adapter yet.
 
+## Future SIFEN XSD Assets
+
+Official SIFEN XSD files should be pinned locally in a later stage. They must not be downloaded at runtime.
+
+Proposed location:
+
+```text
+custom_addons/einvoice_py/xsd/sifen/v150/
+```
+
+Proposed structure:
+
+```text
+custom_addons/einvoice_py/xsd/sifen/v150/
+├── README.md
+├── manifest.json
+└── schemas/
+    └── *.xsd
+```
+
+`manifest.json` should track:
+
+* schema family
+* country
+* version
+* root schema
+* official source URL
+* download date
+* SHA-256 checksums
+* dependency map
+* runtime download policy
+
+Only official DNIT/SIFEN/e-Kuatia source packages or files should be used. GitHub repositories, random mirrors, and copied third-party schema bundles should not be treated as authoritative sources.
+
+Future XSD loader code should resolve `xs:import` and `xs:include` locally from the pinned directory and forbid network access.
+
+Full official XSD validation still waits for signature and QR stages. Stage 6.5.3 remains project-owned pre-signature readiness validation, not official XSD validation.
+
 ## Fiscal Data Enrichment
 
 Stage 5.5 enriches the Paraguay payload data model with explicit fiscal fields on documents and document lines.

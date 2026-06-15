@@ -38,6 +38,28 @@ Those are intentionally outside the current unsigned XML draft stage.
 
 Official SIFEN XSD files should be pinned locally in the repository in a future implementation stage. They should not be downloaded at runtime.
 
+The planned local location is:
+
+```text
+custom_addons/einvoice_py/xsd/sifen/v150/
+```
+
+The planned structure is:
+
+```text
+custom_addons/einvoice_py/xsd/sifen/v150/
+├── README.md
+├── manifest.json
+└── schemas/
+    └── *.xsd
+```
+
+The `manifest.json` file should record the schema family, country, version, root schema, official source URL, download date, SHA-256 checksums, dependency map, and runtime download policy.
+
+Only official DNIT/SIFEN/e-Kuatia source packages or files should be used. GitHub repositories, random mirrors, and copied third-party schema bundles should not be treated as authoritative sources.
+
+Future XSD loader code should resolve `xs:import` and `xs:include` locally from the pinned directory and forbid network access.
+
 The unsigned XML remains a draft artifact and is not expected to pass full `siRecepDE_v150.xsd` validation.
 
 Stage 6.5.x will focus on pre-signature schema readiness:
@@ -60,6 +82,7 @@ Stage 6.5.3 implements that partial validation harness as `PyXmlValidationServic
 * Full `rDE` validation must wait until signature and QR output exist.
 * Documentation and tests should distinguish pre-signature readiness from full official XSD validation.
 * Future implementation should record source URLs, download date, and checksums for pinned XSD files.
+* The future XSD loader must resolve imports/includes locally and fail closed if a schema attempts network access.
 
 ## Alternatives Considered
 
