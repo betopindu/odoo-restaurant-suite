@@ -376,6 +376,32 @@ Future XSD loader code should resolve `xs:import` and `xs:include` locally from 
 
 Full official XSD validation still waits for signature and QR stages. Stage 6.5.3 remains project-owned pre-signature readiness validation, not official XSD validation.
 
+Stage 6.5.5 adds `PyXsdValidationService` as local XSD validation infrastructure for future official SIFEN assets. No XSD files are vendored yet.
+
+The service expects future assets under:
+
+```text
+custom_addons/einvoice_py/xsd/sifen/v150/
+```
+
+It can:
+
+* locate the expected local XSD directory
+* load and validate a future `manifest.json`
+* resolve root schema paths safely inside the local XSD directory
+* compile schemas with `lxml` when assets exist
+* validate XML once schemas exist
+
+When assets are absent, it fails clearly with `ValidationError` instead of silently passing.
+
+It does not perform official validation yet because the official schema files are not pinned and full validation still requires signature and QR.
+
+Future hardening before vendoring XSD files:
+
+* add a local-only resolver for `xs:include` and `xs:import`
+* enforce `runtime_downloads_allowed = false`
+* enforce manifest file entries, checksums, and dependency map structure
+
 ## Fiscal Data Enrichment
 
 Stage 5.5 enriches the Paraguay payload data model with explicit fiscal fields on documents and document lines.
