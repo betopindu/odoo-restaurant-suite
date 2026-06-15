@@ -14,7 +14,7 @@ The e-Invoice Platform is built around a country-neutral fiscal core, country-sp
 The core owns common fiscal concepts such as document lifecycle, events, transmissions, attachments, tenant isolation, idempotency, lock policies, and orchestration.
 
 Country addons own country-specific concepts such as numbering, fiscal identifiers, payloads, authority-specific configuration, and future XML/signing/authority integration.
-Paraguay already includes an unsigned SIFEN-oriented XML draft builder with structural alignment for official namespace, schema location, and key SIFEN groups. Schema-readiness configuration now includes issuer-side establishment location/economic activity data and receiver-side fiscal identity/geography snapshots. The normalized Paraguay payload carries those fields, and the unsigned XML draft emits them for `gEmis`, `gActEco`, and `gDatRec`. Digital signature, QR, SIFEN submission, KuDE/PDF, and full XSD validation remain future stages.
+Paraguay already includes an unsigned SIFEN-oriented XML draft builder with structural alignment for official namespace, schema location, and key SIFEN groups. Schema-readiness configuration now includes issuer-side establishment location/economic activity data and receiver-side fiscal identity/geography snapshots. The normalized Paraguay payload carries those fields, and the unsigned XML draft emits them for `gEmis`, `gActEco`, and `gDatRec`. Paraguay also includes a project-owned pre-signature XML readiness harness that validates unsigned structure and rejects signing/QR-stage elements without claiming official XSD validation. Digital signature, QR, SIFEN submission, KuDE/PDF, and full XSD validation remain future stages.
 
 Administrative UI labels should remain country-neutral whenever a generic concept exists. Country-specific terminology should be used only when there is no meaningful cross-country abstraction, such as Timbrado, CDC, CSC, issuer RUC, establishment, or point of issue.
 
@@ -56,6 +56,7 @@ Administrative UI labels should remain country-neutral whenever a generic concep
   * Paraguay receiver schema-readiness snapshot fields
   * Paraguay payload schema-readiness extensions
   * Paraguay XML schema-readiness emission
+  * Paraguay pre-signature XML validation harness
 * future `einvoice_cr`
 * future `einvoice_ar`
 

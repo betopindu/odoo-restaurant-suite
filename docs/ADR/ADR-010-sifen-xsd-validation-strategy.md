@@ -50,6 +50,8 @@ Stage 6.5.x will focus on pre-signature schema readiness:
 
 True full XSD-valid SIFEN XML is only expected after the digital signature and QR stages.
 
+Stage 6.5.3 implements that partial validation harness as `PyXmlValidationService`. It validates project-owned pre-signature readiness rules for unsigned XML and explicitly rejects signing/QR-stage elements. It is not official XSD validation and does not vendor SIFEN XSD files.
+
 ## Consequences
 
 * The project avoids runtime dependency on DNIT/e-Kuatia schema availability.

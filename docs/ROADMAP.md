@@ -34,6 +34,7 @@
 [x] Paraguay receiver schema-readiness snapshot fields
 [x] Paraguay payload schema-readiness extensions
 [x] Paraguay XML schema-readiness emission
+[x] Paraguay pre-signature XML validation harness
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -44,7 +45,6 @@
 
 ## Next
 
-[ ] Paraguay pre-signature XML validation tests
 [ ] Paraguay QR generation
 [ ] Paraguay SIFEN test integration
 

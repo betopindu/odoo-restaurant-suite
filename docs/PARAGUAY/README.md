@@ -30,6 +30,7 @@ Current implemented Paraguay stages:
 * receiver schema-readiness snapshot fields for future `gDatRec`
 * payload schema-readiness extensions for future XML emission
 * XML schema-readiness emission for issuer and receiver data
+* pre-signature XML validation harness
 * fiscal data enrichment for receiver, operation, payment, and tax details
 * administrative UI stabilization for validation/support workflows
 
@@ -241,6 +242,25 @@ Receiver XML emission now includes:
 * receiver geography fields
 * customer code
 
+Stage 6.5.3 adds `PyXmlValidationService`, a project-owned pre-signature XML readiness validation harness. This is not official SIFEN XSD validation.
+
+The harness validates:
+
+* required unsigned XML structure and groups
+* receiver identity rules for taxpayer and non-taxpayer receivers
+* repeated issuer economic activities
+* repeated item groups
+* absence of signing and QR-stage elements
+
+It intentionally rejects unsigned XML containing:
+
+* `dFecFirma`
+* `Signature`
+* `gCamFuFD`
+* `dCarQR`
+
+The fake adapter does not call this validation automatically yet.
+
 Out of scope for Stage 6:
 
 * digital signature
@@ -315,6 +335,8 @@ Stage 6.5.2B-4 completed XML schema-readiness emission. The unsigned XML draft n
 `PyUnsignedXmlBuilder` remains payload-first and does not read Odoo document/configuration models directly for these fields.
 
 Full official XSD validation remains out of scope until later signature and QR stages. The unsigned draft still does not include `dFecFirma`, `ds:Signature`, QR/CSC QR data, SIFEN submission, KuDE, or PDF generation.
+
+Stage 6.5.3 completed the pre-signature XML validation harness with `PyXmlValidationService`. The service validates project-owned readiness rules for unsigned XML, including structure, receiver identity, required unsigned groups, and absence of signing/QR elements. It does not perform official XSD validation and is not automatically called by the fake adapter yet.
 
 ## Fiscal Data Enrichment
 

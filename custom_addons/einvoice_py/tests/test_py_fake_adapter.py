@@ -10,6 +10,7 @@ from odoo.addons.einvoice_module.services.orchestrator import FiscalOrchestrator
 from odoo.addons.einvoice_py.services.cdc_service import PyCdcService
 from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder
 from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import PyUnsignedXmlBuilder
+from odoo.addons.einvoice_py.services.py_xml_validation_service import PyXmlValidationService
 
 
 class TestPyFakeAdapter(TransactionCase):
@@ -579,6 +580,12 @@ class TestPyFakeAdapter(TransactionCase):
         if not document.py_cdc:
             self._process(document)
         return PyPayloadBuilder(self.env).build(document)
+
+    def _xml_bytes_for_document(self, document):
+        return base64.b64decode(self._xml_attachment(document).ir_attachment_id.datas)
+
+    def _xml_bytes_from_root(self, root):
+        return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
     def test_payload_uses_explicit_receiver_fields(self):
         self._create_config()
@@ -1251,6 +1258,135 @@ class TestPyFakeAdapter(TransactionCase):
         root = ET.fromstring(xml_bytes)
 
         self.assertEqual(self._xml_find(root, "DE").attrib["Id"], document.py_cdc)
+
+    def test_presignature_validation_accepts_generated_unsigned_xml(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+
+        result = PyXmlValidationService().validate_unsigned_presignature(
+            self._xml_bytes_for_document(document)
+        )
+
+        self.assertTrue(result)
+
+    def test_presignature_validation_malformed_xml_fails(self):
+        with self.assertRaisesRegex(ValidationError, "Malformed Paraguay unsigned XML"):
+            PyXmlValidationService().validate_unsigned_presignature(b"<rDE>")
+
+    def test_presignature_validation_missing_gacteco_fails(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+        root = self._xml_root_from_attachment(self._xml_attachment(document))
+        issuer = self._xml_find(root, "DE/gDatGralOpe/gEmis")
+        for activity in issuer.findall(self._xml_path("gActEco")):
+            issuer.remove(activity)
+
+        with self.assertRaisesRegex(ValidationError, "issuer economic activities"):
+            PyXmlValidationService().validate_unsigned_presignature(
+                self._xml_bytes_from_root(root)
+            )
+
+    def test_presignature_validation_missing_taxpayer_identity_fails(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+        root = self._xml_root_from_attachment(self._xml_attachment(document))
+        receiver = self._xml_find(root, "DE/gDatGralOpe/gDatRec")
+        receiver.remove(receiver.find(self._xml_path("dDVRec")))
+
+        with self.assertRaisesRegex(ValidationError, "receiver RUC DV"):
+            PyXmlValidationService().validate_unsigned_presignature(
+                self._xml_bytes_from_root(root)
+            )
+
+    def test_presignature_validation_non_taxpayer_receiver_passes(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        document.write({
+            "customer_tax_id": False,
+            "py_receiver_nature": "2",
+            "py_receiver_taxpayer_type": False,
+            "py_receiver_id_type": "1",
+            "py_receiver_id_type_description": "Cedula paraguaya",
+            "py_receiver_id_number": "1234567",
+        })
+        self._process(document)
+
+        result = PyXmlValidationService().validate_unsigned_presignature(
+            self._xml_bytes_for_document(document)
+        )
+
+        self.assertTrue(result)
+
+    def test_presignature_validation_missing_non_taxpayer_identity_fails(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        document.write({
+            "customer_tax_id": False,
+            "py_receiver_nature": "2",
+            "py_receiver_taxpayer_type": False,
+            "py_receiver_id_type": "1",
+            "py_receiver_id_type_description": "Cedula paraguaya",
+            "py_receiver_id_number": "1234567",
+        })
+        self._process(document)
+        root = self._xml_root_from_attachment(self._xml_attachment(document))
+        receiver = self._xml_find(root, "DE/gDatGralOpe/gDatRec")
+        receiver.remove(receiver.find(self._xml_path("dNumIDRec")))
+
+        with self.assertRaisesRegex(ValidationError, "receiver ID number"):
+            PyXmlValidationService().validate_unsigned_presignature(
+                self._xml_bytes_from_root(root)
+            )
+
+    def test_presignature_validation_rejects_signature_stage_fields(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+        root = self._xml_root_from_attachment(self._xml_attachment(document))
+        de = self._xml_find(root, "DE")
+        ET.SubElement(de, self._xml_path("dFecFirma")).text = "2026-06-15T20:00:00"
+
+        with self.assertRaisesRegex(ValidationError, "signature timestamp"):
+            PyXmlValidationService().validate_unsigned_presignature(
+                self._xml_bytes_from_root(root)
+            )
+
+    def test_presignature_validation_rejects_signature_element(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+        root = self._xml_root_from_attachment(self._xml_attachment(document))
+        ET.SubElement(root, "Signature").text = "signature-placeholder"
+
+        with self.assertRaisesRegex(ValidationError, "digital signature"):
+            PyXmlValidationService().validate_unsigned_presignature(
+                self._xml_bytes_from_root(root)
+            )
+
+    def test_presignature_validation_rejects_qr_fields(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        self._process(document)
+        root = self._xml_root_from_attachment(self._xml_attachment(document))
+        de = self._xml_find(root, "DE")
+        qr_group = ET.SubElement(de, self._xml_path("gCamFuFD"))
+        ET.SubElement(qr_group, self._xml_path("dCarQR")).text = "https://example.com/qr"
+
+        with self.assertRaisesRegex(ValidationError, "QR data"):
+            PyXmlValidationService().validate_unsigned_presignature(
+                self._xml_bytes_from_root(root)
+            )
 
     def test_fake_adapter_creates_payload_and_unsigned_xml_attachments(self):
         self._create_config()
