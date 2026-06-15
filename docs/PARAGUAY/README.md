@@ -396,11 +396,21 @@ When assets are absent, it fails clearly with `ValidationError` instead of silen
 
 It does not perform official validation yet because the official schema files are not pinned and full validation still requires signature and QR.
 
-Future hardening before vendoring XSD files:
+Stage 6.5.6 hardens `PyXsdValidationService` before real XSD assets are introduced. The service now:
 
-* add a local-only resolver for `xs:include` and `xs:import`
-* enforce `runtime_downloads_allowed = false`
-* enforce manifest file entries, checksums, and dependency map structure
+* enforces `validation_policy.runtime_downloads_allowed = false`
+* validates `root_schema` as a non-empty local path
+* validates manifest file entries for `path`, `sha256`, and `role`
+* validates SHA-256 checksums for listed files
+* validates dependency map structure
+* blocks path traversal outside the expected XSD root
+* blocks external schema references in `xs:include` and `xs:import`
+
+No XSD files are vendored yet.
+
+Future improvement after official XSD files are added:
+
+* schema include/import resolution may need to resolve paths relative to the including schema file, depending on the official SIFEN package layout
 
 ## Fiscal Data Enrichment
 

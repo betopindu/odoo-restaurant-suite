@@ -37,6 +37,7 @@
 [x] Paraguay pre-signature XML validation harness
 [x] Paraguay SIFEN XSD asset strategy documentation
 [x] Paraguay local XSD validation infrastructure
+[x] Paraguay local XSD validation infrastructure hardening
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation

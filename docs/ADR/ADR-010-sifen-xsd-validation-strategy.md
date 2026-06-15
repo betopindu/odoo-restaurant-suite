@@ -76,6 +76,8 @@ Stage 6.5.3 implements that partial validation harness as `PyXmlValidationServic
 
 Stage 6.5.5 adds `PyXsdValidationService` as infrastructure for future locally pinned SIFEN assets. It can locate the planned local XSD directory, load and validate a future manifest, resolve root schema paths safely, compile schemas with `lxml`, and validate XML once official assets exist. Because no XSD files are vendored yet, missing assets fail clearly. It does not perform official XSD validation yet.
 
+Stage 6.5.6 hardens `PyXsdValidationService` before real schema assets are introduced. It enforces `runtime_downloads_allowed = false`, validates `root_schema`, file entry shape, checksums, and dependency map structure, blocks path traversal, and blocks external schema references for includes/imports. No XSD files are vendored yet.
+
 ## Consequences
 
 * The project avoids runtime dependency on DNIT/e-Kuatia schema availability.
@@ -84,8 +86,8 @@ Stage 6.5.5 adds `PyXsdValidationService` as infrastructure for future locally p
 * Full `rDE` validation must wait until signature and QR output exist.
 * Documentation and tests should distinguish pre-signature readiness from full official XSD validation.
 * Future implementation should record source URLs, download date, and checksums for pinned XSD files.
-* The future XSD loader must resolve imports/includes locally and fail closed if a schema attempts network access.
-* Before real XSD files are vendored, the loader should add a local-only resolver for `xs:include` and `xs:import`, enforce `runtime_downloads_allowed = false`, and validate manifest file entries, checksums, and dependency map structure.
+* The XSD loader must resolve imports/includes locally and fail closed if a schema attempts network access.
+* Future improvement may be needed for include/import resolution relative to the including schema file once the official SIFEN package layout is known.
 
 ## Alternatives Considered
 
