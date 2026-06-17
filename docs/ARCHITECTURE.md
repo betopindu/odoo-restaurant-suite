@@ -14,7 +14,7 @@ The e-Invoice Platform is built around a country-neutral fiscal core, country-sp
 The core owns common fiscal concepts such as document lifecycle, events, transmissions, attachments, tenant isolation, idempotency, lock policies, and orchestration.
 
 Country addons own country-specific concepts such as numbering, fiscal identifiers, payloads, authority-specific configuration, and future XML/signing/authority integration.
-Paraguay already includes an unsigned SIFEN-oriented XML draft builder with structural alignment for official namespace, schema location, and key SIFEN groups. Schema-readiness configuration now includes issuer-side establishment location/economic activity data and receiver-side fiscal identity/geography snapshots. The normalized Paraguay payload carries those fields, and the unsigned XML draft emits them for `gEmis`, `gActEco`, and `gDatRec`. Paraguay also includes a project-owned pre-signature XML readiness harness that validates unsigned structure and rejects signing/QR-stage elements without claiming official XSD validation. Local XSD validation infrastructure exists for future pinned SIFEN assets, with hardened manifest validation, checksum checks, local-only schema reference resolution, and path traversal protection. No XSD files are vendored yet. Future official SIFEN XSD assets should be pinned locally from DNIT/SIFEN/e-Kuatia sources, never downloaded at runtime. Digital signature, QR, SIFEN submission, KuDE/PDF, and full XSD validation remain future stages.
+Paraguay already includes an unsigned SIFEN-oriented XML draft builder with structural alignment for official namespace, schema location, and key SIFEN groups. Schema-readiness configuration now includes issuer-side establishment location/economic activity data and receiver-side fiscal identity/geography snapshots. The normalized Paraguay payload carries those fields, and the unsigned XML draft emits them for `gEmis`, `gActEco`, and `gDatRec`. Paraguay also includes a project-owned pre-signature XML readiness harness that validates unsigned structure and rejects signing/QR-stage elements without claiming official XSD validation. The official SIFEN v150 schema dependency tree is pinned locally from the e-Kuatia endpoint with manifest provenance, SHA-256 checksums, local-only URL resolution, and no runtime downloads. Digital signature, QR, SIFEN submission, KuDE/PDF, and full validation of generated XML remain future stages.
 
 Administrative UI labels should remain country-neutral whenever a generic concept exists. Country-specific terminology should be used only when there is no meaningful cross-country abstraction, such as Timbrado, CDC, CSC, issuer RUC, establishment, or point of issue.
 
@@ -59,6 +59,7 @@ Administrative UI labels should remain country-neutral whenever a generic concep
   * Paraguay pre-signature XML validation harness
   * Paraguay local XSD validation infrastructure
   * Paraguay local XSD validation infrastructure hardening
+  * Paraguay official SIFEN v150 XSD assets
 * future `einvoice_cr`
 * future `einvoice_ar`
 

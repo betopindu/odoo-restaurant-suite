@@ -338,27 +338,34 @@ Full official XSD validation remains out of scope until later signature and QR s
 
 Stage 6.5.3 completed the pre-signature XML validation harness with `PyXmlValidationService`. The service validates project-owned readiness rules for unsigned XML, including structure, receiver identity, required unsigned groups, and absence of signing/QR elements. It does not perform official XSD validation and is not automatically called by the fake adapter yet.
 
-## Future SIFEN XSD Assets
+## SIFEN XSD Assets
 
-Official SIFEN XSD files should be pinned locally in a later stage. They must not be downloaded at runtime.
+Stage 6.5.8 pins the official SIFEN v150 schema dependency tree locally. Runtime downloads remain forbidden.
 
-Proposed location:
+Location:
 
 ```text
 custom_addons/einvoice_py/xsd/sifen/v150/
 ```
 
-Proposed structure:
+Structure:
 
 ```text
 custom_addons/einvoice_py/xsd/sifen/v150/
 ├── README.md
 ├── manifest.json
 └── schemas/
-    └── *.xsd
+    ├── siRecepDE_v150.xsd
+    ├── DE_v150.xsd
+    ├── DE_Types_v150.xsd
+    ├── Paises_v100.xsd
+    ├── Departamentos_v141.xsd
+    ├── Monedas_v150.xsd
+    ├── Unidades_Medida_v141.xsd
+    └── xmldsig-core-schema.xsd
 ```
 
-`manifest.json` should track:
+`manifest.json` tracks:
 
 * schema family
 * country
@@ -370,15 +377,32 @@ custom_addons/einvoice_py/xsd/sifen/v150/
 * dependency map
 * runtime download policy
 
-Only official DNIT/SIFEN/e-Kuatia source packages or files should be used. GitHub repositories, random mirrors, and copied third-party schema bundles should not be treated as authoritative sources.
+All eight files were retrieved byte-for-byte from:
 
-Future XSD loader code should resolve `xs:import` and `xs:include` locally from the pinned directory and forbid network access.
+```text
+https://ekuatia.set.gov.py/sifen/xsd/
+```
 
-Full official XSD validation still waits for signature and QR stages. Stage 6.5.3 remains project-owned pre-signature readiness validation, not official XSD validation.
+The original absolute `schemaLocation` values are preserved. `PyXsdValidationService` maps only manifest-listed official URLs to local files and blocks every unlisted external schema reference.
 
-Stage 6.5.5 adds `PyXsdValidationService` as local XSD validation infrastructure for future official SIFEN assets. No XSD files are vendored yet.
+The pinned dependency tree is:
 
-The service expects future assets under:
+```text
+siRecepDE_v150.xsd
+└── DE_v150.xsd
+    ├── xmldsig-core-schema.xsd
+    ├── Paises_v100.xsd
+    ├── Departamentos_v141.xsd
+    ├── Monedas_v150.xsd
+    ├── Unidades_Medida_v141.xsd
+    └── DE_Types_v150.xsd
+```
+
+Full validation of generated XML still waits for signature and QR stages. Stage 6.5.3 remains project-owned pre-signature readiness validation, not official XSD validation.
+
+Stage 6.5.5 adds `PyXsdValidationService` as local XSD validation infrastructure.
+
+The service loads the pinned assets from:
 
 ```text
 custom_addons/einvoice_py/xsd/sifen/v150/
@@ -389,12 +413,12 @@ It can:
 * locate the expected local XSD directory
 * load and validate a future `manifest.json`
 * resolve root schema paths safely inside the local XSD directory
-* compile schemas with `lxml` when assets exist
-* validate XML once schemas exist
+* compile the pinned schemas with `lxml`
+* validate XML against the pinned schema
 
-When assets are absent, it fails clearly with `ValidationError` instead of silently passing.
+When assets are absent or fail checksum verification, it fails clearly with `ValidationError` instead of silently passing.
 
-It does not perform official validation yet because the official schema files are not pinned and full validation still requires signature and QR.
+The schema is available for explicit validation, but the current unsigned XML draft is not required to pass it because full validation still requires signature and QR.
 
 Stage 6.5.6 hardens `PyXsdValidationService` before real XSD assets are introduced. The service now:
 
@@ -406,11 +430,7 @@ Stage 6.5.6 hardens `PyXsdValidationService` before real XSD assets are introduc
 * blocks path traversal outside the expected XSD root
 * blocks external schema references in `xs:include` and `xs:import`
 
-No XSD files are vendored yet.
-
-Future improvement after official XSD files are added:
-
-* schema include/import resolution may need to resolve paths relative to the including schema file, depending on the official SIFEN package layout
+Stage 6.5.8 confirms the official dependency layout and adds manifest-backed URL-to-local resolution without rewriting the official files.
 
 ## Fiscal Data Enrichment
 

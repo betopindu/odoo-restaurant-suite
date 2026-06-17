@@ -1,7 +1,7 @@
 import hashlib
 import json
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from lxml import etree
 
@@ -9,12 +9,7 @@ from odoo.exceptions import ValidationError
 
 
 class PyXsdValidationService:
-    """Load future locally pinned SIFEN XSD assets.
-
-    This service is infrastructure only. Until official XSD assets are pinned
-    under the expected directory, schema compilation and XML validation fail
-    explicitly instead of silently passing.
-    """
+    """Load and validate the locally pinned SIFEN XSD assets."""
 
     REQUIRED_MANIFEST_KEYS = {
         "schema_family",
@@ -26,7 +21,7 @@ class PyXsdValidationService:
         "dependency_map",
         "validation_policy",
     }
-    REQUIRED_FILE_KEYS = {"path", "sha256", "role"}
+    REQUIRED_FILE_KEYS = {"path", "official_url", "sha256", "role"}
 
     def __init__(self, xsd_root_dir=None):
         self._xsd_root_dir = Path(xsd_root_dir).resolve() if xsd_root_dir else None
@@ -86,15 +81,29 @@ class PyXsdValidationService:
         return True
 
     def resolve_schema_reference(self, schema_location):
-        if self._is_external_reference(schema_location):
+        parsed = urlparse(str(schema_location))
+        if parsed.scheme in {"http", "https"}:
+            local_path = self._get_official_url_map().get(str(schema_location))
+            if not local_path:
+                raise ValidationError(
+                    "SIFEN XSD imports/includes must be local; external reference blocked: "
+                    f"{schema_location}."
+                )
+            return self._require_existing_schema_path(local_path)
+        if parsed.scheme == "file":
+            return self._require_existing_schema_path(Path(unquote(parsed.path)))
+        if parsed.scheme or parsed.netloc:
             raise ValidationError(
                 "SIFEN XSD imports/includes must be local; external reference blocked: "
                 f"{schema_location}."
             )
         path = self._resolve_local_path(schema_location)
-        if not path.exists():
-            raise ValidationError(f"SIFEN XSD import/include is missing: {path}.")
-        return path
+        if path.exists():
+            return path
+        schema_path = self._resolve_local_path(
+            Path("schemas") / Path(str(schema_location)).name
+        )
+        return self._require_existing_schema_path(schema_path)
 
     def get_root_schema_path(self):
         manifest = self.validate_manifest()
@@ -159,6 +168,10 @@ class PyXsdValidationService:
         files = manifest.get("files")
         if not isinstance(files, list):
             raise ValidationError("SIFEN XSD manifest files must be a list.")
+        source = manifest.get("source")
+        if not isinstance(source, dict) or not isinstance(source.get("base_url"), str):
+            raise ValidationError("SIFEN XSD manifest source.base_url is required.")
+        source_base_url = source["base_url"]
         for index, item in enumerate(files, start=1):
             if not isinstance(item, dict):
                 raise ValidationError(f"SIFEN XSD manifest file entry {index} must be an object.")
@@ -175,6 +188,11 @@ class PyXsdValidationService:
                         f"SIFEN XSD manifest file entry {index} key {key} is required."
                     )
             self._resolve_local_path(item["path"])
+            if not item["official_url"].startswith(source_base_url):
+                raise ValidationError(
+                    f"SIFEN XSD manifest file entry {index} official_url must use "
+                    "the official source base URL."
+                )
 
     def _validate_dependency_map(self, manifest):
         dependency_map = manifest.get("dependency_map")
@@ -199,6 +217,31 @@ class PyXsdValidationService:
         parser = etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True)
         parser.resolvers.add(_LocalXsdResolver(self))
         return parser
+
+    def _get_official_url_map(self):
+        manifest_path = self.get_xsd_root_dir() / "manifest.json"
+        if not manifest_path.exists():
+            return {}
+        manifest = self.load_manifest()
+        return {
+            item["official_url"]: self._resolve_local_path(item["path"])
+            for item in manifest.get("files", [])
+            if isinstance(item, dict)
+            and isinstance(item.get("official_url"), str)
+            and isinstance(item.get("path"), str)
+        }
+
+    def _require_existing_schema_path(self, path):
+        path = Path(path).resolve()
+        xsd_root = self.get_xsd_root_dir().resolve()
+        if not self._is_relative_to(path, xsd_root):
+            raise ValidationError(
+                "SIFEN XSD import/include escapes the expected local XSD directory: "
+                f"{path}."
+            )
+        if not path.exists():
+            raise ValidationError(f"SIFEN XSD import/include is missing: {path}.")
+        return path
 
     def _is_external_reference(self, value):
         parsed = urlparse(str(value))

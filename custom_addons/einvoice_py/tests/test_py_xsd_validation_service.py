@@ -1,5 +1,5 @@
-import json
 import hashlib
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -26,6 +26,10 @@ class TestPyXsdValidationService(TransactionCase):
         digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
         return {
             "path": relative_path,
+            "official_url": (
+                "https://official.example.test/sifen/v150/"
+                + Path(relative_path).name
+            ),
             "sha256": digest,
             "role": role,
         }
@@ -37,7 +41,7 @@ class TestPyXsdValidationService(TransactionCase):
             "version": "150",
             "root_schema": root_schema,
             "source": {
-                "url": "https://official.example.test/sifen/v150",
+                "base_url": "https://official.example.test/sifen/v150/",
                 "downloaded_at": "2026-06-15",
             },
             "files": [],
@@ -112,12 +116,16 @@ class TestPyXsdValidationService(TransactionCase):
                 service.validate_manifest()
 
     def test_file_entry_missing_required_keys_fails(self):
-        required_keys = ("path", "sha256", "role")
+        required_keys = ("path", "official_url", "sha256", "role")
         for missing_key in required_keys:
             with self.subTest(missing_key=missing_key):
                 with TemporaryDirectory() as root_dir:
                     entry = {
                         "path": "schemas/siRecepDE_v150.xsd",
+                        "official_url": (
+                            "https://official.example.test/sifen/v150/"
+                            "siRecepDE_v150.xsd"
+                        ),
                         "sha256": "abc123",
                         "role": "root",
                     }
@@ -154,6 +162,9 @@ class TestPyXsdValidationService(TransactionCase):
             manifest["files"] = [
                 {
                     "path": "../outside.xsd",
+                    "official_url": (
+                        "https://official.example.test/sifen/v150/outside.xsd"
+                    ),
                     "sha256": "abc123",
                     "role": "root",
                 }
@@ -205,6 +216,9 @@ class TestPyXsdValidationService(TransactionCase):
             manifest["files"] = [
                 {
                     "path": "schemas/missing.xsd",
+                    "official_url": (
+                        "https://official.example.test/sifen/v150/missing.xsd"
+                    ),
                     "sha256": "abc123",
                     "role": "root",
                 }
@@ -222,6 +236,10 @@ class TestPyXsdValidationService(TransactionCase):
             manifest["files"] = [
                 {
                     "path": "schemas/siRecepDE_v150.xsd",
+                    "official_url": (
+                        "https://official.example.test/sifen/v150/"
+                        "siRecepDE_v150.xsd"
+                    ),
                     "sha256": "0" * 64,
                     "role": "root",
                 }
@@ -269,3 +287,68 @@ class TestPyXsdValidationService(TransactionCase):
 
             with self.assertRaisesRegex(ValidationError, "root schema is missing"):
                 service.validate_xml("<root/>")
+
+    def test_vendored_manifest_and_dependency_tree_are_valid(self):
+        service = PyXsdValidationService()
+
+        manifest = service.validate_manifest()
+
+        self.assertEqual(manifest["root_schema"], "schemas/siRecepDE_v150.xsd")
+        self.assertEqual(len(manifest["files"]), 8)
+        self.assertEqual(
+            manifest["dependency_map"]["schemas/siRecepDE_v150.xsd"],
+            ["schemas/DE_v150.xsd"],
+        )
+        self.assertEqual(
+            manifest["dependency_map"]["schemas/DE_v150.xsd"],
+            [
+                "schemas/xmldsig-core-schema.xsd",
+                "schemas/Paises_v100.xsd",
+                "schemas/Departamentos_v141.xsd",
+                "schemas/Monedas_v150.xsd",
+                "schemas/Unidades_Medida_v141.xsd",
+                "schemas/DE_Types_v150.xsd",
+            ],
+        )
+        for leaf_path in manifest["dependency_map"]["schemas/DE_v150.xsd"]:
+            self.assertEqual(manifest["dependency_map"][leaf_path], [])
+
+    def test_vendored_files_exist_and_checksums_match(self):
+        service = PyXsdValidationService()
+
+        self.assertTrue(service.validate_checksums())
+
+    def test_official_schema_url_resolves_to_vendored_file(self):
+        service = PyXsdValidationService()
+
+        path = service.resolve_schema_reference(
+            "https://ekuatia.set.gov.py/sifen/xsd/DE_v150.xsd"
+        )
+
+        self.assertEqual(
+            path,
+            service.get_xsd_root_dir() / "schemas" / "DE_v150.xsd",
+        )
+
+    def test_unlisted_external_schema_url_remains_blocked(self):
+        service = PyXsdValidationService()
+
+        with self.assertRaisesRegex(ValidationError, "external reference blocked"):
+            service.resolve_schema_reference(
+                "https://example.test/untrusted-schema.xsd"
+            )
+
+    def test_vendored_root_schema_compiles_without_runtime_downloads(self):
+        service = PyXsdValidationService()
+
+        schema = service.compile_schema()
+
+        self.assertIsNotNone(schema)
+
+    def test_full_validation_still_requires_signature_and_qr_stages(self):
+        manifest = PyXsdValidationService().validate_manifest()
+
+        self.assertEqual(
+            manifest["full_xsd_validation_requires"],
+            ["dFecFirma", "ds:Signature", "gCamFuFD/dCarQR"],
+        )

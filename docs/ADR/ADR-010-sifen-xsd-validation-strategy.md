@@ -36,7 +36,7 @@ Those are intentionally outside the current unsigned XML draft stage.
 
 ## Decision
 
-Official SIFEN XSD files should be pinned locally in the repository in a future implementation stage. They should not be downloaded at runtime.
+Official SIFEN XSD files are pinned locally in the repository and must not be downloaded at runtime.
 
 The planned local location is:
 
@@ -58,7 +58,7 @@ The `manifest.json` file should record the schema family, country, version, root
 
 Only official DNIT/SIFEN/e-Kuatia source packages or files should be used. GitHub repositories, random mirrors, and copied third-party schema bundles should not be treated as authoritative sources.
 
-Future XSD loader code should resolve `xs:import` and `xs:include` locally from the pinned directory and forbid network access.
+The XSD loader resolves `xs:import` and `xs:include` locally from the pinned directory and forbids network access.
 
 The unsigned XML remains a draft artifact and is not expected to pass full `siRecepDE_v150.xsd` validation.
 
@@ -76,18 +76,20 @@ Stage 6.5.3 implements that partial validation harness as `PyXmlValidationServic
 
 Stage 6.5.5 adds `PyXsdValidationService` as infrastructure for future locally pinned SIFEN assets. It can locate the planned local XSD directory, load and validate a future manifest, resolve root schema paths safely, compile schemas with `lxml`, and validate XML once official assets exist. Because no XSD files are vendored yet, missing assets fail clearly. It does not perform official XSD validation yet.
 
-Stage 6.5.6 hardens `PyXsdValidationService` before real schema assets are introduced. It enforces `runtime_downloads_allowed = false`, validates `root_schema`, file entry shape, checksums, and dependency map structure, blocks path traversal, and blocks external schema references for includes/imports. No XSD files are vendored yet.
+Stage 6.5.6 hardened `PyXsdValidationService` before the schema assets were introduced. It enforces `runtime_downloads_allowed = false`, validates `root_schema`, file entry shape, checksums, and dependency map structure, blocks path traversal, and blocks external schema references for includes/imports.
+
+Stage 6.5.8 pins the eight-file official SIFEN v150 dependency tree byte-for-byte from `https://ekuatia.set.gov.py/sifen/xsd/`. The manifest records provenance, exact URLs, checksums, roles, and dependencies. Exact official schema URLs are mapped to local files so the unchanged schemas compile without network access.
 
 ## Consequences
 
 * The project avoids runtime dependency on DNIT/e-Kuatia schema availability.
-* Schema validation can be deterministic once official XSD files are pinned.
+* Schema compilation and future validation are deterministic using pinned official files.
 * The current unsigned XML attachment remains useful for audit, debugging, and pre-signature development.
 * Full `rDE` validation must wait until signature and QR output exist.
 * Documentation and tests should distinguish pre-signature readiness from full official XSD validation.
-* Future implementation should record source URLs, download date, and checksums for pinned XSD files.
+* Source URLs, download date, and checksums are recorded for every pinned XSD file.
 * The XSD loader must resolve imports/includes locally and fail closed if a schema attempts network access.
-* Future improvement may be needed for include/import resolution relative to the including schema file once the official SIFEN package layout is known.
+* The official package uses absolute e-Kuatia includes plus one relative XMLDSig import; both resolve locally.
 
 ## Alternatives Considered
 
@@ -97,8 +99,8 @@ Stage 6.5.6 hardens `PyXsdValidationService` before real schema assets are intro
   * Rejected because full `rDE` validation requires signature and QR groups that are intentionally future work.
 * Skip XSD validation until SIFEN submission.
   * Rejected because pre-signature schema readiness can catch mapping, enum, ordering, and payload gaps earlier.
-* Vendor schemas immediately.
-  * Deferred because this ADR defines strategy only; schema pinning and validation implementation belong to a later stage.
+* Rewrite official `schemaLocation` values to relative paths.
+  * Rejected because byte-for-byte preservation and manifest-backed URL mapping provide stronger provenance.
 
 ## Related ADRs
 

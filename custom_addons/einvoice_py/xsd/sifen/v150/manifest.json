@@ -1,0 +1,88 @@
+{
+  "schema_family": "SIFEN",
+  "country": "PY",
+  "version": "150",
+  "root_schema": "schemas/siRecepDE_v150.xsd",
+  "source": {
+    "base_url": "https://ekuatia.set.gov.py/sifen/xsd/",
+    "downloaded_at": "2026-06-18",
+    "retrieved_by": "manual/codex-assisted"
+  },
+  "validation_policy": {
+    "runtime_downloads_allowed": false
+  },
+  "full_xsd_validation_requires": [
+    "dFecFirma",
+    "ds:Signature",
+    "gCamFuFD/dCarQR"
+  ],
+  "files": [
+    {
+      "path": "schemas/siRecepDE_v150.xsd",
+      "official_url": "https://ekuatia.set.gov.py/sifen/xsd/siRecepDE_v150.xsd",
+      "sha256": "c4f566981645ca42afa3c98cedb85be3da4d3520051ab9c253a0f9deae99372f",
+      "role": "root"
+    },
+    {
+      "path": "schemas/DE_v150.xsd",
+      "official_url": "https://ekuatia.set.gov.py/sifen/xsd/DE_v150.xsd",
+      "sha256": "83435e6aa50c36956e14ca3447a76c5eb551b26c75380b0314037f4b27561cb0",
+      "role": "document_schema"
+    },
+    {
+      "path": "schemas/DE_Types_v150.xsd",
+      "official_url": "https://ekuatia.set.gov.py/sifen/xsd/DE_Types_v150.xsd",
+      "sha256": "99c5c2ca69eaf56781f8dd4bf6ce779e116ee807293e7eac15d1832634d29150",
+      "role": "type_catalog"
+    },
+    {
+      "path": "schemas/Paises_v100.xsd",
+      "official_url": "https://ekuatia.set.gov.py/sifen/xsd/Paises_v100.xsd",
+      "sha256": "b75edd6b8ee0a10115104b7f0a5f6963485e41d3b78bcb5ef715a0763ecdc592",
+      "role": "country_catalog"
+    },
+    {
+      "path": "schemas/Departamentos_v141.xsd",
+      "official_url": "https://ekuatia.set.gov.py/sifen/xsd/Departamentos_v141.xsd",
+      "sha256": "1de13902a775dce85e124e814f1777dc24ab6f80903b23d3ffe05cdfce16351c",
+      "role": "department_catalog"
+    },
+    {
+      "path": "schemas/Monedas_v150.xsd",
+      "official_url": "https://ekuatia.set.gov.py/sifen/xsd/Monedas_v150.xsd",
+      "sha256": "16520dd42b5a6e463cb9fb84c74b0a5c9c7ca8542c813636bb390accc7ccdd72",
+      "role": "currency_catalog"
+    },
+    {
+      "path": "schemas/Unidades_Medida_v141.xsd",
+      "official_url": "https://ekuatia.set.gov.py/sifen/xsd/Unidades_Medida_v141.xsd",
+      "sha256": "8a25e5e5decc0540cfdf6adc9fa43a3599ff1e6e5ecbb33e24a202cdf872b9fd",
+      "role": "unit_catalog"
+    },
+    {
+      "path": "schemas/xmldsig-core-schema.xsd",
+      "official_url": "https://ekuatia.set.gov.py/sifen/xsd/xmldsig-core-schema.xsd",
+      "sha256": "f2c353a1238799c8cb2e996c9a4bb0ed9dba07a85e41c69f57e263d4b068dee6",
+      "role": "signature_schema"
+    }
+  ],
+  "dependency_map": {
+    "schemas/siRecepDE_v150.xsd": [
+      "schemas/DE_v150.xsd"
+    ],
+    "schemas/DE_v150.xsd": [
+      "schemas/xmldsig-core-schema.xsd",
+      "schemas/Paises_v100.xsd",
+      "schemas/Departamentos_v141.xsd",
+      "schemas/Monedas_v150.xsd",
+      "schemas/Unidades_Medida_v141.xsd",
+      "schemas/DE_Types_v150.xsd"
+    ],
+    "schemas/DE_Types_v150.xsd": [],
+    "schemas/Paises_v100.xsd": [],
+    "schemas/Departamentos_v141.xsd": [],
+    "schemas/Monedas_v150.xsd": [],
+    "schemas/Unidades_Medida_v141.xsd": [],
+    "schemas/xmldsig-core-schema.xsd": []
+  }
+}

@@ -38,6 +38,7 @@
 [x] Paraguay SIFEN XSD asset strategy documentation
 [x] Paraguay local XSD validation infrastructure
 [x] Paraguay local XSD validation infrastructure hardening
+[x] Paraguay official SIFEN v150 XSD asset pinning
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -53,7 +54,6 @@
 
 ## Future
 
-[ ] Paraguay SIFEN XSD asset pinning from official source
 [ ] Paraguay digital signature
 [ ] Paraguay XML signature integration
 [ ] Paraguay full official XSD validation after signature and QR
