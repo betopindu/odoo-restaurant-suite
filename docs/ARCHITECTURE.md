@@ -14,7 +14,7 @@ The e-Invoice Platform is built around a country-neutral fiscal core, country-sp
 The core owns common fiscal concepts such as document lifecycle, events, transmissions, attachments, tenant isolation, idempotency, lock policies, and orchestration.
 
 Country addons own country-specific concepts such as numbering, fiscal identifiers, payloads, authority-specific configuration, and future XML/signing/authority integration.
-Paraguay already includes an unsigned SIFEN-oriented XML draft builder with structural alignment for official namespace, schema location, and key SIFEN groups. Schema-readiness configuration now includes issuer-side establishment location/economic activity data and receiver-side fiscal identity/geography snapshots. The normalized Paraguay payload carries those fields, and the unsigned XML draft emits them for `gEmis`, `gActEco`, and `gDatRec`. Paraguay also includes a project-owned pre-signature XML readiness harness that validates unsigned structure and rejects signing/QR-stage elements without claiming official XSD validation. The official SIFEN v150 schema dependency tree is pinned locally from the e-Kuatia endpoint with manifest provenance, SHA-256 checksums, local-only URL resolution, and no runtime downloads. Digital signature, QR, SIFEN submission, KuDE/PDF, and full validation of generated XML remain future stages.
+Paraguay already includes an unsigned SIFEN-oriented XML draft builder with structural alignment for official namespace, schema location, and key SIFEN groups. Schema-readiness configuration now includes issuer-side establishment location/economic activity data and receiver-side fiscal identity/geography snapshots. The normalized Paraguay payload carries those fields, and the unsigned XML draft emits them for `gEmis`, `gActEco`, and `gDatRec`. Paraguay also includes a project-owned pre-signature XML readiness harness that validates unsigned structure and rejects signing/QR-stage elements without claiming official XSD validation. The official SIFEN v150 schema dependency tree is pinned locally from the e-Kuatia endpoint with manifest provenance, SHA-256 checksums, local-only URL resolution, and no runtime downloads. ADR-011 defines the future XMLDSig boundary: sign `DE` by its CDC reference, preserve unsigned and signed artifacts separately, keep signing and mutual TLS credential roles logically separate, and generate QR only after signing. Digital signature, QR, SIFEN submission, KuDE/PDF, and full validation of generated XML remain future implementation stages.
 
 Administrative UI labels should remain country-neutral whenever a generic concept exists. Country-specific terminology should be used only when there is no meaningful cross-country abstraction, such as Timbrado, CDC, CSC, issuer RUC, establishment, or point of issue.
 
@@ -75,6 +75,8 @@ Administrative UI labels should remain country-neutral whenever a generic concep
 * Fiscal artifacts are persisted as attachments
 * Paraguay numbering happens before CDC
 * CSC is reserved for QR and is not used for CDC
+* Paraguay signs `DE` by CDC before generating QR
+* Unsigned and signed Paraguay XML are separate fiscal artifacts
 
 See the [ADR index](index.md#adrs) for detailed decision records.
 
@@ -88,6 +90,8 @@ Fiscal Document
 -> Payload
 -> Unsigned XML
 -> Signature (future)
+-> QR (future)
+-> Full Official XSD Validation (future)
 -> Tax Authority (future)
 
 ## Related Documents
@@ -97,6 +101,7 @@ Fiscal Document
 * [Roadmap](ROADMAP.md)
 * [ADR-001 Country Addons](ADR/ADR-001-country-addons.md)
 * [ADR-004 Multi-Tenant Shared Core](ADR/ADR-004-multi-tenant-shared-core.md)
+* [ADR-011 Paraguay Digital Signature Strategy](ADR/ADR-011-paraguay-digital-signature-strategy.md)
 * [Paraguay Documentation](PARAGUAY/README.md)
 * [Diagrams Index](diagrams/README.md)
 

@@ -81,6 +81,8 @@ Current country implementation:
 * [ADR-007 Fiscal Attachments](ADR/ADR-007-fiscal-attachments.md)
 * [ADR-008 Paraguay Numbering Before CDC](ADR/ADR-008-paraguay-numbering-before-cdc.md)
 * [ADR-009 CSC Only For QR](ADR/ADR-009-csc-only-for-qr.md)
+* [ADR-010 SIFEN XSD Validation Strategy](ADR/ADR-010-sifen-xsd-validation-strategy.md)
+* [ADR-011 Paraguay Digital Signature Strategy](ADR/ADR-011-paraguay-digital-signature-strategy.md)
 
 ### Paraguay
 

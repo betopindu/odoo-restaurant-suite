@@ -517,13 +517,34 @@ Expected result:
 
 Warnings remain meaningful when optional or required-for-fiscal-quality data is missing, such as receiver DV, receiver email/address, receiver fiscal nature, operation type, or item tax details.
 
+## Future Digital Signature
+
+Digital signature is not implemented yet.
+
+ADR-011 defines the SIFEN v150 signing strategy:
+
+* use W3C XMLDSig in enveloped form
+* do not add XAdES unless a future official requirement mandates it
+* sign the `DE` node using `Reference URI="#CDC"`
+* insert `dFecFirma` inside `DE`, after `dDVId` and before `dSisFact`
+* place `Signature` under `rDE`, after `DE` and before `gCamFuFD`
+* require CDC before signing and keep it immutable after signing
+* preserve unsigned XML and signed XML as separate sensitive fiscal attachments
+* use `xmlsec` or another maintained XML security library
+* keep certificate and private-key access tenant-safe
+* separate XML signing credentials logically from mutual TLS credentials
+* never store private keys in ordinary plaintext fields
+
+See [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digital-signature-strategy.md).
+
 ## Future QR
 
 QR generation is not implemented yet.
 
-Future QR generation should use IdCSC and CSC hash rules. CSC must not be used for CDC generation.
+Future QR generation must happen after digital signature because the QR input includes the XMLDSig `DigestValue`. It should use IdCSC and CSC hash rules. CSC must not be used for CDC generation.
 
 See [ADR-009 CSC Only For QR](../ADR/ADR-009-csc-only-for-qr.md).
+See [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digital-signature-strategy.md).
 
 ## Future SIFEN
 
@@ -548,9 +569,12 @@ Future SIFEN work should build on:
 * [Fiscal State Machine](../diagrams/fiscal-state-machine.mmd)
 * [ADR-008 Paraguay Numbering Before CDC](../ADR/ADR-008-paraguay-numbering-before-cdc.md)
 * [ADR-009 CSC Only For QR](../ADR/ADR-009-csc-only-for-qr.md)
+* [ADR-010 SIFEN XSD Validation Strategy](../ADR/ADR-010-sifen-xsd-validation-strategy.md)
+* [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digital-signature-strategy.md)
 
 ## Next Recommended Reading
 
 * [ADR-008 Paraguay Numbering Before CDC](../ADR/ADR-008-paraguay-numbering-before-cdc.md)
 * [ADR-009 CSC Only For QR](../ADR/ADR-009-csc-only-for-qr.md)
+* [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digital-signature-strategy.md)
 * [Paraguay Processing Diagram](../diagrams/paraguay-processing.mmd)
