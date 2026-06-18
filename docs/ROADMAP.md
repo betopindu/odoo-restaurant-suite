@@ -40,6 +40,8 @@
 [x] Paraguay local XSD validation infrastructure hardening
 [x] Paraguay official SIFEN v150 XSD asset pinning
 [x] Paraguay digital signature strategy ADR
+[x] Paraguay xmlsec-enabled Odoo runtime
+[x] Paraguay certificate inspection service
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -50,8 +52,8 @@
 
 ## Next
 
-[ ] Paraguay digital signature dependency/runtime spike
-[ ] Paraguay certificate inspection and tenant-safe credential architecture
+[ ] Paraguay tenant-safe credential architecture
+[ ] Paraguay trust-chain and revocation validation
 [ ] Paraguay XML digital signature integration
 [ ] Paraguay QR generation after signature
 [ ] Paraguay full official XSD validation after signature and QR

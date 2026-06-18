@@ -537,6 +537,24 @@ ADR-011 defines the SIFEN v150 signing strategy:
 
 See [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digital-signature-strategy.md).
 
+## Certificate Inspection
+
+Stage 7.3A adds `PyCertificateInspectionService`, a pure service for transient inspection of Paraguay certificate material.
+
+The service supports:
+
+* password-protected PKCS#12 bundles (`.p12` and `.pfx`)
+* PEM certificate and private-key pairs
+* RSA key type, minimum key size, and certificate/private-key matching
+* certificate fingerprint, subject, issuer, serial number, validity, KeyUsage, ExtendedKeyUsage, and SAN reporting
+* strict Paraguay RUC extraction from Subject `serialNumber` and supported SAN identity structures
+* separate validation rules for `xml_signing` and `mutual_tls` roles
+* secret-free reports with sanitized parsing and extension errors
+
+XML-signing certificates require `digitalSignature` and `contentCommitment`. Mutual-TLS certificates require `clientAuth` and require `digitalSignature` when KeyUsage is present.
+
+The service does not persist certificate bundles, private keys, or passwords. Credential models, tenant-safe secret storage, XML signing, trust-chain validation, and revocation validation are not implemented yet.
+
 ## Future QR
 
 QR generation is not implemented yet.
