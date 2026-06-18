@@ -3,5 +3,6 @@ from . import idempotency
 from . import retry_policy
 from . import hashing
 from . import adapter_registry
+from . import credential_provider
 from . import validation
 from . import orchestrator

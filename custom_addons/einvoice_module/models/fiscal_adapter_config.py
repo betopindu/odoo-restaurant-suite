@@ -33,6 +33,11 @@ class FiscalAdapterConfig(models.Model):
     private_key_ref = fields.Char()
     api_client_id = fields.Char()
     token_ref = fields.Char()
+    credential_binding_ids = fields.One2many(
+        "fiscal.adapter.credential.binding",
+        "adapter_config_id",
+        string="Credential Bindings",
+    )
 
     numbering_strategy = fields.Selection(
         [

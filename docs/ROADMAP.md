@@ -42,6 +42,8 @@
 [x] Paraguay digital signature strategy ADR
 [x] Paraguay xmlsec-enabled Odoo runtime
 [x] Paraguay certificate inspection service
+[x] Tenant-safe fiscal credential reference architecture
+[x] Separate XML-signing and mutual-TLS credential role bindings
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -52,7 +54,7 @@
 
 ## Next
 
-[ ] Paraguay tenant-safe credential architecture
+[ ] Fiscal credential provider implementations
 [ ] Paraguay trust-chain and revocation validation
 [ ] Paraguay XML digital signature integration
 [ ] Paraguay QR generation after signature

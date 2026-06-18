@@ -553,7 +553,33 @@ The service supports:
 
 XML-signing certificates require `digitalSignature` and `contentCommitment`. Mutual-TLS certificates require `clientAuth` and require `digitalSignature` when KeyUsage is present.
 
-The service does not persist certificate bundles, private keys, or passwords. Credential models, tenant-safe secret storage, XML signing, trust-chain validation, and revocation validation are not implemented yet.
+The service does not persist certificate bundles, private keys, or passwords. Tenant-safe secret-provider implementations, XML signing, trust-chain validation, and revocation validation are not implemented yet.
+
+## Credential Architecture
+
+Stage 7.3B adds country-neutral credential references and adapter role bindings in `einvoice_module`.
+
+`fiscal.credential` stores:
+
+* tenant and company scope
+* provider and material format
+* external secret references
+* certificate inspection metadata and secret-free inspection reports
+
+It does not store private keys, PKCS#12 or PEM contents, or passwords.
+
+`fiscal.adapter.credential.binding` binds an adapter configuration to one credential for each logical role:
+
+* `xml_signing`
+* `mutual_tls`
+
+Bindings require the credential and adapter configuration to belong to the same tenant and company. XML-signing and mutual-TLS roles may use different credentials.
+
+`FiscalCredentialMaterialProvider` and `FiscalCredentialProviderRegistry` define the provider boundary only. No encrypted Odoo storage, external secret-store, KMS, or PKCS#11/HSM provider is implemented yet, so the architecture cannot retrieve production secret material.
+
+Credential references and bindings are restricted to system administrators for now.
+
+The legacy `fiscal.adapter.config` fields `certificate_ref` and `private_key_ref` remain temporarily for compatibility. They are references only and must never contain raw certificates, PKCS#12 or PEM content, passwords, or private-key material. Future work should migrate these references to role bindings before removing the legacy fields.
 
 ## Future QR
 

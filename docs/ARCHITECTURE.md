@@ -11,10 +11,10 @@
 
 The e-Invoice Platform is built around a country-neutral fiscal core, country-specific addons, and an API-first integration layer.
 
-The core owns common fiscal concepts such as document lifecycle, events, transmissions, attachments, tenant isolation, idempotency, lock policies, and orchestration.
+The core owns common fiscal concepts such as document lifecycle, events, transmissions, attachments, tenant isolation, idempotency, lock policies, credential references, credential role bindings, and orchestration.
 
 Country addons own country-specific concepts such as numbering, fiscal identifiers, payloads, authority-specific configuration, and future XML/signing/authority integration.
-Paraguay already includes an unsigned SIFEN-oriented XML draft builder with structural alignment for official namespace, schema location, and key SIFEN groups. Schema-readiness configuration now includes issuer-side establishment location/economic activity data and receiver-side fiscal identity/geography snapshots. The normalized Paraguay payload carries those fields, and the unsigned XML draft emits them for `gEmis`, `gActEco`, and `gDatRec`. Paraguay also includes a project-owned pre-signature XML readiness harness that validates unsigned structure and rejects signing/QR-stage elements without claiming official XSD validation. The official SIFEN v150 schema dependency tree is pinned locally from the e-Kuatia endpoint with manifest provenance, SHA-256 checksums, local-only URL resolution, and no runtime downloads. The Odoo runtime includes XML security dependencies, and `PyCertificateInspectionService` can transiently inspect PKCS#12 and PEM certificate material for XML-signing and mutual-TLS roles. Inspection reports expose certificate metadata, role validation, and strict Subject/SAN RUC extraction without returning secret material. ADR-011 defines the future XMLDSig boundary: sign `DE` by its CDC reference, preserve unsigned and signed artifacts separately, keep signing and mutual TLS credential roles logically separate, and generate QR only after signing. Credential storage, trust-chain validation, revocation validation, digital signature, QR, SIFEN submission, KuDE/PDF, and full validation of generated XML remain future implementation stages.
+Paraguay already includes an unsigned SIFEN-oriented XML draft builder with structural alignment for official namespace, schema location, and key SIFEN groups. Schema-readiness configuration now includes issuer-side establishment location/economic activity data and receiver-side fiscal identity/geography snapshots. The normalized Paraguay payload carries those fields, and the unsigned XML draft emits them for `gEmis`, `gActEco`, and `gDatRec`. Paraguay also includes a project-owned pre-signature XML readiness harness that validates unsigned structure and rejects signing/QR-stage elements without claiming official XSD validation. The official SIFEN v150 schema dependency tree is pinned locally from the e-Kuatia endpoint with manifest provenance, SHA-256 checksums, local-only URL resolution, and no runtime downloads. The Odoo runtime includes XML security dependencies, and `PyCertificateInspectionService` can transiently inspect PKCS#12 and PEM certificate material for XML-signing and mutual-TLS roles. Inspection reports expose certificate metadata, role validation, and strict Subject/SAN RUC extraction without returning secret material. The core stores tenant-scoped `fiscal.credential` references and separate `fiscal.adapter.credential.binding` records for XML signing and mutual TLS. These records contain provider references and inspection metadata only; they do not contain certificate bundles, PEM content, private keys, or passwords. ADR-011 defines the future XMLDSig boundary: sign `DE` by its CDC reference, preserve unsigned and signed artifacts separately, keep signing and mutual TLS credential roles logically separate, and generate QR only after signing. Concrete secret-provider implementations, trust-chain validation, revocation validation, digital signature, QR, SIFEN submission, KuDE/PDF, and full validation of generated XML remain future implementation stages.
 
 Administrative UI labels should remain country-neutral whenever a generic concept exists. Country-specific terminology should be used only when there is no meaningful cross-country abstraction, such as Timbrado, CDC, CSC, issuer RUC, establishment, or point of issue.
 
@@ -27,6 +27,8 @@ Administrative UI labels should remain country-neutral whenever a generic concep
   * Fiscal events
   * Fiscal transmissions
   * Fiscal attachments
+  * Fiscal credential references
+  * Adapter credential role bindings
   * Fiscal lock policies
   * Orchestration
   * Adapter registry
@@ -80,6 +82,9 @@ Administrative UI labels should remain country-neutral whenever a generic concep
 * Unsigned and signed Paraguay XML are separate fiscal artifacts
 * Certificate inspection is transient and produces secret-free reports
 * XML-signing and mutual-TLS certificate roles are validated separately
+* Fiscal credentials store provider references and inspection metadata, not secret material
+* Adapter configurations bind XML-signing and mutual-TLS credentials independently
+* Fiscal credential references and bindings are administrator-only until a narrower delegated access policy is designed
 
 See the [ADR index](index.md#adrs) for detailed decision records.
 
