@@ -49,6 +49,7 @@
 [x] Paraguay local XMLDSig verification service
 [x] Paraguay signed XML attachment persistence
 [x] Paraguay end-to-end signing pipeline service
+[x] Paraguay QR payload generation
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -61,7 +62,7 @@
 
 [ ] Fiscal credential provider implementations
 [ ] Paraguay trust-chain and revocation validation
-[ ] Paraguay QR generation after signature
+[ ] Paraguay QR image/rendering support
 [ ] Paraguay signing pipeline processing integration
 [ ] Paraguay full official XSD validation after signature and QR
 [ ] Paraguay SIFEN test integration

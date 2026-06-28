@@ -617,6 +617,44 @@ The returned report includes:
 
 Stage 7.8 is callable orchestration only. It does not generate QR content, submit to SIFEN, perform trust-chain validation, perform revocation validation, or wire the fake adapter processing flow into production signing.
 
+## QR Payload Generation
+
+Stage 7.9 adds `PyQrGenerationService`, a pure service for generating the Paraguay QR payload string from a successfully signed XML document.
+
+The repository-pinned official v150 XSD identifies the post-signature QR container as `gCamFuFD/dCarQR` and constrains it as the QR-code character content. ADR-009 reserves `IdCSC`/CSC for QR hashing, and ADR-011 requires QR generation after XMLDSig because QR depends on the XMLDSig `DigestValue`. The repository does not currently vendor an official SIFEN QR/cHashQR example vector, so the implemented hash vector is project-locked and must be confirmed against SIFEN sandbox or a future vendored official test vector before production submission.
+
+The service requires:
+
+* signed XML bytes
+* CDC
+* XMLDSig `DigestValue`
+* document CSC configuration (`IdCSC` and CSC)
+* mandatory QR fields present in the signed XML
+
+It produces:
+
+* `qr_string`
+* `qr_hash`
+
+The QR query payload is deterministic and follows the project-locked ordering:
+
+1. `nVersion`
+2. `Id`
+3. `dFeEmiDE`
+4. `dRucRec`
+5. `dTotGralOpe`
+6. `dTotIVA`
+7. `cItems`
+8. `DigestValue`
+9. `IdCSC`
+10. `cHashQR`
+
+The CSC value is used only to compute `cHashQR`; it is not included in the generated QR string.
+
+The service also validates that the signed XML contains exactly one XMLDSig `Signature`, exactly one XMLDSig `DigestValue`, and that the extracted digest matches the supplied `DigestValue`. The `dRucRec` QR field is populated from the official `dRucRec` XML element as-is; `dDVRec` remains a separate XML field and is not appended to the QR `dRucRec` value.
+
+Stage 7.9 does not generate a QR image, submit to SIFEN, perform trust-chain validation, or perform revocation validation.
+
 ## Certificate Inspection
 
 Stage 7.3A adds `PyCertificateInspectionService`, a pure service for transient inspection of Paraguay certificate material.
@@ -678,11 +716,11 @@ The service:
 
 The signing timestamp uses `YYYY-MM-DDTHH:MM:SS` and must be supplied as a naive datetime. Timezone-aware datetimes are rejected so the service does not silently remove or reinterpret timezone information. This stage does not generate `Signature`, invoke `xmlsec`, load credential material, generate QR content, or submit to SIFEN.
 
-## Future QR
+## Future QR Image
 
-QR generation is not implemented yet.
+QR image rendering is not implemented yet.
 
-Future QR generation must happen after digital signature because the QR input includes the XMLDSig `DigestValue`. It should use IdCSC and CSC hash rules. CSC must not be used for CDC generation.
+QR payload generation happens after digital signature because the QR input includes the XMLDSig `DigestValue`. Future QR image/rendering work should consume the generated QR string. CSC must not be used for CDC generation.
 
 See [ADR-009 CSC Only For QR](../ADR/ADR-009-csc-only-for-qr.md).
 See [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digital-signature-strategy.md).
