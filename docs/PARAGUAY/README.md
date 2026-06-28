@@ -548,6 +548,25 @@ Stage 7.5 does not generate QR content, submit to SIFEN, perform trust-chain or 
 
 See [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digital-signature-strategy.md).
 
+## Local XMLDSig Verification
+
+Stage 7.6 adds `PyXmlSignatureVerificationService`, a pure local verification service for signed Paraguay XML.
+
+The service verifies signed XML structurally and cryptographically:
+
+* requires official `rDE` root
+* requires exactly one `DE`
+* requires exactly one `Signature`
+* requires `Signature` after `DE`
+* requires `Reference URI="#CDC"`
+* validates expected CDC and expected certificate fingerprint when provided
+* verifies the XMLDSig signature with `xmlsec` using the embedded certificate
+* checks the expected XMLDSig algorithms and transforms
+
+The verification report is secret-free and includes the CDC, Reference URI, XMLDSig `DigestValue`, embedded certificate SHA-256 fingerprint, canonicalization method, signature method, digest method, and transforms.
+
+Stage 7.6 does not generate QR content, submit to SIFEN, persist signed XML attachments, perform trust-chain validation, or perform revocation validation.
+
 ## Certificate Inspection
 
 Stage 7.3A adds `PyCertificateInspectionService`, a pure service for transient inspection of Paraguay certificate material.

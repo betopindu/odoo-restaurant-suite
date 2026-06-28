@@ -5,6 +5,7 @@ from . import py_payload_builder
 from . import py_signed_xml_preparation_service
 from . import py_unsigned_xml_builder
 from . import py_xml_signature_service
+from . import py_xml_signature_verification_service
 from . import py_xml_validation_service
 from . import py_xsd_validation_service
 from . import py_fake_adapter
