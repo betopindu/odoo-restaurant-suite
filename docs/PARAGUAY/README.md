@@ -593,6 +593,30 @@ The service is idempotent: retrying persistence for a document with an existing 
 
 Stage 7.7 does not generate QR content, submit to SIFEN, integrate fake adapter processing, perform trust-chain validation, or perform revocation validation.
 
+## Signing Pipeline
+
+Stage 7.8 adds `PySigningPipelineService`, a single orchestration service for the Paraguay signing pipeline.
+
+The pipeline accepts a fiscal document, normalized Paraguay payload, transient signing credential material, and signing timestamp. It then invokes the already implemented services in order:
+
+1. `PyUnsignedXmlBuilder`
+2. `PySignedXmlPreparationService`
+3. `PyXmlSignatureService`
+4. `PyXmlSignatureVerificationService`
+5. `PySignedXmlAttachmentService`
+
+The service does not duplicate signing, preparation, verification, or attachment logic. It aborts immediately on any failure and persists the signed XML only after successful local verification.
+
+The returned report includes:
+
+* CDC
+* XMLDSig `DigestValue`
+* signing certificate SHA-256 fingerprint
+* signed fiscal attachment id
+* local verification result
+
+Stage 7.8 is callable orchestration only. It does not generate QR content, submit to SIFEN, perform trust-chain validation, perform revocation validation, or wire the fake adapter processing flow into production signing.
+
 ## Certificate Inspection
 
 Stage 7.3A adds `PyCertificateInspectionService`, a pure service for transient inspection of Paraguay certificate material.
