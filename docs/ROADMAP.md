@@ -45,6 +45,7 @@
 [x] Tenant-safe fiscal credential reference architecture
 [x] Separate XML-signing and mutual-TLS credential role bindings
 [x] Paraguay signed XML preparation with dFecFirma
+[x] Paraguay XMLDSig generation service
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -57,8 +58,8 @@
 
 [ ] Fiscal credential provider implementations
 [ ] Paraguay trust-chain and revocation validation
-[ ] Paraguay XML digital signature integration
 [ ] Paraguay QR generation after signature
+[ ] Paraguay signed XML attachment persistence and processing integration
 [ ] Paraguay full official XSD validation after signature and QR
 [ ] Paraguay SIFEN test integration
 

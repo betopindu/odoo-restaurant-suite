@@ -517,9 +517,9 @@ Expected result:
 
 Warnings remain meaningful when optional or required-for-fiscal-quality data is missing, such as receiver DV, receiver email/address, receiver fiscal nature, operation type, or item tax details.
 
-## Future Digital Signature
+## Digital Signature
 
-Digital signature is not implemented yet.
+Stage 7.5 adds `PyXmlSignatureService`, a pure XMLDSig generation service for prepared Paraguay XML.
 
 ADR-011 defines the SIFEN v150 signing strategy:
 
@@ -534,6 +534,17 @@ ADR-011 defines the SIFEN v150 signing strategy:
 * keep certificate and private-key access tenant-safe
 * separate XML signing credentials logically from mutual TLS credentials
 * never store private keys in ordinary plaintext fields
+
+The service signs the prepared `DE` element by `Reference URI="#CDC"` using transient certificate and private-key material only. It uses:
+
+* `CanonicalizationMethod`: inclusive C14N (`http://www.w3.org/TR/2001/REC-xml-c14n-20010315`)
+* `SignatureMethod`: RSA-SHA256
+* `DigestMethod`: SHA256
+* transforms: enveloped signature and exclusive C14N
+
+It embeds `X509Certificate`, places `Signature` as a sibling immediately after `DE`, rejects existing signatures, and verifies generated fixture signatures in tests.
+
+Stage 7.5 does not generate QR content, submit to SIFEN, perform trust-chain or revocation validation, persist signed XML attachments, or retrieve production credential material from the credential architecture.
 
 See [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digital-signature-strategy.md).
 
@@ -583,7 +594,7 @@ The legacy `fiscal.adapter.config` fields `certificate_ref` and `private_key_ref
 
 ## Signed XML Preparation
 
-Stage 7.4 adds `PySignedXmlPreparationService` as the boundary between unsigned XML generation and future XMLDSig signing.
+Stage 7.4 adds `PySignedXmlPreparationService` as the boundary between unsigned XML generation and XMLDSig signing.
 
 The service:
 
