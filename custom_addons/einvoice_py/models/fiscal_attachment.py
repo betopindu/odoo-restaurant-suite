@@ -8,9 +8,11 @@ class FiscalAttachment(models.Model):
         selection_add=[
             ("paraguay_payload_json", "Paraguay Payload JSON"),
             ("paraguay_xml_unsigned", "Unsigned XML"),
+            ("paraguay_xml_signed", "Signed XML"),
         ],
         ondelete={
             "paraguay_payload_json": "cascade",
             "paraguay_xml_unsigned": "cascade",
+            "paraguay_xml_signed": "cascade",
         },
     )

@@ -567,6 +567,32 @@ The verification report is secret-free and includes the CDC, Reference URI, XMLD
 
 Stage 7.6 does not generate QR content, submit to SIFEN, persist signed XML attachments, perform trust-chain validation, or perform revocation validation.
 
+## Signed XML Attachment Persistence
+
+Stage 7.7 adds signed XML fiscal attachment persistence.
+
+The Paraguay attachment extension now includes:
+
+* `paraguay_xml_signed` / `Signed XML`
+
+`PySignedXmlAttachmentService` persists already-signed Paraguay XML as a separate sensitive fiscal attachment. It does not overwrite the unsigned XML attachment and does not overwrite the Paraguay payload JSON attachment.
+
+The signed XML attachment stores:
+
+* `mimetype`: `application/xml`
+* `is_sensitive`: `True`
+* SHA-256 of the signed XML bytes
+* linked `ir.attachment`
+* safe metadata JSON only:
+  * CDC
+  * XMLDSig `DigestValue`
+  * signing certificate SHA-256 fingerprint
+  * signing timestamp, when available
+
+The service is idempotent: retrying persistence for a document with an existing signed XML attachment returns the existing attachment instead of creating a duplicate.
+
+Stage 7.7 does not generate QR content, submit to SIFEN, integrate fake adapter processing, perform trust-chain validation, or perform revocation validation.
+
 ## Certificate Inspection
 
 Stage 7.3A adds `PyCertificateInspectionService`, a pure service for transient inspection of Paraguay certificate material.

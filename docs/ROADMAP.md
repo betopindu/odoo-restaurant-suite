@@ -47,6 +47,7 @@
 [x] Paraguay signed XML preparation with dFecFirma
 [x] Paraguay XMLDSig generation service
 [x] Paraguay local XMLDSig verification service
+[x] Paraguay signed XML attachment persistence
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -60,7 +61,7 @@
 [ ] Fiscal credential provider implementations
 [ ] Paraguay trust-chain and revocation validation
 [ ] Paraguay QR generation after signature
-[ ] Paraguay signed XML attachment persistence and processing integration
+[ ] Paraguay signing processing integration
 [ ] Paraguay full official XSD validation after signature and QR
 [ ] Paraguay SIFEN test integration
 
