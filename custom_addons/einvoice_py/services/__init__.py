@@ -2,6 +2,7 @@ from . import cdc_service
 from . import numbering_service
 from . import py_certificate_inspection_service
 from . import py_payload_builder
+from . import py_signed_xml_preparation_service
 from . import py_unsigned_xml_builder
 from . import py_xml_validation_service
 from . import py_xsd_validation_service

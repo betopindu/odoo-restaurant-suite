@@ -44,6 +44,7 @@
 [x] Paraguay certificate inspection service
 [x] Tenant-safe fiscal credential reference architecture
 [x] Separate XML-signing and mutual-TLS credential role bindings
+[x] Paraguay signed XML preparation with dFecFirma
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation

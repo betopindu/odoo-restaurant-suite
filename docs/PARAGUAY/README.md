@@ -581,6 +581,23 @@ Credential references and bindings are restricted to system administrators for n
 
 The legacy `fiscal.adapter.config` fields `certificate_ref` and `private_key_ref` remain temporarily for compatibility. They are references only and must never contain raw certificates, PKCS#12 or PEM content, passwords, or private-key material. Future work should migrate these references to role bindings before removing the legacy fields.
 
+## Signed XML Preparation
+
+Stage 7.4 adds `PySignedXmlPreparationService` as the boundary between unsigned XML generation and future XMLDSig signing.
+
+The service:
+
+* safely parses unsigned Paraguay XML
+* verifies that `DE/@Id`, `py_cdc`, and `country_identifier` contain the same CDC
+* verifies that `dDVId` matches the CDC check digit
+* rejects missing or duplicate signing-stage fields
+* inserts `dFecFirma` immediately after `dDVId`
+* preserves `dSisFact` and the remaining `DE` child ordering
+* emits deterministic UTF-8 XML
+* returns the prepared XML bytes, CDC, and normalized signing timestamp
+
+The signing timestamp uses `YYYY-MM-DDTHH:MM:SS` and must be supplied as a naive datetime. Timezone-aware datetimes are rejected so the service does not silently remove or reinterpret timezone information. This stage does not generate `Signature`, invoke `xmlsec`, load credential material, generate QR content, or submit to SIFEN.
+
 ## Future QR
 
 QR generation is not implemented yet.
