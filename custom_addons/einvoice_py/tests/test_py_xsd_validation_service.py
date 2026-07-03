@@ -10,6 +10,26 @@ from odoo.addons.einvoice_py.services.py_xsd_validation_service import PyXsdVali
 
 
 class TestPyXsdValidationService(TransactionCase):
+    COMPLETE_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rDE xmlns="http://ekuatia.set.gov.py/sifen/xsd"
+     xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <dVerFor>150</dVerFor>
+  <DE Id="01234567890123456789012345678901234567890123">
+    <dFecFirma>2026-06-18T12:34:56</dFecFirma>
+  </DE>
+  <ds:Signature>
+    <ds:SignedInfo>
+      <ds:Reference URI="#01234567890123456789012345678901234567890123">
+        <ds:DigestValue>digest-fixture</ds:DigestValue>
+      </ds:Reference>
+    </ds:SignedInfo>
+  </ds:Signature>
+  <gCamFuFD>
+    <dCarQR>https://example.test/qr?nVersion=150&amp;Id=01234567890123456789012345678901234567890123&amp;cHashQR=abc</dCarQR>
+  </gCamFuFD>
+</rDE>
+"""
+
     def _write_manifest(self, root_dir, values):
         path = Path(root_dir) / "manifest.json"
         path.write_text(json.dumps(values), encoding="utf-8")
@@ -50,6 +70,73 @@ class TestPyXsdValidationService(TransactionCase):
                 "runtime_downloads_allowed": False,
             },
         }
+
+    def _final_validation_schema(self):
+        """Small test schema for structured-report mechanics only.
+
+        This intentionally is not the official SIFEN v150 schema; official
+        schema execution is covered separately with the vendored default
+        assets.
+        """
+        return """<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="http://ekuatia.set.gov.py/sifen/xsd"
+           xmlns="http://ekuatia.set.gov.py/sifen/xsd"
+           elementFormDefault="qualified">
+  <xs:element name="rDE">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="dVerFor">
+          <xs:simpleType>
+            <xs:restriction base="xs:string">
+              <xs:pattern value="150"/>
+            </xs:restriction>
+          </xs:simpleType>
+        </xs:element>
+        <xs:element name="DE">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="dFecFirma" type="xs:dateTime"/>
+            </xs:sequence>
+            <xs:attribute name="Id" use="required" type="xs:string"/>
+          </xs:complexType>
+        </xs:element>
+        <xs:any namespace="http://www.w3.org/2000/09/xmldsig#"
+                processContents="skip"/>
+        <xs:element name="gCamFuFD">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="dCarQR">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:minLength value="1"/>
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
+"""
+
+    def _final_validation_service(self, root_dir):
+        schema = self._final_validation_schema()
+        manifest = self._valid_manifest()
+        manifest["files"] = [
+            self._file_entry(
+                root_dir,
+                "schemas/siRecepDE_v150.xsd",
+                schema,
+            ),
+        ]
+        manifest["dependency_map"] = {
+            "schemas/siRecepDE_v150.xsd": [],
+        }
+        self._write_manifest(root_dir, manifest)
+        return PyXsdValidationService(root_dir)
 
     def test_service_locates_expected_default_directory(self):
         service = PyXsdValidationService()
@@ -352,3 +439,107 @@ class TestPyXsdValidationService(TransactionCase):
             manifest["full_xsd_validation_requires"],
             ["dFecFirma", "ds:Signature", "gCamFuFD/dCarQR"],
         )
+
+    def test_final_signed_xml_validation_uses_vendored_schema_policy(self):
+        service = PyXsdValidationService()
+
+        manifest = service.validate_manifest()
+
+        self.assertEqual(manifest["version"], "150")
+        self.assertFalse(manifest["validation_policy"]["runtime_downloads_allowed"])
+        self.assertTrue(str(service.get_root_schema_path()).endswith("siRecepDE_v150.xsd"))
+
+    def test_structured_report_mechanics_valid_complete_xml_passes_with_simplified_schema(self):
+        with TemporaryDirectory() as root_dir:
+            service = self._final_validation_service(root_dir)
+
+            report = service.validate_final_signed_xml(self.COMPLETE_XML)
+
+            self.assertTrue(report["valid"])
+            self.assertEqual(report["errors"], [])
+            self.assertEqual(report["warnings"], [])
+            self.assertTrue(report["schema_used"].endswith("schemas/siRecepDE_v150.xsd"))
+
+    def test_structured_report_mechanics_missing_signature_fails(self):
+        xml = self.COMPLETE_XML.replace(
+            b"""  <ds:Signature>
+    <ds:SignedInfo>
+      <ds:Reference URI="#01234567890123456789012345678901234567890123">
+        <ds:DigestValue>digest-fixture</ds:DigestValue>
+      </ds:Reference>
+    </ds:SignedInfo>
+  </ds:Signature>
+""",
+            b"",
+        )
+        with TemporaryDirectory() as root_dir:
+            service = self._final_validation_service(root_dir)
+
+            report = service.validate_final_signed_xml(xml)
+
+            self.assertFalse(report["valid"])
+            self.assertIn(
+                "Final signed Paraguay XML must contain exactly one XMLDSig Signature.",
+                [error["message"] for error in report["errors"]],
+            )
+
+    def test_structured_report_mechanics_missing_qr_fails(self):
+        xml = self.COMPLETE_XML.replace(
+            b"""  <gCamFuFD>
+    <dCarQR>https://example.test/qr?nVersion=150&amp;Id=01234567890123456789012345678901234567890123&amp;cHashQR=abc</dCarQR>
+  </gCamFuFD>
+""",
+            b"",
+        )
+        with TemporaryDirectory() as root_dir:
+            service = self._final_validation_service(root_dir)
+
+            report = service.validate_final_signed_xml(xml)
+
+            self.assertFalse(report["valid"])
+            self.assertIn(
+                "Final signed Paraguay XML must contain gCamFuFD/dCarQR QR content.",
+                [error["message"] for error in report["errors"]],
+            )
+
+    def test_structured_report_mechanics_malformed_xml_fails(self):
+        with TemporaryDirectory() as root_dir:
+            service = self._final_validation_service(root_dir)
+
+            report = service.validate_final_signed_xml(b"<rDE>")
+
+            self.assertFalse(report["valid"])
+            self.assertTrue(report["errors"])
+            self.assertIn("Premature end of data", report["errors"][0]["message"])
+
+    def test_structured_report_mechanics_schema_violation_fails(self):
+        xml = self.COMPLETE_XML.replace(b"<dVerFor>150</dVerFor>", b"<dVerFor>999</dVerFor>")
+        with TemporaryDirectory() as root_dir:
+            service = self._final_validation_service(root_dir)
+
+            report = service.validate_final_signed_xml(xml)
+
+            self.assertFalse(report["valid"])
+            self.assertTrue(report["errors"])
+            self.assertIn("dVerFor", [error["failing_element"] for error in report["errors"]])
+
+    def test_structured_report_mechanics_results_are_deterministic(self):
+        xml = self.COMPLETE_XML.replace(b"<dVerFor>150</dVerFor>", b"<dVerFor>999</dVerFor>")
+        with TemporaryDirectory() as root_dir:
+            service = self._final_validation_service(root_dir)
+
+            first = service.validate_final_signed_xml(xml)
+            second = service.validate_final_signed_xml(xml)
+
+            self.assertEqual(first, second)
+
+    def test_official_vendored_schema_execution_returns_structured_errors(self):
+        service = PyXsdValidationService()
+
+        report = service.validate_final_signed_xml(self.COMPLETE_XML)
+
+        self.assertFalse(report["valid"])
+        self.assertTrue(report["schema_used"].endswith("schemas/siRecepDE_v150.xsd"))
+        self.assertTrue(report["errors"])
+        self.assertTrue(all(set(error) == {"failing_element", "line", "column", "message"} for error in report["errors"]))
+        self.assertTrue(any(error["message"] for error in report["errors"]))

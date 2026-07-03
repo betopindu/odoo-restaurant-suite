@@ -655,6 +655,33 @@ The service also validates that the signed XML contains exactly one XMLDSig `Sig
 
 Stage 7.9 does not generate a QR image, submit to SIFEN, perform trust-chain validation, or perform revocation validation.
 
+## Full Official XSD Validation
+
+Stage 7.10 extends `PyXsdValidationService` with final signed XML validation for complete Paraguay XML after signature and QR payload generation.
+
+The final validation path:
+
+* uses the pinned official SIFEN v150 schema set vendored under `custom_addons/einvoice_py/xsd/sifen/v150`
+* compiles schemas through the local-only resolver
+* blocks runtime downloads and unlisted external schema references
+* validates the complete signed XML document against `siRecepDE_v150.xsd`
+* requires final-stage content before reporting success:
+  * XMLDSig `Signature`
+  * `gCamFuFD/dCarQR`
+
+The service returns a structured report:
+
+* `valid`
+* `errors`
+* `warnings`
+* `schema_used`
+* `failing_element`
+* `line`
+* `column`
+* `message`
+
+Stage 7.10 is validation only. It does not submit to SIFEN, perform trust-chain validation, perform revocation validation, generate QR images, or integrate the signing pipeline into production processing. Real generated final XML acceptance remains pending full pipeline integration and SIFEN sandbox confirmation.
+
 ## Certificate Inspection
 
 Stage 7.3A adds `PyCertificateInspectionService`, a pure service for transient inspection of Paraguay certificate material.

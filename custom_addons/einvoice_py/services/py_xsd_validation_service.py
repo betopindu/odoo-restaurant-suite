@@ -11,6 +11,9 @@ from odoo.exceptions import ValidationError
 class PyXsdValidationService:
     """Load and validate the locally pinned SIFEN XSD assets."""
 
+    SIFEN_NS = "http://ekuatia.set.gov.py/sifen/xsd"
+    XMLDSIG_NS = "http://www.w3.org/2000/09/xmldsig#"
+
     REQUIRED_MANIFEST_KEYS = {
         "schema_family",
         "country",
@@ -139,6 +142,88 @@ class PyXsdValidationService:
             detail = f": {error.message}" if error is not None else ""
             raise ValidationError(f"XML content does not validate against SIFEN XSD{detail}.")
         return True
+
+    def validate_final_signed_xml(self, xml_content):
+        """Validate final signed Paraguay XML with QR content.
+
+        Returns a structured, secret-free report instead of raising for normal
+        XML/schema validation failures. Manifest/schema installation errors
+        still raise because they indicate local runtime misconfiguration.
+        """
+        schema = self.compile_schema()
+        report = self._empty_report()
+        try:
+            xml_doc = self._parse_xml(xml_content)
+        except etree.XMLSyntaxError as error:
+            report["errors"].append(self._error_entry(error=error))
+            return report
+
+        self._validate_final_stage_structure(xml_doc, report)
+        if schema.validate(xml_doc):
+            report["valid"] = not report["errors"]
+            return report
+
+        for error in schema.error_log:
+            report["errors"].append(self._error_entry(error=error))
+        report["valid"] = False
+        return report
+
+    def _empty_report(self):
+        return {
+            "valid": False,
+            "errors": [],
+            "warnings": [],
+            "schema_used": str(self.get_root_schema_path()),
+        }
+
+    def _parse_xml(self, xml_content):
+        parser = etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True)
+        if isinstance(xml_content, str):
+            xml_content = xml_content.encode("utf-8")
+        return etree.fromstring(xml_content, parser)
+
+    def _validate_final_stage_structure(self, xml_doc, report):
+        signature_nodes = xml_doc.findall(f".//{{{self.XMLDSIG_NS}}}Signature")
+        if len(signature_nodes) != 1:
+            report["errors"].append(self._manual_error(
+                "Final signed Paraguay XML must contain exactly one XMLDSig Signature.",
+                failing_element="Signature",
+            ))
+        qr_nodes = xml_doc.findall(f"{{{self.SIFEN_NS}}}gCamFuFD/{{{self.SIFEN_NS}}}dCarQR")
+        if len(qr_nodes) != 1 or not (qr_nodes[0].text or "").strip():
+            report["errors"].append(self._manual_error(
+                "Final signed Paraguay XML must contain gCamFuFD/dCarQR QR content.",
+                failing_element="dCarQR",
+            ))
+
+    def _manual_error(self, message, failing_element=None, line=None, column=None):
+        return {
+            "failing_element": failing_element,
+            "line": line,
+            "column": column,
+            "message": message,
+        }
+
+    def _error_entry(self, error):
+        failing_element = self._failing_element_from_message(getattr(error, "message", ""))
+        return {
+            "failing_element": failing_element,
+            "line": getattr(error, "line", None),
+            "column": getattr(error, "column", None),
+            "message": getattr(error, "message", str(error)),
+        }
+
+    def _failing_element_from_message(self, message):
+        if not message:
+            return None
+        start = message.find("Element '")
+        if start != -1:
+            start += len("Element '")
+            end = message.find("'", start)
+            if end != -1:
+                value = message[start:end]
+                return value.rsplit("}", 1)[-1]
+        return None
 
     def _resolve_local_path(self, relative_path):
         if self._is_external_reference(relative_path):
