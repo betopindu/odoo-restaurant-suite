@@ -754,7 +754,21 @@ See [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digita
 
 ## Future SIFEN
 
-SIFEN submission is not implemented yet.
+Stage 8 begins SIFEN test integration with `PySifenTestSubmissionService`.
+
+The first integration slice is a pure service for test-environment submission. It:
+
+* requires a Paraguay document in `test` environment
+* requires an HTTPS SIFEN test endpoint supplied by the caller
+* rejects endpoint URLs containing credentials, query strings, or fragments
+* validates the final signed XML locally with `PyXsdValidationService.validate_final_signed_xml` before transport
+* builds a SOAP envelope containing the final `rDE`
+* delegates HTTP transport through an injectable transport callable
+* sanitizes retryable transport errors so raw exception text is not returned for later persistence
+* normalizes accepted, rejected, SOAP fault, malformed, and retryable transport outcomes into a secret-free result dictionary
+* returns request and response SHA-256 hashes for later `fiscal.transmission` persistence
+
+Stage 8 does not yet wire live SIFEN submission into adapter processing, persist transmissions, manage mTLS/session credentials, implement retry queues, perform trust-chain or revocation validation, or support production submission. The current service is test-only and does not persist to `fiscal.transmission` yet.
 
 Future SIFEN work should build on:
 
@@ -762,6 +776,8 @@ Future SIFEN work should build on:
 * XML generation
 * digital signature
 * QR generation
+* local final XSD validation
+* SIFEN test submission service
 * authority response normalization
 * retry/error handling
 
