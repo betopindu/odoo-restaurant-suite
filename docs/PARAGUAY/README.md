@@ -756,7 +756,7 @@ See [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digita
 
 Stage 8 begins SIFEN test integration with `PySifenTestSubmissionService`.
 
-The first integration slice is a pure service for test-environment submission. It:
+Stage 8.1 adds a pure service for test-environment submission. It:
 
 * requires a Paraguay document in `test` environment
 * requires an HTTPS SIFEN test endpoint supplied by the caller
@@ -768,7 +768,24 @@ The first integration slice is a pure service for test-environment submission. I
 * normalizes accepted, rejected, SOAP fault, malformed, and retryable transport outcomes into a secret-free result dictionary
 * returns request and response SHA-256 hashes for later `fiscal.transmission` persistence
 
-Stage 8 does not yet wire live SIFEN submission into adapter processing, persist transmissions, manage mTLS/session credentials, implement retry queues, perform trust-chain or revocation validation, or support production submission. The current service is test-only and does not persist to `fiscal.transmission` yet.
+Stage 8.2 adds `PySifenSandboxTransport`, the first concrete transport for calling the official SIFEN test environment. The transport:
+
+* posts the SOAP request over HTTPS
+* builds an `ssl.SSLContext` with mutual TLS client certificate material
+* rejects non-HTTPS endpoints even when the transport is called directly
+* consumes the existing `fiscal.credential` reference and `FiscalCredentialProviderRegistry` provider boundary
+* supports transient PKCS#12 and PEM pair material returned by a provider
+* keeps transport injectable for tests and does not require live sandbox access during automated tests
+* separates connection failures, TLS failures, HTTP failures, SOAP faults, and authority business responses through typed errors and normalized metadata
+* returns HTTP error response bodies for normal response normalization instead of treating them as connection failures
+
+No provider that retrieves real secret material is implemented in this stage. Deployments must supply a registered credential provider outside this slice to load transient sandbox material from the configured `fiscal.credential` reference.
+
+The transport does not persist private keys, PKCS#12 bundles, PEM content, passwords, or certificates to Odoo records and does not log secret material or temporary file paths. Python's stdlib `ssl` API requires filesystem paths for `load_cert_chain`, so the transport writes certificate and private-key PEM bytes only to OS-managed restrictive temporary files while constructing the `ssl.SSLContext`; those files are unlinked when context construction completes.
+
+The submission service retains a non-mTLS development fallback transport for tests, but it rejects calls that include a mutual-TLS credential. Real SIFEN sandbox mTLS use must inject `PySifenSandboxTransport`.
+
+Stage 8 does not yet wire live SIFEN submission into adapter processing, persist transmissions, manage mTLS/session credentials beyond transient provider output, implement retry queues, perform trust-chain or revocation validation, or support production submission. The current service is test-only and does not persist to `fiscal.transmission` yet.
 
 Future SIFEN work should build on:
 
@@ -778,6 +795,7 @@ Future SIFEN work should build on:
 * QR generation
 * local final XSD validation
 * SIFEN test submission service
+* SIFEN sandbox mutual-TLS transport
 * authority response normalization
 * retry/error handling
 

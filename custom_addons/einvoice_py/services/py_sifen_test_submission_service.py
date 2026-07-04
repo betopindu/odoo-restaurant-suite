@@ -19,6 +19,14 @@ class PySifenTransportError(Exception):
     """Expected retryable transport failure raised by SIFEN transport adapters."""
 
 
+class PySifenConnectionError(PySifenTransportError):
+    """SIFEN transport could not establish or keep the network connection."""
+
+
+class PySifenTlsError(PySifenTransportError):
+    """SIFEN transport failed during TLS or mutual TLS negotiation."""
+
+
 class PySifenTestSubmissionService:
     """Submit final Paraguay XML to a SIFEN test endpoint.
 
@@ -51,6 +59,7 @@ class PySifenTestSubmissionService:
         endpoint_url,
         soap_action=None,
         timeout_seconds=None,
+        mutual_tls_credential=None,
     ):
         document.ensure_one()
         self._validate_submission_inputs(document, final_xml_bytes, endpoint_url)
@@ -73,6 +82,7 @@ class PySifenTestSubmissionService:
                 body=request_xml,
                 soap_action=soap_action,
                 timeout_seconds=timeout_seconds or self.DEFAULT_TIMEOUT_SECONDS,
+                mutual_tls_credential=mutual_tls_credential,
             )
         except PySifenTransportError as error:
             return self._transport_error_result(
@@ -134,6 +144,7 @@ class PySifenTestSubmissionService:
             "metadata_json": {
                 "environment": "test",
                 "service": "py_sifen_test_submission",
+                "response_category": self._response_category(status_code),
             },
         }
 
@@ -150,6 +161,7 @@ class PySifenTestSubmissionService:
         fault = self._soap_fault(root)
         if fault:
             base.update(fault)
+            base["metadata_json"].update(fault.get("metadata_json") or {})
             return base
 
         authority_code = self._first_text_by_local_name(root, [
@@ -216,9 +228,25 @@ class PySifenTestSubmissionService:
         return etree.fromstring(xml_content, parser)
 
     def _transport(self):
-        return self.transport or self._urllib_transport
+        return self.transport or self._non_mtls_test_transport
 
-    def _urllib_transport(self, *, endpoint_url, body, soap_action=None, timeout_seconds=None):
+    def _non_mtls_test_transport(
+        self,
+        *,
+        endpoint_url,
+        body,
+        soap_action=None,
+        timeout_seconds=None,
+        mutual_tls_credential=None,
+    ):
+        """Development fallback only.
+
+        Real SIFEN sandbox mTLS calls must inject PySifenSandboxTransport.
+        """
+        if mutual_tls_credential:
+            raise ValidationError(
+                "SIFEN sandbox mTLS submission requires PySifenSandboxTransport."
+            )
         headers = {
             "Content-Type": "text/xml; charset=utf-8",
             "Accept": "text/xml, application/xml",
@@ -268,7 +296,7 @@ class PySifenTestSubmissionService:
                 "environment": "test",
                 "service": "py_sifen_test_submission",
                 "transport_error": error.__class__.__name__,
-                "transport_error_category": "retryable_transport",
+                "transport_error_category": self._transport_error_category(error),
             },
         }
 
@@ -301,6 +329,7 @@ class PySifenTestSubmissionService:
             "metadata_json": {
                 "environment": "test",
                 "service": "py_sifen_test_submission",
+                "response_category": "soap_fault",
                 "soap_fault": True,
             },
         }
@@ -311,6 +340,11 @@ class PySifenTestSubmissionService:
             if etree.QName(node).localname in wanted:
                 return (node.text or "").strip()
         return ""
+
+    def _response_category(self, status_code):
+        if status_code >= 400:
+            return "http_failure"
+        return "authority_response"
 
     def _outcome_from_authority_code(self, authority_code, http_status):
         if authority_code in self.DEFAULT_ACCEPTED_CODES:
@@ -333,3 +367,10 @@ class PySifenTestSubmissionService:
 
     def _duration_ms(self, started):
         return int((time.monotonic() - started) * 1000)
+
+    def _transport_error_category(self, error):
+        if isinstance(error, PySifenTlsError):
+            return "tls_failure"
+        if isinstance(error, PySifenConnectionError):
+            return "connection_failure"
+        return "transport_failure"

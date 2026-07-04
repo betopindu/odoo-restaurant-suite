@@ -4,6 +4,8 @@ from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
+    PySifenConnectionError,
+    PySifenTlsError,
     PySifenTransportError,
     PySifenTestSubmissionService,
 )
@@ -56,6 +58,15 @@ class TestPySifenTestSubmissionService(TransactionCase):
             "country_identifier": self.CDC,
         })
         self.transport_calls = []
+        self.mutual_tls_credential = self.env["fiscal.credential"].create({
+            "name": "SIFEN Test Mutual TLS Credential",
+            "tenant_id": self.tenant.id,
+            "company_id": self.env.company.id,
+            "provider_type": "external_secret",
+            "material_format": "pkcs12",
+            "secret_ref": "secret://sifen-test/mtls.p12",
+            "password_secret_ref": "secret://sifen-test/mtls-password",
+        })
 
     def _service(self, response=None, validator=None, transport_error=None):
         def transport(**kwargs):
@@ -70,6 +81,11 @@ class TestPySifenTestSubmissionService(TransactionCase):
         return PySifenTestSubmissionService(
             xsd_validation_service=validator or _AcceptingXsdValidator(),
             transport=transport,
+        )
+
+    def _service_without_injected_transport(self, validator=None):
+        return PySifenTestSubmissionService(
+            xsd_validation_service=validator or _AcceptingXsdValidator(),
         )
 
     def _final_xml(self, *, cdc=None):
@@ -107,6 +123,7 @@ class TestPySifenTestSubmissionService(TransactionCase):
             "document": self.document,
             "final_xml_bytes": self._final_xml(),
             "endpoint_url": "https://sifen-test.example.test/de",
+            "mutual_tls_credential": self.mutual_tls_credential,
         }
         values.update(overrides)
         return self._service().submit_final_xml(**values)
@@ -134,6 +151,10 @@ class TestPySifenTestSubmissionService(TransactionCase):
             self.CDC,
         )
         self.assertIsNotNone(root.find(".//{http://ekuatia.set.gov.py/sifen/xsd}dCarQR"))
+        self.assertEqual(
+            self.transport_calls[0]["mutual_tls_credential"],
+            self.mutual_tls_credential,
+        )
 
     def test_local_xsd_failure_blocks_transport(self):
         service = self._service(validator=_RejectingXsdValidator())
@@ -196,17 +217,19 @@ class TestPySifenTestSubmissionService(TransactionCase):
 
         self.assertEqual(result["outcome"], "rejected")
         self.assertEqual(result["authority_status_code"], "1300")
+        self.assertEqual(result["metadata_json"]["response_category"], "authority_response")
         self.assertFalse(result["retryable"])
 
-    def test_transport_error_is_retryable_without_response_hash(self):
+    def test_connection_error_is_retryable_without_response_hash(self):
         service = self._service(
-            transport_error=PySifenTransportError("token=s3cret timeout fixture")
+            transport_error=PySifenConnectionError("token=s3cret timeout fixture")
         )
 
         result = service.submit_final_xml(
             document=self.document,
             final_xml_bytes=self._final_xml(),
             endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.mutual_tls_credential,
         )
 
         self.assertEqual(result["outcome"], "failed_retryable")
@@ -219,7 +242,43 @@ class TestPySifenTestSubmissionService(TransactionCase):
         self.assertNotIn("s3cret", result["authority_message"])
         self.assertEqual(
             result["metadata_json"]["transport_error"],
-            "PySifenTransportError",
+            "PySifenConnectionError",
+        )
+        self.assertEqual(
+            result["metadata_json"]["transport_error_category"],
+            "connection_failure",
+        )
+
+    def test_tls_error_is_retryable_and_classified(self):
+        service = self._service(transport_error=PySifenTlsError("certificate secret"))
+
+        result = service.submit_final_xml(
+            document=self.document,
+            final_xml_bytes=self._final_xml(),
+            endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.mutual_tls_credential,
+        )
+
+        self.assertEqual(result["outcome"], "failed_retryable")
+        self.assertEqual(
+            result["metadata_json"]["transport_error_category"],
+            "tls_failure",
+        )
+        self.assertNotIn("certificate secret", result["authority_message"])
+
+    def test_generic_transport_error_remains_classified(self):
+        service = self._service(transport_error=PySifenTransportError("transport secret"))
+
+        result = service.submit_final_xml(
+            document=self.document,
+            final_xml_bytes=self._final_xml(),
+            endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.mutual_tls_credential,
+        )
+
+        self.assertEqual(
+            result["metadata_json"]["transport_error_category"],
+            "transport_failure",
         )
 
     def test_unexpected_transport_exception_surfaces(self):
@@ -230,6 +289,18 @@ class TestPySifenTestSubmissionService(TransactionCase):
                 document=self.document,
                 final_xml_bytes=self._final_xml(),
                 endpoint_url="https://sifen-test.example.test/de",
+                mutual_tls_credential=self.mutual_tls_credential,
+            )
+
+    def test_default_transport_rejects_mutual_tls_sandbox_use(self):
+        service = self._service_without_injected_transport()
+
+        with self.assertRaisesRegex(ValidationError, "PySifenSandboxTransport"):
+            service.submit_final_xml(
+                document=self.document,
+                final_xml_bytes=self._final_xml(),
+                endpoint_url="https://sifen-test.example.test/de",
+                mutual_tls_credential=self.mutual_tls_credential,
             )
 
     def test_malformed_sifen_response_is_safe_and_hashed(self):
@@ -242,6 +313,7 @@ class TestPySifenTestSubmissionService(TransactionCase):
             document=self.document,
             final_xml_bytes=self._final_xml(),
             endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.mutual_tls_credential,
         )
 
         self.assertEqual(result["outcome"], "failed_final")
@@ -266,8 +338,26 @@ class TestPySifenTestSubmissionService(TransactionCase):
             document=self.document,
             final_xml_bytes=self._final_xml(),
             endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.mutual_tls_credential,
         )
 
         self.assertEqual(result["outcome"], "failed_retryable")
         self.assertEqual(result["authority_status_code"], "soapenv:Server")
+        self.assertTrue(result["metadata_json"]["soap_fault"])
         self.assertIn("Temporary SIFEN fault", result["authority_message"])
+
+    def test_http_failure_response_is_classified(self):
+        service = self._service(response={
+            "status_code": 503,
+            "content": b"<html>unavailable</html>",
+        })
+
+        result = service.submit_final_xml(
+            document=self.document,
+            final_xml_bytes=self._final_xml(),
+            endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.mutual_tls_credential,
+        )
+
+        self.assertEqual(result["outcome"], "failed_retryable")
+        self.assertEqual(result["metadata_json"]["response_category"], "http_failure")

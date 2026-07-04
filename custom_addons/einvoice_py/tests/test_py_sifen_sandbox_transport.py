@@ -1,0 +1,260 @@
+import socket
+import ssl
+from io import BytesIO
+from datetime import datetime, timedelta
+from urllib import error
+
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.serialization import pkcs12
+from cryptography.x509.oid import NameOID
+
+from odoo.exceptions import ValidationError
+from odoo.tests.common import TransactionCase
+
+from odoo.addons.einvoice_module.services.credential_provider import (
+    FiscalCredentialMaterialProvider,
+)
+from odoo.addons.einvoice_py.services.py_sifen_sandbox_transport import (
+    PySifenSandboxTransport,
+)
+from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
+    PySifenConnectionError,
+    PySifenTlsError,
+)
+
+
+class _Registry:
+    def __init__(self, material):
+        self.material = material
+        self.loaded_credentials = []
+
+    def get_provider(self, credential):
+        self.loaded_credentials.append(credential)
+        return _Provider(self.material)
+
+
+class _Provider(FiscalCredentialMaterialProvider):
+    provider_type = "external_secret"
+
+    def __init__(self, material):
+        self.material = material
+
+    def load_material(self, credential):
+        return self.material
+
+
+class _Response:
+    code = 200
+    headers = {"Content-Type": "text/xml"}
+
+    def __init__(self, content=b"<ok/>"):
+        self.content = content
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def getcode(self):
+        return self.code
+
+    def read(self):
+        return self.content
+
+
+class TestPySifenSandboxTransport(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.tenant = cls.env["fiscal.tenant"].create({
+            "name": "SIFEN Sandbox Transport Tenant",
+            "code": "sifen-sandbox-transport",
+            "company_id": cls.env.company.id,
+        })
+
+    def setUp(self):
+        super().setUp()
+        self.private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+        )
+        self.certificate = self._certificate(self.private_key)
+        self.credential = self._credential()
+        self.urlopen_calls = []
+
+    def _credential(self, **overrides):
+        values = {
+            "name": "SIFEN Sandbox Mutual TLS",
+            "tenant_id": self.tenant.id,
+            "company_id": self.env.company.id,
+            "provider_type": "external_secret",
+            "material_format": "pem_pair",
+            "secret_ref": "secret://sifen-sandbox/mtls.pem",
+            "password_secret_ref": "secret://sifen-sandbox/password",
+        }
+        values.update(overrides)
+        return self.env["fiscal.credential"].create(values)
+
+    def _certificate(self, private_key):
+        subject = x509.Name([
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "PY"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "SIFEN Sandbox Fixture"),
+        ])
+        return (
+            x509.CertificateBuilder()
+            .subject_name(subject)
+            .issuer_name(subject)
+            .public_key(private_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime(2026, 7, 4) - timedelta(days=1))
+            .not_valid_after(datetime(2026, 7, 4) + timedelta(days=30))
+            .sign(private_key=private_key, algorithm=hashes.SHA256())
+        )
+
+    def _pem_material(self):
+        return {
+            "certificate_bytes": self.certificate.public_bytes(serialization.Encoding.PEM),
+            "private_key_bytes": self.private_key.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            ),
+        }
+
+    def _pkcs12_material(self):
+        return {
+            "pkcs12_bytes": pkcs12.serialize_key_and_certificates(
+                b"sifen-sandbox",
+                self.private_key,
+                self.certificate,
+                None,
+                serialization.NoEncryption(),
+            ),
+        }
+
+    def _transport(self, material=None, urlopen=None):
+        return PySifenSandboxTransport(
+            self.env,
+            provider_registry=_Registry(material or self._pem_material()),
+            urlopen=urlopen or self._urlopen_response,
+        )
+
+    def _urlopen_response(self, *args, **kwargs):
+        self.urlopen_calls.append((args, kwargs))
+        return _Response()
+
+    def test_pem_pair_transport_posts_with_mutual_tls_context(self):
+        result = self._transport()(
+            endpoint_url="https://sifen-test.example.test/de",
+            body=b"<soap/>",
+            soap_action="submit",
+            timeout_seconds=12,
+            mutual_tls_credential=self.credential,
+        )
+
+        self.assertEqual(result["status_code"], 200)
+        args, kwargs = self.urlopen_calls[0]
+        self.assertEqual(args[0].full_url, "https://sifen-test.example.test/de")
+        self.assertEqual(args[0].headers["Soapaction"], "submit")
+        self.assertEqual(kwargs["timeout"], 12)
+        self.assertIsInstance(kwargs["context"], ssl.SSLContext)
+
+    def test_endpoint_must_be_https_when_transport_called_directly(self):
+        with self.assertRaisesRegex(ValidationError, "HTTPS URL"):
+            self._transport()(
+                endpoint_url="http://sifen-test.example.test/de",
+                body=b"<soap/>",
+                mutual_tls_credential=self.credential,
+            )
+
+        self.assertFalse(self.urlopen_calls)
+
+    def test_endpoint_must_not_include_userinfo_query_or_fragment(self):
+        unsafe_urls = [
+            "https://user:s3cret@sifen-test.example.test/de",
+            "https://sifen-test.example.test/de?token=s3cret",
+            "https://sifen-test.example.test/de#token-s3cret",
+        ]
+        for endpoint_url in unsafe_urls:
+            with self.subTest(endpoint_url=endpoint_url):
+                with self.assertRaisesRegex(ValidationError, "endpoint"):
+                    self._transport()(
+                        endpoint_url=endpoint_url,
+                        body=b"<soap/>",
+                        mutual_tls_credential=self.credential,
+                    )
+
+        self.assertFalse(self.urlopen_calls)
+
+    def test_pkcs12_transport_material_is_supported(self):
+        credential = self._credential(
+            name="SIFEN Sandbox PKCS12",
+            material_format="pkcs12",
+            secret_ref="secret://sifen-sandbox/mtls.p12",
+        )
+
+        result = self._transport(material=self._pkcs12_material())(
+            endpoint_url="https://sifen-test.example.test/de",
+            body=b"<soap/>",
+            mutual_tls_credential=credential,
+        )
+
+        self.assertEqual(result["status_code"], 200)
+
+    def test_missing_mutual_tls_credential_is_rejected(self):
+        with self.assertRaisesRegex(ValidationError, "mutual TLS credential"):
+            self._transport()(
+                endpoint_url="https://sifen-test.example.test/de",
+                body=b"<soap/>",
+            )
+
+    def test_incomplete_material_is_rejected_without_secret_output(self):
+        with self.assertRaisesRegex(ValidationError, "incomplete"):
+            self._transport(material={"certificate_bytes": b"secret-cert"})(
+                endpoint_url="https://sifen-test.example.test/de",
+                body=b"<soap/>",
+                mutual_tls_credential=self.credential,
+            )
+
+    def test_tls_failure_is_classified(self):
+        def urlopen(*args, **kwargs):
+            raise error.URLError(ssl.SSLError("tls secret detail"))
+
+        with self.assertRaises(PySifenTlsError):
+            self._transport(urlopen=urlopen)(
+                endpoint_url="https://sifen-test.example.test/de",
+                body=b"<soap/>",
+                mutual_tls_credential=self.credential,
+            )
+
+    def test_connection_failure_is_classified(self):
+        def urlopen(*args, **kwargs):
+            raise socket.timeout("connection secret detail")
+
+        with self.assertRaises(PySifenConnectionError):
+            self._transport(urlopen=urlopen)(
+                endpoint_url="https://sifen-test.example.test/de",
+                body=b"<soap/>",
+                mutual_tls_credential=self.credential,
+            )
+
+    def test_http_error_returns_response_for_normalization(self):
+        def urlopen(*args, **kwargs):
+            raise error.HTTPError(
+                "https://sifen-test.example.test/de",
+                503,
+                "unavailable",
+                {},
+                BytesIO(b"<html>unavailable</html>"),
+            )
+
+        result = self._transport(urlopen=urlopen)(
+            endpoint_url="https://sifen-test.example.test/de",
+            body=b"<soap/>",
+            mutual_tls_credential=self.credential,
+        )
+
+        self.assertEqual(result["status_code"], 503)
