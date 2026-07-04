@@ -804,7 +804,20 @@ Stage 8.4 adds `PySifenSubmissionPipelineService`, a test-environment orchestrat
 
 The pipeline aborts after the first failure and returns a normalized, secret-free result containing CDC, signed XML SHA-256, XMLDSig digest, certificate fingerprint, QR hash/payload, authority status, authority message, request hash, and response hash when available. It does not expose certificate bytes, private keys, CSC values, passwords, PKCS#12 bundles, PEM content, or raw secret material.
 
-Stage 8 does not yet wire live SIFEN submission into adapter processing, persist transmissions, manage mTLS/session credentials beyond transient provider output, implement retry queues, perform trust-chain or revocation validation, or support production submission. The current service is test-only and does not persist to `fiscal.transmission` yet.
+Stage 8.5 adds idempotent `fiscal.transmission` persistence for normalized SIFEN test submission attempts. The persistence service calls `PySifenSubmissionPipelineService`, then creates or updates a submit transmission for the document. It stores only non-secret data:
+
+* country and environment
+* fiscal document reference
+* CDC
+* submission status and authority code/message
+* request and response SHA-256 hashes
+* signed XML SHA-256
+* QR hash
+* started and finished timestamps
+
+The transmission record does not store private keys, certificates, CSC values, passwords, raw SOAP envelopes, raw signed XML, PKCS#12 bundles, PEM content, or raw secret material.
+
+Stage 8 does not yet wire live SIFEN submission into adapter processing, manage mTLS/session credentials beyond transient provider output, implement retry queues, perform trust-chain or revocation validation, or support production submission. The current persistence is test-only and does not add retry scheduling.
 
 Future SIFEN work should build on:
 
@@ -817,6 +830,7 @@ Future SIFEN work should build on:
 * SIFEN sandbox mutual-TLS transport
 * SIFEN sandbox mTLS connection verification
 * SIFEN test submission pipeline orchestration
+* SIFEN fiscal transmission persistence
 * authority response normalization
 * retry/error handling
 

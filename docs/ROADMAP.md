@@ -55,6 +55,7 @@
 [x] Paraguay SIFEN sandbox mutual-TLS transport
 [x] Paraguay SIFEN sandbox mTLS connection verification
 [x] Paraguay SIFEN test submission pipeline orchestration
+[x] Paraguay SIFEN fiscal transmission persistence
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -66,6 +67,7 @@
 ## Next
 
 [ ] Fiscal credential provider implementations
+[ ] Paraguay SIFEN retry policy
 [ ] Paraguay trust-chain and revocation validation
 [ ] Paraguay QR image/rendering support
 [ ] Paraguay signing pipeline processing integration
@@ -74,7 +76,6 @@
 
 [ ] Paraguay SIFEN production integration
 [ ] SIFEN error normalization
-[ ] SIFEN retry policy
 [ ] Paraguay KuDE/PDF
 [ ] Fiscal representation download security
 [ ] Email delivery

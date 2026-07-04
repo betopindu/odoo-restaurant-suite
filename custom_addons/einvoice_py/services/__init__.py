@@ -7,6 +7,7 @@ from . import py_signing_pipeline_service
 from . import py_sifen_sandbox_transport
 from . import py_sifen_submission_pipeline_service
 from . import py_sifen_test_submission_service
+from . import py_sifen_transmission_persistence_service
 from . import py_signed_xml_attachment_service
 from . import py_signed_xml_preparation_service
 from . import py_unsigned_xml_builder
