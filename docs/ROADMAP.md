@@ -53,6 +53,7 @@
 [x] Paraguay full official XSD validation after signature and QR
 [x] Paraguay SIFEN test submission service
 [x] Paraguay SIFEN sandbox mutual-TLS transport
+[x] Paraguay SIFEN sandbox mTLS connection verification
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -67,7 +68,6 @@
 [ ] Paraguay trust-chain and revocation validation
 [ ] Paraguay QR image/rendering support
 [ ] Paraguay signing pipeline processing integration
-[ ] Paraguay SIFEN sandbox confirmation with official credentials
 
 ## Future
 

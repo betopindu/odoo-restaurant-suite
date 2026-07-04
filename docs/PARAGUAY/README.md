@@ -785,6 +785,14 @@ The transport does not persist private keys, PKCS#12 bundles, PEM content, passw
 
 The submission service retains a non-mTLS development fallback transport for tests, but it rejects calls that include a mutual-TLS credential. Real SIFEN sandbox mTLS use must inject `PySifenSandboxTransport`.
 
+Stage 8.3 extends `PySifenSandboxTransport` with a live sandbox connection verification operation. The verifier:
+
+* builds the same mutual-TLS `ssl.SSLContext` used by sandbox submission
+* performs an HTTPS `HEAD` request so it does not require a valid DE payload
+* treats HTTP errors as proof that DNS, TCP, and TLS reached the remote authority
+* returns secret-free categories for DNS failure, TCP failure, TLS failure, HTTP failure, and successful TLS handshake
+* keeps `urlopen` injectable so automated tests use stubs and do not require live sandbox access
+
 Stage 8 does not yet wire live SIFEN submission into adapter processing, persist transmissions, manage mTLS/session credentials beyond transient provider output, implement retry queues, perform trust-chain or revocation validation, or support production submission. The current service is test-only and does not persist to `fiscal.transmission` yet.
 
 Future SIFEN work should build on:
@@ -796,6 +804,7 @@ Future SIFEN work should build on:
 * local final XSD validation
 * SIFEN test submission service
 * SIFEN sandbox mutual-TLS transport
+* SIFEN sandbox mTLS connection verification
 * authority response normalization
 * retry/error handling
 

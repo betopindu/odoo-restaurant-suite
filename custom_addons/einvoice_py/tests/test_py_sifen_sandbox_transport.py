@@ -21,6 +21,8 @@ from odoo.addons.einvoice_py.services.py_sifen_sandbox_transport import (
 )
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
     PySifenConnectionError,
+    PySifenDnsError,
+    PySifenTcpError,
     PySifenTlsError,
 )
 
@@ -234,7 +236,7 @@ class TestPySifenSandboxTransport(TransactionCase):
         def urlopen(*args, **kwargs):
             raise socket.timeout("connection secret detail")
 
-        with self.assertRaises(PySifenConnectionError):
+        with self.assertRaises(PySifenTcpError):
             self._transport(urlopen=urlopen)(
                 endpoint_url="https://sifen-test.example.test/de",
                 body=b"<soap/>",
@@ -258,3 +260,105 @@ class TestPySifenSandboxTransport(TransactionCase):
         )
 
         self.assertEqual(result["status_code"], 503)
+
+    def test_verify_connection_success_uses_head_and_mtls_context(self):
+        result = self._transport().verify_connection(
+            endpoint_url="https://sifen-test.example.test/de",
+            timeout_seconds=5,
+            mutual_tls_credential=self.credential,
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["category"], "tls_handshake_success")
+        self.assertEqual(result["http_status"], 200)
+        self.assertTrue(result["tls_handshake_succeeded"])
+        self.assertEqual(result["error_class"], "")
+        args, kwargs = self.urlopen_calls[0]
+        self.assertEqual(args[0].get_method(), "HEAD")
+        self.assertEqual(args[0].data, None)
+        self.assertEqual(kwargs["timeout"], 5)
+        self.assertIsInstance(kwargs["context"], ssl.SSLContext)
+
+    def test_verify_connection_uses_default_timeout_when_omitted(self):
+        transport = self._transport()
+
+        transport.verify_connection(
+            endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.credential,
+        )
+
+        _args, kwargs = self.urlopen_calls[0]
+        self.assertEqual(kwargs["timeout"], transport.DEFAULT_VERIFY_TIMEOUT_SECONDS)
+
+    def test_verify_connection_http_failure_keeps_tls_success(self):
+        def urlopen(*args, **kwargs):
+            raise error.HTTPError(
+                "https://sifen-test.example.test/de",
+                405,
+                "method not allowed",
+                {},
+                BytesIO(b""),
+            )
+
+        result = self._transport(urlopen=urlopen).verify_connection(
+            endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.credential,
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["category"], "http_failure")
+        self.assertEqual(result["http_status"], 405)
+        self.assertTrue(result["tls_handshake_succeeded"])
+
+    def test_verify_connection_dns_failure_is_sanitized(self):
+        def urlopen(*args, **kwargs):
+            raise error.URLError(socket.gaierror("secret dns detail"))
+
+        result = self._transport(urlopen=urlopen).verify_connection(
+            endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.credential,
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["category"], "dns_failure")
+        self.assertEqual(result["error_class"], "PySifenDnsError")
+        self.assertNotIn("secret", result["message"])
+
+    def test_verify_connection_tcp_failure_is_sanitized(self):
+        def urlopen(*args, **kwargs):
+            raise error.URLError(ConnectionRefusedError("secret tcp detail"))
+
+        result = self._transport(urlopen=urlopen).verify_connection(
+            endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.credential,
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["category"], "tcp_failure")
+        self.assertEqual(result["error_class"], "PySifenTcpError")
+        self.assertNotIn("secret", result["message"])
+
+    def test_verify_connection_tls_failure_is_sanitized(self):
+        def urlopen(*args, **kwargs):
+            raise error.URLError(ssl.SSLError("secret tls detail"))
+
+        result = self._transport(urlopen=urlopen).verify_connection(
+            endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.credential,
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["category"], "tls_failure")
+        self.assertEqual(result["error_class"], "PySifenTlsError")
+        self.assertNotIn("secret", result["message"])
+
+    def test_dns_failure_is_classified_for_submission(self):
+        def urlopen(*args, **kwargs):
+            raise error.URLError(socket.gaierror("dns secret detail"))
+
+        with self.assertRaises(PySifenDnsError):
+            self._transport(urlopen=urlopen)(
+                endpoint_url="https://sifen-test.example.test/de",
+                body=b"<soap/>",
+                mutual_tls_credential=self.credential,
+            )

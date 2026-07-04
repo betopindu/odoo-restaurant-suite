@@ -23,6 +23,14 @@ class PySifenConnectionError(PySifenTransportError):
     """SIFEN transport could not establish or keep the network connection."""
 
 
+class PySifenDnsError(PySifenConnectionError):
+    """SIFEN transport could not resolve the sandbox host."""
+
+
+class PySifenTcpError(PySifenConnectionError):
+    """SIFEN transport could not open the TCP connection."""
+
+
 class PySifenTlsError(PySifenTransportError):
     """SIFEN transport failed during TLS or mutual TLS negotiation."""
 

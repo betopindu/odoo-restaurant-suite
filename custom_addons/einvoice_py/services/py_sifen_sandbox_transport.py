@@ -14,12 +14,16 @@ from odoo.addons.einvoice_module.services.credential_provider import (
 )
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
     PySifenConnectionError,
+    PySifenDnsError,
+    PySifenTcpError,
     PySifenTlsError,
 )
 
 
 class PySifenSandboxTransport:
     """HTTPS SOAP transport for the SIFEN test environment with mTLS support."""
+
+    DEFAULT_VERIFY_TIMEOUT_SECONDS = 10
 
     def __init__(self, env, provider_registry=None, urlopen=None):
         self.env = env
@@ -36,18 +40,7 @@ class PySifenSandboxTransport:
         mutual_tls_credential=None,
     ):
         self._validate_endpoint_url(endpoint_url)
-        if not mutual_tls_credential:
-            raise ValidationError("SIFEN sandbox transport requires a mutual TLS credential.")
-        mutual_tls_credential.ensure_one()
-        if mutual_tls_credential.material_format not in ("pkcs12", "pem_pair"):
-            raise ValidationError(
-                "SIFEN sandbox transport supports PKCS#12 or PEM pair mutual TLS credentials."
-            )
-
-        material = self.provider_registry.get_provider(
-            mutual_tls_credential
-        ).load_material(mutual_tls_credential)
-        context = self._ssl_context_from_material(mutual_tls_credential, material)
+        context = self._ssl_context_from_credential(mutual_tls_credential)
         headers = {
             "Content-Type": "text/xml; charset=utf-8",
             "Accept": "text/xml, application/xml",
@@ -78,13 +71,66 @@ class PySifenSandboxTransport:
                 "headers": dict(http_error.headers.items()) if http_error.headers else {},
             }
         except error.URLError as transport_error:
-            if isinstance(getattr(transport_error, "reason", None), ssl.SSLError):
-                raise PySifenTlsError() from transport_error
-            raise PySifenConnectionError() from transport_error
+            raise self._connection_error_from_reason(
+                getattr(transport_error, "reason", None)
+            ) from transport_error
         except ssl.SSLError as transport_error:
             raise PySifenTlsError() from transport_error
-        except (TimeoutError, socket.timeout, OSError) as transport_error:
+        except socket.gaierror as transport_error:
+            raise PySifenDnsError() from transport_error
+        except (ConnectionRefusedError, TimeoutError, socket.timeout) as transport_error:
+            raise PySifenTcpError() from transport_error
+        except OSError as transport_error:
             raise PySifenConnectionError() from transport_error
+
+    def verify_connection(
+        self,
+        *,
+        endpoint_url,
+        timeout_seconds=None,
+        mutual_tls_credential=None,
+    ):
+        """Verify sandbox mTLS connectivity without submitting a DE payload.
+
+        The probe performs an HTTPS HEAD request with the same SSL context used
+        by submission. An HTTP error still proves that DNS, TCP, and TLS reached
+        the remote authority; business response handling remains outside this
+        connectivity check. The default timeout is intentionally short because
+        this is a connectivity probe, not a document submission.
+        """
+        self._validate_endpoint_url(endpoint_url)
+        context = self._ssl_context_from_credential(mutual_tls_credential)
+        http_request = request.Request(endpoint_url, headers={"Accept": "*/*"}, method="HEAD")
+        timeout_seconds = timeout_seconds or self.DEFAULT_VERIFY_TIMEOUT_SECONDS
+        try:
+            with self.urlopen(
+                http_request,
+                timeout=timeout_seconds,
+                context=context,
+            ) as response:
+                return self._verification_result(
+                    category="tls_handshake_success",
+                    status_code=response.getcode(),
+                    tls_handshake_succeeded=True,
+                )
+        except error.HTTPError as http_error:
+            return self._verification_result(
+                category="http_failure",
+                status_code=http_error.code,
+                tls_handshake_succeeded=True,
+            )
+        except error.URLError as transport_error:
+            return self._verification_failure_result(
+                self._connection_error_from_reason(getattr(transport_error, "reason", None))
+            )
+        except ssl.SSLError:
+            return self._verification_failure_result(PySifenTlsError())
+        except socket.gaierror:
+            return self._verification_failure_result(PySifenDnsError())
+        except (ConnectionRefusedError, TimeoutError, socket.timeout):
+            return self._verification_failure_result(PySifenTcpError())
+        except OSError:
+            return self._verification_failure_result(PySifenConnectionError())
 
     def _validate_endpoint_url(self, endpoint_url):
         parsed = urlparse(endpoint_url or "")
@@ -96,6 +142,20 @@ class PySifenSandboxTransport:
             raise ValidationError(
                 "SIFEN sandbox endpoint must not include query strings or fragments."
             )
+
+    def _ssl_context_from_credential(self, mutual_tls_credential):
+        if not mutual_tls_credential:
+            raise ValidationError("SIFEN sandbox transport requires a mutual TLS credential.")
+        mutual_tls_credential.ensure_one()
+        if mutual_tls_credential.material_format not in ("pkcs12", "pem_pair"):
+            raise ValidationError(
+                "SIFEN sandbox transport supports PKCS#12 or PEM pair mutual TLS credentials."
+            )
+
+        material = self.provider_registry.get_provider(
+            mutual_tls_credential
+        ).load_material(mutual_tls_credential)
+        return self._ssl_context_from_material(mutual_tls_credential, material)
 
     def _ssl_context_from_material(self, credential, material):
         if not isinstance(material, dict):
@@ -162,3 +222,57 @@ class PySifenSandboxTransport:
                 serialization.NoEncryption(),
             ),
         )
+
+    def _connection_error_from_reason(self, reason):
+        if isinstance(reason, ssl.SSLError):
+            return PySifenTlsError()
+        if isinstance(reason, socket.gaierror):
+            return PySifenDnsError()
+        if isinstance(reason, (ConnectionRefusedError, TimeoutError, socket.timeout)):
+            return PySifenTcpError()
+        if isinstance(reason, OSError):
+            return PySifenConnectionError()
+        return PySifenConnectionError()
+
+    def _verification_failure_result(self, error):
+        category = "connection_failure"
+        if isinstance(error, PySifenDnsError):
+            category = "dns_failure"
+        elif isinstance(error, PySifenTcpError):
+            category = "tcp_failure"
+        elif isinstance(error, PySifenTlsError):
+            category = "tls_failure"
+        return self._verification_result(
+            category=category,
+            status_code=0,
+            tls_handshake_succeeded=False,
+            error_class=error.__class__.__name__,
+        )
+
+    def _verification_result(
+        self,
+        *,
+        category,
+        status_code,
+        tls_handshake_succeeded,
+        error_class="",
+    ):
+        return {
+            "ok": category == "tls_handshake_success",
+            "category": category,
+            "http_status": int(status_code or 0),
+            "tls_handshake_succeeded": bool(tls_handshake_succeeded),
+            "error_class": error_class,
+            "message": self._verification_message(category),
+        }
+
+    def _verification_message(self, category):
+        messages = {
+            "tls_handshake_success": "SIFEN sandbox TLS handshake completed.",
+            "dns_failure": "SIFEN sandbox host could not be resolved.",
+            "tcp_failure": "SIFEN sandbox TCP connection failed.",
+            "tls_failure": "SIFEN sandbox TLS handshake failed.",
+            "http_failure": "SIFEN sandbox returned an HTTP failure after TLS handshake.",
+            "connection_failure": "SIFEN sandbox connection failed.",
+        }
+        return messages.get(category, "SIFEN sandbox connection check failed.")
