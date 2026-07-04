@@ -817,7 +817,9 @@ Stage 8.5 adds idempotent `fiscal.transmission` persistence for normalized SIFEN
 
 The transmission record does not store private keys, certificates, CSC values, passwords, raw SOAP envelopes, raw signed XML, PKCS#12 bundles, PEM content, or raw secret material.
 
-Stage 8 does not yet wire live SIFEN submission into adapter processing, manage mTLS/session credentials beyond transient provider output, implement retry queues, perform trust-chain or revocation validation, or support production submission. The current persistence is test-only and does not add retry scheduling.
+Stage 8.6 adds `PySifenRetrySchedulerService` for retry scheduling only. It evaluates existing `fiscal.transmission` records and schedules retries only for retryable SIFEN test transport failures. It does not retry accepted submissions, authority rejections, malformed requests, business validation failures, SOAP faults, or permanent failures. Scheduling increments a retry counter, sets `next_retry_at`, applies exponential backoff, honors a maximum retry limit, and stores only secret-free retry state.
+
+Stage 8 does not yet wire live SIFEN submission into adapter processing, manage mTLS/session credentials beyond transient provider output, execute retries with background workers or cron jobs, perform trust-chain or revocation validation, or support production submission. The current persistence and retry scheduling are test-only.
 
 Future SIFEN work should build on:
 
@@ -831,6 +833,7 @@ Future SIFEN work should build on:
 * SIFEN sandbox mTLS connection verification
 * SIFEN test submission pipeline orchestration
 * SIFEN fiscal transmission persistence
+* SIFEN retry scheduling
 * authority response normalization
 * retry/error handling
 

@@ -170,6 +170,8 @@ class PySifenSubmissionPipelineService:
             "authority_message": "",
             "request_hash": "",
             "response_hash": "",
+            "retryable": False,
+            "retry_category": "",
         }
 
     def _run_stage(self, result, stage, operation):
@@ -219,6 +221,9 @@ class PySifenSubmissionPipelineService:
         result["authority_message"] = submission_result.get("authority_message", "")
         result["request_hash"] = submission_result.get("request_hash", "")
         result["response_hash"] = submission_result.get("response_hash", "")
+        result["retryable"] = bool(submission_result.get("retryable"))
+        metadata = submission_result.get("metadata_json") or {}
+        result["retry_category"] = metadata.get("transport_error_category", "")
 
     def _signed_xml_bytes(self, signing_result):
         if signing_result.get("signed_xml_bytes"):

@@ -132,6 +132,8 @@ class PySifenTransmissionPersistenceService:
             "service": "py_sifen_transmission_persistence",
             "pipeline_failed_stage": result.get("failed_stage") or "",
             "submission_status": result.get("submission_status") or "",
+            "retryable": bool(result.get("retryable")),
+            "retry_category": result.get("retry_category") or "",
         }
         return json.dumps(
             metadata,
