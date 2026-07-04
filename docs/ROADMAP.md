@@ -54,6 +54,7 @@
 [x] Paraguay SIFEN test submission service
 [x] Paraguay SIFEN sandbox mutual-TLS transport
 [x] Paraguay SIFEN sandbox mTLS connection verification
+[x] Paraguay SIFEN test submission pipeline orchestration
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation

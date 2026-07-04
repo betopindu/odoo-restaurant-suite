@@ -793,6 +793,17 @@ Stage 8.3 extends `PySifenSandboxTransport` with a live sandbox connection verif
 * returns secret-free categories for DNS failure, TCP failure, TLS failure, HTTP failure, and successful TLS handshake
 * keeps `urlopen` injectable so automated tests use stubs and do not require live sandbox access
 
+Stage 8.4 adds `PySifenSubmissionPipelineService`, a test-environment orchestration layer. It executes the existing Paraguay services in order:
+
+* signing pipeline
+* signed XML attachment readback
+* QR payload generation
+* final XML preparation with `gCamFuFD/dCarQR`
+* local final SIFEN XSD validation
+* SIFEN test submission
+
+The pipeline aborts after the first failure and returns a normalized, secret-free result containing CDC, signed XML SHA-256, XMLDSig digest, certificate fingerprint, QR hash/payload, authority status, authority message, request hash, and response hash when available. It does not expose certificate bytes, private keys, CSC values, passwords, PKCS#12 bundles, PEM content, or raw secret material.
+
 Stage 8 does not yet wire live SIFEN submission into adapter processing, persist transmissions, manage mTLS/session credentials beyond transient provider output, implement retry queues, perform trust-chain or revocation validation, or support production submission. The current service is test-only and does not persist to `fiscal.transmission` yet.
 
 Future SIFEN work should build on:
@@ -805,6 +816,7 @@ Future SIFEN work should build on:
 * SIFEN test submission service
 * SIFEN sandbox mutual-TLS transport
 * SIFEN sandbox mTLS connection verification
+* SIFEN test submission pipeline orchestration
 * authority response normalization
 * retry/error handling
 

@@ -3,6 +3,7 @@ from . import test_py_certificate_inspection_service
 from . import test_py_fake_adapter
 from . import test_py_qr_generation_service
 from . import test_py_sifen_sandbox_transport
+from . import test_py_sifen_submission_pipeline_service
 from . import test_py_sifen_test_submission_service
 from . import test_py_signing_pipeline_service
 from . import test_py_signed_xml_preparation_service
