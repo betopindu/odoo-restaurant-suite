@@ -825,6 +825,17 @@ Stage 8.8 adds `py.sifen.retry.runner` as a manual Odoo runner plus a disabled-b
 
 Stage 8 does not yet wire live SIFEN submission into adapter processing, manage mTLS/session credentials beyond transient provider output, perform trust-chain or revocation validation, or support production submission. The current persistence, retry scheduling, callable retry execution, and disabled automatic runner are test-only.
 
+The remaining Stage 8 roadmap follows Option A: finish the reusable Paraguay SIFEN engine before adapter/Odoo process integration. The intended order is:
+
+* Stage 8.9 Credential Provider implementation
+* Stage 8.10 Production Submission support
+* Stage 8.11 Trust-chain Validation
+* Stage 8.12 Revocation Validation
+* Stage 8.13 Live Sandbox Validation
+* Stage 8.14 Adapter Integration
+
+This keeps adapter integration last so credentials, production mode, trust, and revocation boundaries are designed before the engine is wired into tenant processing.
+
 Future SIFEN work should build on:
 
 * normalized Paraguay payload

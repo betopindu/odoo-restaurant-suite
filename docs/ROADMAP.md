@@ -69,14 +69,16 @@
 
 ## Next
 
-[ ] Fiscal credential provider implementations
-[ ] Paraguay trust-chain and revocation validation
-[ ] Paraguay QR image/rendering support
-[ ] Paraguay signing pipeline processing integration
+[ ] Stage 8.9 Paraguay credential provider implementation
+[ ] Stage 8.10 Paraguay SIFEN production submission support
+[ ] Stage 8.11 Paraguay trust-chain validation
+[ ] Stage 8.12 Paraguay revocation validation
+[ ] Stage 8.13 Paraguay live sandbox validation
+[ ] Stage 8.14 Paraguay adapter integration
 
 ## Future
 
-[ ] Paraguay SIFEN production integration
+[ ] Paraguay QR image/rendering support
 [ ] SIFEN error normalization
 [ ] Paraguay KuDE/PDF
 [ ] Fiscal representation download security
