@@ -1,0 +1,12 @@
+<odoo>
+    <record id="ir_cron_py_sifen_retry_runner" model="ir.cron">
+        <field name="name">Paraguay SIFEN - Execute due test retries</field>
+        <field name="model_id" ref="model_py_sifen_retry_runner"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_run_sifen_retries(limit=10)</field>
+        <field name="interval_number">5</field>
+        <field name="interval_type">minutes</field>
+        <field name="numbercall">-1</field>
+        <field name="active">False</field>
+    </record>
+</odoo>

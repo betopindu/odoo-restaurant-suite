@@ -821,7 +821,9 @@ Stage 8.6 adds `PySifenRetrySchedulerService` for retry scheduling only. It eval
 
 Stage 8.7 adds `PySifenRetryExecutionService` for callable retry execution. It selects only `fiscal.transmission` records whose retry is scheduled and due, reuses `PySifenTransmissionPersistenceService` and `PySifenSubmissionPipelineService` for the actual retry attempt, clears consumed schedules, and either stops retrying or reschedules through `PySifenRetrySchedulerService` when the normalized result is still retryable. It does not add cron jobs, background workers, automatic execution, production submission, or new submission logic.
 
-Stage 8 does not yet wire live SIFEN submission into adapter processing, manage mTLS/session credentials beyond transient provider output, execute retries automatically with background workers or cron jobs, perform trust-chain or revocation validation, or support production submission. The current persistence, retry scheduling, and callable retry execution are test-only.
+Stage 8.8 adds `py.sifen.retry.runner` as a manual Odoo runner plus a disabled-by-default cron record. The runner delegates to `PySifenRetryExecutionService`, applies a small batch limit, selects due retries through the existing execution service, and logs only secret-free summary counts. Enabling the cron remains an administrator decision because sandbox retry execution still depends on configured submission inputs and credential boundaries.
+
+Stage 8 does not yet wire live SIFEN submission into adapter processing, manage mTLS/session credentials beyond transient provider output, perform trust-chain or revocation validation, or support production submission. The current persistence, retry scheduling, callable retry execution, and disabled automatic runner are test-only.
 
 Future SIFEN work should build on:
 
@@ -837,6 +839,7 @@ Future SIFEN work should build on:
 * SIFEN fiscal transmission persistence
 * SIFEN retry scheduling
 * SIFEN callable retry execution
+* SIFEN automatic retry runner
 * authority response normalization
 * retry/error handling
 

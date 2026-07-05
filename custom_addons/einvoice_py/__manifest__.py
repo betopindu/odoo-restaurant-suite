@@ -7,6 +7,7 @@
     "data": [
         "security/ir.model.access.csv",
         "security/fiscal_py_security_rules.xml",
+        "data/py_sifen_retry_cron.xml",
         "views/fiscal_py_issuer_views.xml",
         "views/fiscal_py_economic_activity_views.xml",
         "views/fiscal_py_establishment_views.xml",
