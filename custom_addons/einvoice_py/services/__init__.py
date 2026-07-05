@@ -3,6 +3,7 @@ from . import numbering_service
 from . import py_certificate_inspection_service
 from . import py_payload_builder
 from . import py_qr_generation_service
+from . import py_sifen_retry_execution_service
 from . import py_sifen_retry_scheduler_service
 from . import py_signing_pipeline_service
 from . import py_sifen_sandbox_transport

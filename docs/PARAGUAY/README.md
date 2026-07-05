@@ -819,7 +819,9 @@ The transmission record does not store private keys, certificates, CSC values, p
 
 Stage 8.6 adds `PySifenRetrySchedulerService` for retry scheduling only. It evaluates existing `fiscal.transmission` records and schedules retries only for retryable SIFEN test transport failures. It does not retry accepted submissions, authority rejections, malformed requests, business validation failures, SOAP faults, or permanent failures. Scheduling increments a retry counter, sets `next_retry_at`, applies exponential backoff, honors a maximum retry limit, and stores only secret-free retry state.
 
-Stage 8 does not yet wire live SIFEN submission into adapter processing, manage mTLS/session credentials beyond transient provider output, execute retries with background workers or cron jobs, perform trust-chain or revocation validation, or support production submission. The current persistence and retry scheduling are test-only.
+Stage 8.7 adds `PySifenRetryExecutionService` for callable retry execution. It selects only `fiscal.transmission` records whose retry is scheduled and due, reuses `PySifenTransmissionPersistenceService` and `PySifenSubmissionPipelineService` for the actual retry attempt, clears consumed schedules, and either stops retrying or reschedules through `PySifenRetrySchedulerService` when the normalized result is still retryable. It does not add cron jobs, background workers, automatic execution, production submission, or new submission logic.
+
+Stage 8 does not yet wire live SIFEN submission into adapter processing, manage mTLS/session credentials beyond transient provider output, execute retries automatically with background workers or cron jobs, perform trust-chain or revocation validation, or support production submission. The current persistence, retry scheduling, and callable retry execution are test-only.
 
 Future SIFEN work should build on:
 
@@ -834,6 +836,7 @@ Future SIFEN work should build on:
 * SIFEN test submission pipeline orchestration
 * SIFEN fiscal transmission persistence
 * SIFEN retry scheduling
+* SIFEN callable retry execution
 * authority response normalization
 * retry/error handling
 

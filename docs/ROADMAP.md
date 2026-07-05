@@ -57,6 +57,7 @@
 [x] Paraguay SIFEN test submission pipeline orchestration
 [x] Paraguay SIFEN fiscal transmission persistence
 [x] Paraguay SIFEN retry scheduling
+[x] Paraguay SIFEN callable retry execution
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -68,7 +69,7 @@
 ## Next
 
 [ ] Fiscal credential provider implementations
-[ ] Paraguay SIFEN retry execution
+[ ] Paraguay SIFEN automatic retry runner
 [ ] Paraguay trust-chain and revocation validation
 [ ] Paraguay QR image/rendering support
 [ ] Paraguay signing pipeline processing integration
