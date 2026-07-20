@@ -59,6 +59,11 @@
 [x] Paraguay SIFEN retry scheduling
 [x] Paraguay SIFEN callable retry execution
 [x] Paraguay SIFEN automatic retry runner
+[x] Stage 8.9 Paraguay SIFEN credential provider
+[x] Stage 8.10 Generic Paraguay SIFEN submission
+[x] Stage 8.11 Paraguay SIFEN production persistence
+[x] Stage 8.12 Paraguay SIFEN production retry
+[x] Stage 8.13 Paraguay SIFEN production end-to-end integration test
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -67,14 +72,21 @@
 
 [ ] Project documentation
 
+## Current Validation Status
+
+The `einvoice_py` suite currently reports 363 counted tests across 323 test methods, with production coverage for credential resolution, submission dispatch, fiscal transmission persistence, and eligible retry scheduling/execution. Stage 8.13 adds one tests-only composition scenario across those existing services. It uses deterministic injected fixtures and makes no live SIFEN calls.
+
 ## Next
 
-[ ] Stage 8.9 Paraguay credential provider implementation
-[ ] Stage 8.10 Paraguay SIFEN production submission support
-[ ] Stage 8.11 Paraguay trust-chain validation
-[ ] Stage 8.12 Paraguay revocation validation
-[ ] Stage 8.13 Paraguay live sandbox validation
-[ ] Stage 8.14 Paraguay adapter integration
+[ ] Real SIFEN sandbox validation
+[ ] Real certificate and mutual-TLS validation
+[ ] Real CSC validation against SIFEN behavior
+[ ] Trust-chain validation
+[ ] Revocation validation
+[ ] Paraguay adapter integration
+[ ] Retry cron activation after operational approval
+[ ] Operational monitoring and alerting
+[ ] Production go-live
 
 ## Future
 
