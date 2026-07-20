@@ -9,7 +9,7 @@ from odoo.addons.einvoice_py.services.py_sifen_submission_pipeline_service impor
 
 
 class PySifenTransmissionPersistenceService:
-    """Persist SIFEN test submission pipeline results without storing secrets."""
+    """Persist SIFEN submission pipeline results without storing secrets."""
 
     TRANSMISSION_TYPE = "submit"
 
@@ -26,7 +26,7 @@ class PySifenTransmissionPersistenceService:
         document.ensure_one()
         self._validate_document(document)
         started_at = fields.Datetime.now()
-        result = self.submission_pipeline_service.submit_test(**kwargs)
+        result = self._submit_for_environment(document=document, kwargs=kwargs)
         finished_at = fields.Datetime.now()
         transmission = self.persist_result(
             document=document,
@@ -61,8 +61,15 @@ class PySifenTransmissionPersistenceService:
     def _validate_document(self, document):
         if (document.country_code or "").upper() != "PY":
             raise ValidationError("SIFEN transmission persistence requires a Paraguay document.")
-        if document.environment != "test":
-            raise ValidationError("SIFEN transmission persistence requires a test document.")
+        if document.environment not in ("test", "production"):
+            raise ValidationError(
+                "SIFEN transmission persistence requires a supported environment."
+            )
+
+    def _submit_for_environment(self, *, document, kwargs):
+        if document.environment == "test":
+            return self.submission_pipeline_service.submit_test(**kwargs)
+        return self.submission_pipeline_service.submit_production(**kwargs)
 
     def _validate_result(self, result):
         if not isinstance(result, dict):
