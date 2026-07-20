@@ -9,7 +9,7 @@ from odoo.addons.einvoice_py.services.py_sifen_transmission_persistence_service 
 
 
 class PySifenRetryExecutionService:
-    """Execute due SIFEN test retries only when called explicitly."""
+    """Execute due SIFEN retries only when called explicitly."""
 
     def __init__(
         self,
@@ -34,7 +34,11 @@ class PySifenRetryExecutionService:
             [
                 ("transmission_type", "=", "submit"),
                 ("state", "=", "failed_retryable"),
-                ("error_code", "=", "test_submission"),
+                (
+                    "error_code",
+                    "in",
+                    tuple(PySifenRetrySchedulerService.RETRYABLE_SUBMISSION_STAGES),
+                ),
                 ("retry_state", "=", "scheduled"),
                 ("next_retry_at", "!=", False),
                 ("next_retry_at", "<=", self.now_provider()),

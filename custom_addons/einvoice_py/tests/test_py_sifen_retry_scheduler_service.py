@@ -42,10 +42,16 @@ class TestPySifenRetrySchedulerService(TransactionCase):
             now_provider=lambda: self.NOW,
         )
 
-    def _metadata(self, *, retryable=True, retry_category="connection_failure"):
+    def _metadata(
+        self,
+        *,
+        retryable=True,
+        retry_category="connection_failure",
+        failed_stage="test_submission",
+    ):
         return json.dumps({
             "service": "py_sifen_transmission_persistence",
-            "pipeline_failed_stage": "test_submission",
+            "pipeline_failed_stage": failed_stage,
             "submission_status": "failed_retryable",
             "retryable": retryable,
             "retry_category": retry_category,
@@ -165,6 +171,34 @@ class TestPySifenRetrySchedulerService(TransactionCase):
     def test_non_transport_retryable_failure_does_not_retry(self):
         transmission = self._transmission(
             metadata_json=self._metadata(retryable=True, retry_category="soap_fault"),
+        )
+
+        result = self.service.schedule_retry(transmission)
+
+        self.assertEqual(result["retry_status"], "not_retryable")
+        self.assertEqual(transmission.retry_state, "not_retryable")
+
+    def test_production_submission_failure_schedules_retry(self):
+        transmission = self._transmission(
+            error_code="production_submission",
+            error_message="SIFEN production submission failed.",
+            metadata_json=self._metadata(failed_stage="production_submission"),
+        )
+
+        result = self.service.schedule_retry(transmission)
+
+        self.assertEqual(result["retry_status"], "scheduled")
+        self.assertEqual(transmission.retry_state, "scheduled")
+        self.assertEqual(transmission.retry_count, 1)
+
+    def test_production_disallowed_retry_category_is_rejected(self):
+        transmission = self._transmission(
+            error_code="production_submission",
+            error_message="SIFEN production submission failed.",
+            metadata_json=self._metadata(
+                retry_category="soap_fault",
+                failed_stage="production_submission",
+            ),
         )
 
         result = self.service.schedule_retry(transmission)

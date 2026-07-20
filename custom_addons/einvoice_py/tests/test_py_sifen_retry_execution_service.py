@@ -20,7 +20,11 @@ class _SubmissionPipelineStub:
         self.calls = []
 
     def submit_test(self, **kwargs):
-        self.calls.append(kwargs)
+        self.calls.append(("test", kwargs))
+        return dict(self.result)
+
+    def submit_production(self, **kwargs):
+        self.calls.append(("production", kwargs))
         return dict(self.result)
 
 
@@ -91,11 +95,11 @@ class TestPySifenRetryExecutionService(TransactionCase):
             "response_hash": "4" * 64,
         }
 
-    def _retryable_result(self, hash_seed):
+    def _retryable_result(self, hash_seed, *, environment="test"):
         return dict(self._accepted_result(hash_seed), **{
             "ok": False,
-            "failed_stage": "test_submission",
-            "error_message": "SIFEN test submission failed.",
+            "failed_stage": f"{environment}_submission",
+            "error_message": f"SIFEN {environment} submission failed.",
             "submission_status": "",
             "authority_code": "",
             "authority_message": "",
@@ -116,16 +120,18 @@ class TestPySifenRetryExecutionService(TransactionCase):
             "retry_category": "",
         })
 
-    def _scheduled_transmission(self, **overrides):
+    def _scheduled_transmission(self, *, environment="test", **overrides):
+        self.document.environment = environment
+        failed_stage = f"{environment}_submission"
         values = {
             "document_id": self.document.id,
             "attempt_number": 1,
             "transmission_type": "submit",
             "state": "failed_retryable",
-            "error_code": "test_submission",
-            "error_message": "SIFEN test submission failed.",
+            "error_code": failed_stage,
+            "error_message": f"SIFEN {environment} submission failed.",
             "request_hash": "0" * 64,
-            "metadata_json": self._retryable_metadata(),
+            "metadata_json": self._retryable_metadata(failed_stage=failed_stage),
             "retry_state": "scheduled",
             "retry_count": 1,
             "max_retry_count": 3,
@@ -134,9 +140,9 @@ class TestPySifenRetryExecutionService(TransactionCase):
         values.update(overrides)
         return self.env["fiscal.transmission"].sudo().create(values)
 
-    def _retryable_metadata(self):
+    def _retryable_metadata(self, *, failed_stage="test_submission"):
         return json.dumps({
-            "pipeline_failed_stage": "test_submission",
+            "pipeline_failed_stage": failed_stage,
             "retryable": True,
             "retry_category": "connection_failure",
             "service": "py_sifen_transmission_persistence",
@@ -286,6 +292,68 @@ class TestPySifenRetryExecutionService(TransactionCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["source_transmission_id"], due.id)
         self.assertEqual(len(self.pipeline.calls), 1)
+
+    def test_due_production_retry_executes_once_and_stops_after_success(self):
+        transmission = self._scheduled_transmission(environment="production")
+
+        ready = self.service.ready_transmissions()
+        result = self._execute(transmission)
+
+        self.assertEqual(ready, transmission)
+        self.assertEqual(result["execution_status"], "executed")
+        self.assertEqual(len(self.pipeline.calls), 1)
+        self.assertEqual(self.pipeline.calls[0][0], "production")
+        result_transmission = self.env["fiscal.transmission"].browse(
+            result["transmission_id"]
+        )
+        self.assertEqual(result_transmission.state, "accepted")
+        self.assertEqual(result["retry_status"], "not_retryable")
+        self.assertFalse(result_transmission.next_retry_at)
+
+    def test_non_due_production_retry_is_not_selected(self):
+        transmission = self._scheduled_transmission(
+            environment="production",
+            next_retry_at=self.NOW + timedelta(seconds=60),
+        )
+
+        self.assertNotIn(transmission, self.service.ready_transmissions())
+
+    def test_repeated_production_failure_is_rescheduled(self):
+        self.pipeline.result = self._retryable_result(
+            "p",
+            environment="production",
+        )
+        transmission = self._scheduled_transmission(environment="production")
+
+        result = self._execute(transmission)
+        result_transmission = self.env["fiscal.transmission"].browse(
+            result["transmission_id"]
+        )
+
+        self.assertEqual(len(self.pipeline.calls), 1)
+        self.assertEqual(self.pipeline.calls[0][0], "production")
+        self.assertEqual(result["retry_status"], "scheduled")
+        self.assertEqual(result_transmission.state, "failed_retryable")
+        self.assertEqual(result_transmission.retry_count, 2)
+        self.assertEqual(
+            result_transmission.next_retry_at,
+            self.NOW + timedelta(seconds=120),
+        )
+
+    def test_permanent_production_failure_stops_retrying(self):
+        self.pipeline.result = self._permanent_result("q")
+        transmission = self._scheduled_transmission(environment="production")
+
+        result = self._execute(transmission)
+        result_transmission = self.env["fiscal.transmission"].browse(
+            result["transmission_id"]
+        )
+
+        self.assertEqual(len(self.pipeline.calls), 1)
+        self.assertEqual(self.pipeline.calls[0][0], "production")
+        self.assertEqual(result_transmission.state, "failed_final")
+        self.assertEqual(result["retry_status"], "not_retryable")
+        self.assertFalse(result_transmission.next_retry_at)
 
     def _stale_scheduled_transmission(self, *, state):
         return self._scheduled_transmission(

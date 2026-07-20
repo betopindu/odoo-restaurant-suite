@@ -208,17 +208,24 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
             "request_hash": "",
             "response_hash": "",
             "retryable": True,
+            "retry_category": "connection_failure",
         })
 
         result = self._submit_and_persist()
         transmission = self.env["fiscal.transmission"].browse(result["transmission_id"])
 
-        self.assertEqual(transmission.state, "failed_final")
+        self.assertEqual(transmission.state, "failed_retryable")
         self.assertEqual(transmission.error_code, "production_submission")
         self.assertEqual(
             transmission.error_message,
             "SIFEN production submission failed.",
         )
+        metadata = json.loads(transmission.metadata_json)
+        self.assertTrue(metadata["retryable"])
+        self.assertEqual(metadata["retry_category"], "connection_failure")
+        self.assertEqual(metadata["pipeline_failed_stage"], "production_submission")
+        self.assertEqual(transmission.signed_xml_sha256, "a" * 64)
+        self.assertEqual(transmission.qr_hash, "c" * 64)
         self.assertEqual(self.pipeline.calls[0][0], "production")
 
     def test_unsupported_environment_is_rejected(self):

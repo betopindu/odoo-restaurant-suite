@@ -128,7 +128,10 @@ class PySifenTransmissionPersistenceService:
             return "accepted"
         if status == "rejected":
             return "rejected"
-        if result.get("failed_stage") == "test_submission":
+        if result.get("failed_stage") in (
+            "test_submission",
+            "production_submission",
+        ):
             return "failed_retryable"
         if result.get("failed_stage"):
             return "failed_final"

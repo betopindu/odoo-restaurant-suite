@@ -5,7 +5,7 @@ from odoo import fields
 
 
 class PySifenRetrySchedulerService:
-    """Schedule retryable SIFEN test transport failures without executing them."""
+    """Schedule retryable SIFEN transport failures without executing them."""
 
     BASE_DELAY_SECONDS = 300
     MAX_DELAY_SECONDS = 3600
@@ -14,6 +14,10 @@ class PySifenRetrySchedulerService:
         "connection_failure",
         "tls_failure",
         "transport_failure",
+    }
+    RETRYABLE_SUBMISSION_STAGES = {
+        "test_submission",
+        "production_submission",
     }
 
     def __init__(
@@ -65,7 +69,7 @@ class PySifenRetrySchedulerService:
             return False
         if transmission.transmission_type != "submit":
             return False
-        if transmission.error_code != "test_submission":
+        if transmission.error_code not in self.RETRYABLE_SUBMISSION_STAGES:
             return False
         metadata = self._metadata(transmission)
         if not metadata.get("retryable"):
