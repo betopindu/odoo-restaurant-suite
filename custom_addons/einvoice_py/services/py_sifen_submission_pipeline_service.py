@@ -11,6 +11,9 @@ from odoo.addons.einvoice_py.services.py_qr_generation_service import (
 from odoo.addons.einvoice_py.services.py_sifen_sandbox_transport import (
     PySifenSandboxTransport,
 )
+from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
+    PySifenRuntimeCredentials,
+)
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
     PySifenTestSubmissionService,
 )
@@ -54,17 +57,34 @@ class PySifenSubmissionPipelineService:
         *,
         document,
         payload,
-        certificate_bytes,
-        private_key_bytes,
         signing_timestamp,
-        endpoint_url,
+        certificate_bytes=None,
+        private_key_bytes=None,
+        endpoint_url=None,
         mutual_tls_credential=None,
         private_key_password=None,
         soap_action=None,
         timeout_seconds=None,
         filename=None,
+        credentials=None,
     ):
         document.ensure_one()
+        (
+            certificate_bytes,
+            private_key_bytes,
+            private_key_password,
+            endpoint_url,
+            mutual_tls_credential,
+            timeout_seconds,
+        ) = self._credential_inputs(
+            credentials=credentials,
+            certificate_bytes=certificate_bytes,
+            private_key_bytes=private_key_bytes,
+            private_key_password=private_key_password,
+            endpoint_url=endpoint_url,
+            mutual_tls_credential=mutual_tls_credential,
+            timeout_seconds=timeout_seconds,
+        )
         result = self._base_result()
 
         signing_result = self._run_stage(
@@ -153,6 +173,44 @@ class PySifenSubmissionPipelineService:
         result["failed_stage"] = "" if result["ok"] else "test_submission"
         result["error_message"] = "" if result["ok"] else "SIFEN test submission was not accepted."
         return result
+
+    def _credential_inputs(
+        self,
+        *,
+        credentials,
+        certificate_bytes,
+        private_key_bytes,
+        private_key_password,
+        endpoint_url,
+        mutual_tls_credential,
+        timeout_seconds,
+    ):
+        explicit_inputs = (
+            certificate_bytes,
+            private_key_bytes,
+            private_key_password,
+            endpoint_url,
+            mutual_tls_credential,
+            timeout_seconds,
+        )
+        if credentials is None:
+            return explicit_inputs
+        if not isinstance(credentials, PySifenRuntimeCredentials):
+            raise ValidationError(
+                "Paraguay SIFEN runtime credentials are invalid."
+            )
+        if any(value is not None and value is not False for value in explicit_inputs):
+            raise ValidationError(
+                "Paraguay SIFEN runtime credentials cannot be mixed with explicit credential inputs."
+            )
+        return (
+            credentials.signing_certificate_bytes,
+            credentials.signing_private_key_bytes,
+            credentials.signing_private_key_password,
+            credentials.endpoint_url,
+            credentials.mutual_tls_credential,
+            credentials.timeout_seconds,
+        )
 
     def _base_result(self):
         return {

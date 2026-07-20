@@ -11,6 +11,9 @@ from odoo.tests.common import TransactionCase
 from odoo.addons.einvoice_py.services.py_sifen_submission_pipeline_service import (
     PySifenSubmissionPipelineService,
 )
+from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
+    PySifenRuntimeCredentials,
+)
 from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import (
     PyUnsignedXmlBuilder,
 )
@@ -197,6 +200,65 @@ class TestPySifenSubmissionPipelineService(TransactionCase):
         self.assertNotIn("private-key-secret-fixture", serialized)
         self.assertNotIn("certificate-secret-fixture", serialized)
         self.assertNotIn("password-secret-fixture", serialized)
+
+    def test_runtime_credentials_supply_pipeline_inputs(self):
+        credentials = PySifenRuntimeCredentials(
+            adapter_config=False,
+            xml_signing_credential=False,
+            mutual_tls_credential="mutual-tls-reference",
+            signing_certificate_bytes=b"runtime-certificate",
+            signing_private_key_bytes=b"runtime-private-key",
+            signing_private_key_password=b"runtime-password",
+            csc_id="0001",
+            csc_value="runtime-csc",
+            endpoint_url="https://sifen-test.example.test/de",
+            timeout_seconds=17,
+        )
+
+        result = self._service().submit_test(
+            document=self.document,
+            payload={"payload": "fixture"},
+            signing_timestamp=self.SIGNING_TIMESTAMP,
+            credentials=credentials,
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            self.signing.calls[0]["certificate_bytes"],
+            b"runtime-certificate",
+        )
+        self.assertEqual(
+            self.signing.calls[0]["private_key_bytes"],
+            b"runtime-private-key",
+        )
+        self.assertEqual(
+            self.submission.calls[0]["mutual_tls_credential"],
+            "mutual-tls-reference",
+        )
+        self.assertEqual(self.submission.calls[0]["timeout_seconds"], 17)
+
+    def test_runtime_and_explicit_credentials_cannot_be_mixed(self):
+        credentials = PySifenRuntimeCredentials(
+            adapter_config=False,
+            xml_signing_credential=False,
+            mutual_tls_credential=False,
+            signing_certificate_bytes=b"runtime-certificate",
+            signing_private_key_bytes=b"runtime-private-key",
+            signing_private_key_password=None,
+            csc_id="0001",
+            csc_value="runtime-csc",
+            endpoint_url="https://sifen-test.example.test/de",
+            timeout_seconds=30,
+        )
+
+        with self.assertRaisesRegex(ValidationError, "cannot be mixed"):
+            self._service().submit_test(
+                document=self.document,
+                payload={"payload": "fixture"},
+                signing_timestamp=self.SIGNING_TIMESTAMP,
+                certificate_bytes=b"explicit-certificate",
+                credentials=credentials,
+            )
 
     def test_final_xml_contains_qr_before_xsd_and_submission(self):
         self._submit()

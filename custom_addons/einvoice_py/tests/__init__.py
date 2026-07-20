@@ -6,6 +6,7 @@ from . import test_py_sifen_retry_execution_service
 from . import test_py_sifen_retry_runner
 from . import test_py_sifen_retry_scheduler_service
 from . import test_py_sifen_sandbox_transport
+from . import test_py_sifen_credential_provider
 from . import test_py_sifen_submission_pipeline_service
 from . import test_py_sifen_test_submission_service
 from . import test_py_sifen_transmission_persistence_service

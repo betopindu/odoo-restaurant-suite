@@ -5,6 +5,7 @@ from . import py_payload_builder
 from . import py_qr_generation_service
 from . import py_sifen_retry_execution_service
 from . import py_sifen_retry_scheduler_service
+from . import py_sifen_credential_provider
 from . import py_signing_pipeline_service
 from . import py_sifen_sandbox_transport
 from . import py_sifen_submission_pipeline_service
@@ -18,3 +19,12 @@ from . import py_xml_signature_verification_service
 from . import py_xml_validation_service
 from . import py_xsd_validation_service
 from . import py_fake_adapter
+
+from .py_sifen_credential_provider import (
+    PySifenCredentialConfigurationError,
+    PySifenCredentialError,
+    PySifenCredentialMaterialError,
+    PySifenCredentialProvider,
+    PySifenCredentialScopeError,
+    PySifenRuntimeCredentials,
+)
