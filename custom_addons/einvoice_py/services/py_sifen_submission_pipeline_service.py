@@ -15,7 +15,7 @@ from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
     PySifenRuntimeCredentials,
 )
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
-    PySifenTestSubmissionService,
+    PySifenSubmissionService,
 )
 from odoo.addons.einvoice_py.services.py_signing_pipeline_service import (
     PySigningPipelineService,
@@ -47,14 +47,24 @@ class PySifenSubmissionPipelineService:
         self.signing_pipeline_service = signing_pipeline_service or PySigningPipelineService(env)
         self.qr_generation_service = qr_generation_service or PyQrGenerationService()
         self.xsd_validation_service = xsd_validation_service or PyXsdValidationService()
-        self.submission_service = submission_service or PySifenTestSubmissionService(
+        self.submission_service = submission_service or PySifenSubmissionService(
             xsd_validation_service=self.xsd_validation_service,
             transport=transport or PySifenSandboxTransport(env),
         )
 
-    def submit_test(
+    def submit(self, **kwargs):
+        return self._submit(expected_environment=None, **kwargs)
+
+    def submit_test(self, **kwargs):
+        return self._submit(expected_environment="test", **kwargs)
+
+    def submit_production(self, **kwargs):
+        return self._submit(expected_environment="production", **kwargs)
+
+    def _submit(
         self,
         *,
+        expected_environment,
         document,
         payload,
         signing_timestamp,
@@ -69,6 +79,7 @@ class PySifenSubmissionPipelineService:
         credentials=None,
     ):
         document.ensure_one()
+        self._validate_environment(document, expected_environment)
         (
             certificate_bytes,
             private_key_bytes,
@@ -156,7 +167,7 @@ class PySifenSubmissionPipelineService:
 
         submission_result = self._run_stage(
             result,
-            "test_submission",
+            self._submission_stage(document.environment),
             lambda: self.submission_service.submit_final_xml(
                 document=document,
                 final_xml_bytes=final_xml_bytes,
@@ -170,9 +181,27 @@ class PySifenSubmissionPipelineService:
             return result
         self._merge_submission_result(result, submission_result)
         result["ok"] = submission_result.get("outcome") == "accepted"
-        result["failed_stage"] = "" if result["ok"] else "test_submission"
-        result["error_message"] = "" if result["ok"] else "SIFEN test submission was not accepted."
+        result["failed_stage"] = (
+            "" if result["ok"] else self._submission_stage(document.environment)
+        )
+        result["error_message"] = (
+            ""
+            if result["ok"]
+            else f"SIFEN {document.environment} submission was not accepted."
+        )
         return result
+
+    def _validate_environment(self, document, expected_environment):
+        if document.environment not in ("test", "production"):
+            raise ValidationError("Paraguay SIFEN submission environment is unsupported.")
+        if expected_environment and document.environment != expected_environment:
+            raise ValidationError(
+                f"Paraguay SIFEN {expected_environment} submission requires a "
+                f"{expected_environment} environment document."
+            )
+
+    def _submission_stage(self, environment):
+        return f"{environment}_submission"
 
     def _credential_inputs(
         self,
@@ -263,6 +292,7 @@ class PySifenSubmissionPipelineService:
             "final_xml_preparation": "Final signed Paraguay XML with QR could not be prepared.",
             "final_xsd_validation": "Final signed Paraguay XML failed local SIFEN XSD validation.",
             "test_submission": "SIFEN test submission failed.",
+            "production_submission": "SIFEN production submission failed.",
         }
         return messages.get(stage, "Paraguay SIFEN submission pipeline failed.")
 

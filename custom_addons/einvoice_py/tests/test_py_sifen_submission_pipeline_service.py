@@ -201,6 +201,75 @@ class TestPySifenSubmissionPipelineService(TransactionCase):
         self.assertNotIn("certificate-secret-fixture", serialized)
         self.assertNotIn("password-secret-fixture", serialized)
 
+    def test_generic_submit_reuses_single_pipeline_execution(self):
+        self.document.environment = "production"
+        self.submission.outcome = "rejected"
+
+        result = self._service().submit(
+            document=self.document,
+            payload={"payload": "fixture"},
+            certificate_bytes=b"certificate-secret-fixture",
+            private_key_bytes=b"private-key-secret-fixture",
+            signing_timestamp=self.SIGNING_TIMESTAMP,
+            endpoint_url="https://sifen-production.example.test/de",
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["failed_stage"], "production_submission")
+        self.assertNotIn("test", result["error_message"].lower())
+        self.assertNotIn("sandbox", result["error_message"].lower())
+        self.assertEqual(len(self.signing.calls), 1)
+        self.assertEqual(len(self.qr.calls), 1)
+        self.assertEqual(len(self.xsd.calls), 1)
+        self.assertEqual(len(self.submission.calls), 1)
+        self.assertEqual(
+            self.submission.calls[0]["endpoint_url"],
+            "https://sifen-production.example.test/de",
+        )
+
+    def test_submit_production_delegates_to_single_pipeline_execution(self):
+        self.document.environment = "production"
+
+        result = self._service().submit_production(
+            document=self.document,
+            payload={"payload": "fixture"},
+            certificate_bytes=b"certificate-secret-fixture",
+            private_key_bytes=b"private-key-secret-fixture",
+            signing_timestamp=self.SIGNING_TIMESTAMP,
+            endpoint_url="https://sifen-production.example.test/de",
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(self.signing.calls), 1)
+        self.assertEqual(len(self.qr.calls), 1)
+        self.assertEqual(len(self.xsd.calls), 1)
+        self.assertEqual(len(self.submission.calls), 1)
+        self.assertEqual(
+            self.submission.calls[0]["endpoint_url"],
+            "https://sifen-production.example.test/de",
+        )
+
+    def test_environment_specific_pipeline_methods_reject_wrong_environment(self):
+        with self.assertRaisesRegex(ValidationError, "production environment"):
+            self._service().submit_production(
+                document=self.document,
+                payload={"payload": "fixture"},
+                signing_timestamp=self.SIGNING_TIMESTAMP,
+            )
+
+        self.document.environment = "production"
+        with self.assertRaisesRegex(ValidationError, "test environment"):
+            self._service().submit_test(
+                document=self.document,
+                payload={"payload": "fixture"},
+                signing_timestamp=self.SIGNING_TIMESTAMP,
+            )
+
+        self.assertFalse(self.signing.calls)
+        self.assertFalse(self.qr.calls)
+        self.assertFalse(self.xsd.calls)
+        self.assertFalse(self.submission.calls)
+
     def test_runtime_credentials_supply_pipeline_inputs(self):
         credentials = PySifenRuntimeCredentials(
             adapter_config=False,

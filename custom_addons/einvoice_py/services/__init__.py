@@ -28,3 +28,7 @@ from .py_sifen_credential_provider import (
     PySifenCredentialScopeError,
     PySifenRuntimeCredentials,
 )
+from .py_sifen_test_submission_service import (
+    PySifenSubmissionService,
+    PySifenTestSubmissionService,
+)

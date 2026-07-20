@@ -35,12 +35,12 @@ class PySifenTlsError(PySifenTransportError):
     """SIFEN transport failed during TLS or mutual TLS negotiation."""
 
 
-class PySifenTestSubmissionService:
-    """Submit final Paraguay XML to a SIFEN test endpoint.
+class PySifenSubmissionService:
+    """Submit final Paraguay XML to a configured SIFEN environment.
 
     The service keeps network transport injectable so tests never contact SIFEN
-    and future production transport can add mTLS/retry policy without changing
-    envelope construction or response normalization.
+    and environment-specific endpoints can reuse the same envelope construction
+    and response normalization.
     """
 
     SOAP_ENV_NS = "http://schemas.xmlsoap.org/soap/envelope/"
@@ -49,6 +49,12 @@ class PySifenTestSubmissionService:
     DEFAULT_TIMEOUT_SECONDS = 30
     DEFAULT_ACCEPTED_CODES = {"0300"}
     DEFAULT_RETRYABLE_CODES = {"0500", "0501", "0600"}
+    ALLOWED_ENVIRONMENTS = {"test", "production"}
+    REQUIRED_ENVIRONMENT = None
+    SERVICE_NAME = "py_sifen_submission"
+    MUTUAL_TLS_TRANSPORT_ERROR = (
+        "SIFEN mutual TLS submission requires an injected transport."
+    )
 
     NS = {
         "soap": SOAP_ENV_NS,
@@ -71,15 +77,16 @@ class PySifenTestSubmissionService:
     ):
         document.ensure_one()
         self._validate_submission_inputs(document, final_xml_bytes, endpoint_url)
+        environment = document.environment
         cdc = self._extract_cdc(final_xml_bytes)
         if document.py_cdc and document.py_cdc != cdc:
-            raise ValidationError("SIFEN test submission CDC must match the document CDC.")
+            raise ValidationError("SIFEN submission CDC must match the document CDC.")
 
         xsd_report = self.xsd_validation_service.validate_final_signed_xml(final_xml_bytes)
         if not xsd_report.get("valid"):
             raise ValidationError(
                 "Final signed Paraguay XML must pass local SIFEN XSD validation "
-                "before test submission."
+                "before submission."
             )
 
         request_xml = self.build_soap_envelope(final_xml_bytes)
@@ -99,6 +106,7 @@ class PySifenTestSubmissionService:
                 error=error,
                 duration_ms=self._duration_ms(started),
                 cdc=cdc,
+                environment=environment,
             )
 
         return self.normalize_response(
@@ -107,6 +115,7 @@ class PySifenTestSubmissionService:
             response=http_response,
             duration_ms=self._duration_ms(started),
             cdc=cdc,
+            environment=environment,
         )
 
     def build_soap_envelope(self, final_xml_bytes):
@@ -133,6 +142,7 @@ class PySifenTestSubmissionService:
         response,
         duration_ms,
         cdc,
+        environment="test",
     ):
         status_code = self._response_status_code(response)
         content = self._response_content(response)
@@ -150,23 +160,23 @@ class PySifenTestSubmissionService:
             "retryable": status_code >= 500,
             "retry_after_seconds": 300 if status_code >= 500 else 0,
             "metadata_json": {
-                "environment": "test",
-                "service": "py_sifen_test_submission",
+                "environment": environment,
+                "service": self.SERVICE_NAME,
                 "response_category": self._response_category(status_code),
             },
         }
 
         if not content:
-            base["authority_message"] = "SIFEN test response was empty."
+            base["authority_message"] = f"SIFEN {environment} response was empty."
             return base
 
         try:
             root = self._parse_xml(content)
         except etree.XMLSyntaxError:
-            base["authority_message"] = "Malformed SIFEN test response."
+            base["authority_message"] = f"Malformed SIFEN {environment} response."
             return base
 
-        fault = self._soap_fault(root)
+        fault = self._soap_fault(root, environment=environment)
         if fault:
             base.update(fault)
             base["metadata_json"].update(fault.get("metadata_json") or {})
@@ -201,19 +211,24 @@ class PySifenTestSubmissionService:
 
     def _validate_submission_inputs(self, document, final_xml_bytes, endpoint_url):
         if (document.country_code or "").upper() != "PY":
-            raise ValidationError("SIFEN test submission requires a Paraguay document.")
-        if document.environment != "test":
-            raise ValidationError("SIFEN test submission requires a test environment document.")
+            raise ValidationError("SIFEN submission requires a Paraguay document.")
+        if document.environment not in self.ALLOWED_ENVIRONMENTS:
+            raise ValidationError("SIFEN submission requires a supported environment.")
+        if self.REQUIRED_ENVIRONMENT and document.environment != self.REQUIRED_ENVIRONMENT:
+            raise ValidationError(
+                f"SIFEN {self.REQUIRED_ENVIRONMENT} submission requires a "
+                f"{self.REQUIRED_ENVIRONMENT} environment document."
+            )
         if not final_xml_bytes:
-            raise ValidationError("Final signed Paraguay XML is required for SIFEN test submission.")
+            raise ValidationError("Final signed Paraguay XML is required for SIFEN submission.")
         parsed = urlparse(endpoint_url or "")
         if parsed.scheme != "https" or not parsed.netloc:
-            raise ValidationError("SIFEN test submission endpoint must be an HTTPS URL.")
+            raise ValidationError("SIFEN submission endpoint must be an HTTPS URL.")
         if parsed.username or parsed.password:
-            raise ValidationError("SIFEN test submission endpoint must not include credentials.")
+            raise ValidationError("SIFEN submission endpoint must not include credentials.")
         if parsed.query or parsed.fragment:
             raise ValidationError(
-                "SIFEN test submission endpoint must not include query strings or fragments."
+                "SIFEN submission endpoint must not include query strings or fragments."
             )
 
     def _extract_cdc(self, xml_content):
@@ -236,9 +251,9 @@ class PySifenTestSubmissionService:
         return etree.fromstring(xml_content, parser)
 
     def _transport(self):
-        return self.transport or self._non_mtls_test_transport
+        return self.transport or self._non_mtls_transport
 
-    def _non_mtls_test_transport(
+    def _non_mtls_transport(
         self,
         *,
         endpoint_url,
@@ -247,14 +262,12 @@ class PySifenTestSubmissionService:
         timeout_seconds=None,
         mutual_tls_credential=None,
     ):
-        """Development fallback only.
+        """Development fallback for submissions without mutual TLS.
 
-        Real SIFEN sandbox mTLS calls must inject PySifenSandboxTransport.
+        Mutual TLS submissions must inject an appropriate transport.
         """
         if mutual_tls_credential:
-            raise ValidationError(
-                "SIFEN sandbox mTLS submission requires PySifenSandboxTransport."
-            )
+            raise ValidationError(self.MUTUAL_TLS_TRANSPORT_ERROR)
         headers = {
             "Content-Type": "text/xml; charset=utf-8",
             "Accept": "text/xml, application/xml",
@@ -286,7 +299,16 @@ class PySifenTestSubmissionService:
         except (error.URLError, TimeoutError, OSError) as transport_error:
             raise PySifenTransportError() from transport_error
 
-    def _transport_error_result(self, *, endpoint_url, request_xml, error, duration_ms, cdc):
+    def _transport_error_result(
+        self,
+        *,
+        endpoint_url,
+        request_xml,
+        error,
+        duration_ms,
+        cdc,
+        environment,
+    ):
         return {
             "endpoint_url": endpoint_url,
             "http_status": 0,
@@ -295,14 +317,16 @@ class PySifenTestSubmissionService:
             "duration_ms": duration_ms,
             "country_identifier": cdc,
             "authority_status_code": "",
-            "authority_message": "SIFEN test transport failed before a response was received.",
+            "authority_message": (
+                f"SIFEN {environment} transport failed before a response was received."
+            ),
             "authority_receipt_ref": "",
             "outcome": "failed_retryable",
             "retryable": True,
             "retry_after_seconds": 300,
             "metadata_json": {
-                "environment": "test",
-                "service": "py_sifen_test_submission",
+                "environment": environment,
+                "service": self.SERVICE_NAME,
                 "transport_error": error.__class__.__name__,
                 "transport_error_category": self._transport_error_category(error),
             },
@@ -322,7 +346,7 @@ class PySifenTestSubmissionService:
             return content.encode("utf-8")
         return content
 
-    def _soap_fault(self, root):
+    def _soap_fault(self, root, environment="test"):
         fault = root.find(".//soap:Fault", namespaces=self.NS)
         if fault is None:
             return {}
@@ -335,8 +359,8 @@ class PySifenTestSubmissionService:
             "retryable": True,
             "retry_after_seconds": 300,
             "metadata_json": {
-                "environment": "test",
-                "service": "py_sifen_test_submission",
+                "environment": environment,
+                "service": self.SERVICE_NAME,
                 "response_category": "soap_fault",
                 "soap_fault": True,
             },
@@ -382,3 +406,13 @@ class PySifenTestSubmissionService:
         if isinstance(error, PySifenConnectionError):
             return "connection_failure"
         return "transport_failure"
+
+
+class PySifenTestSubmissionService(PySifenSubmissionService):
+    """Backward-compatible SIFEN submission service restricted to test."""
+
+    REQUIRED_ENVIRONMENT = "test"
+    SERVICE_NAME = "py_sifen_test_submission"
+    MUTUAL_TLS_TRANSPORT_ERROR = (
+        "SIFEN sandbox mTLS submission requires PySifenSandboxTransport."
+    )

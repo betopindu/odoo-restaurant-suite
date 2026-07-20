@@ -5,6 +5,7 @@ from odoo.tests.common import TransactionCase
 
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
     PySifenConnectionError,
+    PySifenSubmissionService,
     PySifenTlsError,
     PySifenTransportError,
     PySifenTestSubmissionService,
@@ -88,6 +89,19 @@ class TestPySifenTestSubmissionService(TransactionCase):
             xsd_validation_service=validator or _AcceptingXsdValidator(),
         )
 
+    def _generic_service(self, response=None):
+        def transport(**kwargs):
+            self.transport_calls.append(kwargs)
+            return response or {
+                "status_code": 200,
+                "content": self._response_xml("0300", "Aprobado", "12345"),
+            }
+
+        return PySifenSubmissionService(
+            xsd_validation_service=_AcceptingXsdValidator(),
+            transport=transport,
+        )
+
     def _final_xml(self, *, cdc=None):
         namespace = PyUnsignedXmlBuilder.SIFEN_NS
         ds_namespace = "http://www.w3.org/2000/09/xmldsig#"
@@ -140,6 +154,40 @@ class TestPySifenTestSubmissionService(TransactionCase):
         self.assertEqual(len(result["request_hash"]), 64)
         self.assertEqual(len(result["response_hash"]), 64)
 
+    def test_generic_submission_service_accepts_production_document(self):
+        self.document.environment = "production"
+
+        result = self._generic_service().submit_final_xml(
+            document=self.document,
+            final_xml_bytes=self._final_xml(),
+            endpoint_url="https://sifen-production.example.test/de",
+            mutual_tls_credential=self.mutual_tls_credential,
+        )
+
+        self.assertEqual(result["outcome"], "accepted")
+        self.assertEqual(result["metadata_json"]["environment"], "production")
+        self.assertEqual(result["metadata_json"]["service"], "py_sifen_submission")
+        self.assertEqual(len(self.transport_calls), 1)
+
+    def test_generic_production_failure_message_is_environment_neutral(self):
+        self.document.environment = "production"
+        service = self._generic_service(response={
+            "status_code": 200,
+            "content": b"<not-xml",
+        })
+
+        result = service.submit_final_xml(
+            document=self.document,
+            final_xml_bytes=self._final_xml(),
+            endpoint_url="https://sifen-production.example.test/de",
+            mutual_tls_credential=self.mutual_tls_credential,
+        )
+
+        self.assertEqual(result["outcome"], "failed_final")
+        self.assertIn("production", result["authority_message"].lower())
+        self.assertNotIn("test", result["authority_message"].lower())
+        self.assertNotIn("sandbox", result["authority_message"].lower())
+
     def test_soap_envelope_contains_final_xml(self):
         self._submit()
         request_xml = self.transport_calls[0]["body"]
@@ -173,6 +221,8 @@ class TestPySifenTestSubmissionService(TransactionCase):
 
         with self.assertRaisesRegex(ValidationError, "test environment"):
             self._submit()
+
+        self.assertFalse(self.transport_calls)
 
     def test_endpoint_must_be_https(self):
         with self.assertRaisesRegex(ValidationError, "HTTPS URL"):
