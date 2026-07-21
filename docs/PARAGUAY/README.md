@@ -825,7 +825,9 @@ Stage 8.8 adds `py.sifen.retry.runner` as a manual Odoo runner plus a disabled-b
 
 Stage 8.15 adds automatic credential resolution at the persistence boundary. `PySifenTransmissionPersistenceService` defaults to `PySifenCredentialProvider`, resolves credentials only when callers provide neither `PySifenRuntimeCredentials` nor legacy explicit credential arguments, and passes the resolved runtime object transiently into the existing submission pipeline. Supplied runtime credentials bypass automatic resolution, while certificate, private-key, password, endpoint, mutual-TLS credential, and timeout arguments remain backward compatible. Retry execution reuses the same persistence service and therefore inherits automatic resolution. A credential-provider failure propagates before pipeline execution and before any `fiscal.transmission` is created.
 
-The `einvoice_py` suite currently reports 367 counted tests across 327 test methods. Production service composition is covered with deterministic fixtures, but the tests do not make live SIFEN calls or validate real certificates, mutual TLS, or CSC behavior against the authority.
+Stage 8.16 makes retry inputs reconstructable from existing fiscal attachments. When omitted, `PySifenRetryExecutionService` reads the normalized payload only from `paraguay_payload_json` and the original signing timestamp only from the allow-listed `signing_time` value in `paraguay_xml_signed` metadata. Explicit payload and signing timestamp arguments continue to take precedence. Missing attachments, malformed JSON, and invalid signing metadata raise fixed, safe `ValidationError` messages without exposing attachment content, parser details, secrets, or raw XML.
+
+The `einvoice_py` suite currently reports 374 counted tests across 334 test methods. Production service composition is covered with deterministic fixtures, but the tests do not make live SIFEN calls or validate real certificates, mutual TLS, or CSC behavior against the authority.
 
 Still pending:
 
@@ -833,7 +835,6 @@ Still pending:
 * real certificates and mutual-TLS validation
 * real CSC validation against SIFEN behavior
 * retry cron activation
-* autonomous retry payload reconstruction
 * operational monitoring and production go-live
 
 Future SIFEN work should build on:

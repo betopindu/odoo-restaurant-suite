@@ -1,4 +1,10 @@
+import base64
+import binascii
+import json
+from datetime import datetime
+
 from odoo import fields
+from odoo.exceptions import ValidationError
 
 from odoo.addons.einvoice_py.services.py_sifen_retry_scheduler_service import (
     PySifenRetrySchedulerService,
@@ -66,6 +72,10 @@ class PySifenRetryExecutionService:
 
         source_retry_count = transmission.retry_count
         max_retry_count = transmission.max_retry_count
+        submission_kwargs = self._submission_kwargs(
+            document=transmission.document_id,
+            submission_kwargs=submission_kwargs,
+        )
         persisted = self.transmission_persistence_service.submit_and_persist(
             document=transmission.document_id,
             **submission_kwargs,
@@ -92,6 +102,66 @@ class PySifenRetryExecutionService:
             "executed",
             source_transmission_id=transmission.id,
             retry_result=retry_result,
+        )
+
+    def _submission_kwargs(self, *, document, submission_kwargs):
+        values = dict(submission_kwargs)
+        if "payload" not in values:
+            values["payload"] = self._stored_payload(document)
+        if "signing_timestamp" not in values:
+            values["signing_timestamp"] = self._stored_signing_timestamp(document)
+        return values
+
+    def _stored_payload(self, document):
+        attachment = self._attachment(document, "paraguay_payload_json")
+        if not attachment or not attachment.ir_attachment_id:
+            raise ValidationError(
+                "SIFEN retry requires a stored Paraguay payload attachment."
+            )
+        try:
+            content = base64.b64decode(
+                attachment.ir_attachment_id.datas or b"",
+                validate=True,
+            )
+            payload = json.loads(content.decode("utf-8"))
+        except (binascii.Error, TypeError, UnicodeDecodeError, ValueError):
+            raise ValidationError(
+                "Stored Paraguay retry payload is invalid."
+            ) from None
+        if not isinstance(payload, dict):
+            raise ValidationError("Stored Paraguay retry payload is invalid.")
+        return payload
+
+    def _stored_signing_timestamp(self, document):
+        attachment = self._attachment(document, "paraguay_xml_signed")
+        if not attachment:
+            raise ValidationError(
+                "SIFEN retry requires stored Paraguay signing metadata."
+            )
+        try:
+            metadata = json.loads(attachment.metadata_json or "")
+            signing_time = metadata.get("signing_time")
+            parsed_signing_time = datetime.strptime(
+                signing_time,
+                "%Y-%m-%dT%H:%M:%S",
+            )
+        except (AttributeError, TypeError, ValueError):
+            raise ValidationError(
+                "Stored Paraguay retry signing metadata is invalid."
+            ) from None
+        if not signing_time or parsed_signing_time is None:
+            raise ValidationError(
+                "Stored Paraguay retry signing metadata is invalid."
+            )
+        return signing_time
+
+    def _attachment(self, document, attachment_type):
+        return self.env["fiscal.attachment"].sudo().search(
+            [
+                ("document_id", "=", document.id),
+                ("attachment_type", "=", attachment_type),
+            ],
+            limit=1,
         )
 
     def _is_due(self, transmission):

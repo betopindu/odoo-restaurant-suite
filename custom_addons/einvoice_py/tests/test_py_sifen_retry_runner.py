@@ -134,6 +134,25 @@ class TestPySifenRetryRunner(TransactionCase):
         values.update(overrides)
         return self.runner.run_sifen_retries(**values)
 
+    def _create_retry_attachments(self):
+        self.env["fiscal.attachment"].sudo().create_json_payload_attachment(
+            self.document,
+            "paraguay_payload_json",
+            "runner-retry-payload.json",
+            {"payload": "stored-runner-fixture"},
+        )
+        self.env["fiscal.attachment"].sudo().create({
+            "name": "runner-retry-signed.xml",
+            "document_id": self.document.id,
+            "attachment_type": "paraguay_xml_signed",
+            "mimetype": "application/xml",
+            "filename": "runner-retry-signed.xml",
+            "is_sensitive": True,
+            "metadata_json": json.dumps({
+                "signing_time": "2026-07-05T11:30:00",
+            }),
+        })
+
     def test_runner_executes_due_retries(self):
         transmission = self._scheduled_transmission()
 
@@ -144,6 +163,30 @@ class TestPySifenRetryRunner(TransactionCase):
         self.assertEqual(len(self.pipeline.calls), 1)
         self.assertEqual(transmission.retry_state, "none")
         self.assertFalse(transmission.next_retry_at)
+
+    def test_runner_reconstructs_missing_retry_inputs(self):
+        self._create_retry_attachments()
+        self._scheduled_transmission()
+
+        results = self.runner.run_sifen_retries(
+            limit=10,
+            retry_execution_service=self.execution_service,
+            certificate_bytes=b"certificate-secret-fixture",
+            private_key_bytes=b"private-key-secret-fixture",
+            private_key_password="password-secret-fixture",
+            endpoint_url="https://sifen-test.example.test/de",
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["execution_status"], "executed")
+        self.assertEqual(
+            self.pipeline.calls[0]["payload"],
+            {"payload": "stored-runner-fixture"},
+        )
+        self.assertEqual(
+            self.pipeline.calls[0]["signing_timestamp"],
+            "2026-07-05T11:30:00",
+        )
 
     def test_runner_respects_batch_size(self):
         first = self._scheduled_transmission(request_hash="5" * 64)

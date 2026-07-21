@@ -65,6 +65,7 @@
 [x] Stage 8.12 Paraguay SIFEN production retry
 [x] Stage 8.13 Paraguay SIFEN production end-to-end integration test
 [x] Stage 8.15 Paraguay SIFEN automatic credential resolution at persistence
+[x] Stage 8.16 Paraguay SIFEN autonomous retry input reconstruction
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -75,7 +76,7 @@
 
 ## Current Validation Status
 
-The `einvoice_py` suite currently reports 367 counted tests across 327 test methods, with production coverage for credential resolution, submission dispatch, fiscal transmission persistence, and eligible retry scheduling/execution. Stage 8.13 adds one tests-only composition scenario across those existing services. Stage 8.15 makes `PySifenTransmissionPersistenceService` resolve runtime credentials automatically when callers supply neither a runtime credential object nor legacy explicit credential arguments. Supplied runtime credentials and the legacy explicit path remain supported, retry execution inherits resolution through persistence, and provider failures stop before pipeline execution or transmission creation. The coverage uses deterministic injected fixtures and makes no live SIFEN calls.
+The `einvoice_py` suite currently reports 374 counted tests across 334 test methods, with production coverage for credential resolution, submission dispatch, fiscal transmission persistence, and eligible retry scheduling/execution. Stage 8.13 adds one tests-only composition scenario across those existing services. Stage 8.15 makes `PySifenTransmissionPersistenceService` resolve runtime credentials automatically when callers supply neither a runtime credential object nor legacy explicit credential arguments. Stage 8.16 lets retry execution reconstruct an omitted payload from the document's `paraguay_payload_json` attachment and an omitted signing timestamp from `paraguay_xml_signed` metadata. Explicit values take precedence, and missing or malformed retry artifacts raise fixed, safe validation errors. The coverage uses deterministic injected fixtures and makes no live SIFEN calls.
 
 ## Next
 
@@ -86,7 +87,6 @@ The `einvoice_py` suite currently reports 367 counted tests across 327 test meth
 [ ] Revocation validation
 [ ] Paraguay adapter integration
 [ ] Retry cron activation after operational approval
-[ ] Autonomous retry payload reconstruction
 [ ] Operational monitoring and alerting
 [ ] Production go-live
 

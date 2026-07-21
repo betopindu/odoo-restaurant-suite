@@ -1,6 +1,8 @@
+import base64
 import json
 from datetime import datetime, timedelta
 
+from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.einvoice_py.services.py_sifen_retry_execution_service import (
@@ -159,6 +161,134 @@ class TestPySifenRetryExecutionService(TransactionCase):
             signing_timestamp=self.NOW,
             endpoint_url="https://sifen-test.example.test/de",
         )
+
+    def _explicit_credential_kwargs(self):
+        return {
+            "certificate_bytes": b"certificate-secret-fixture",
+            "private_key_bytes": b"private-key-secret-fixture",
+            "private_key_password": "password-secret-fixture",
+            "endpoint_url": "https://sifen-test.example.test/de",
+        }
+
+    def _create_payload_attachment(self, payload=None):
+        return self.env["fiscal.attachment"].sudo().create_json_payload_attachment(
+            self.document,
+            "paraguay_payload_json",
+            "retry-payload.json",
+            payload or {"payload": "stored-fixture"},
+        )
+
+    def _create_signing_metadata_attachment(self, metadata_json=None):
+        return self.env["fiscal.attachment"].sudo().create({
+            "name": "retry-signed.xml",
+            "document_id": self.document.id,
+            "attachment_type": "paraguay_xml_signed",
+            "mimetype": "application/xml",
+            "filename": "retry-signed.xml",
+            "is_sensitive": True,
+            "metadata_json": metadata_json or json.dumps({
+                "signing_time": "2026-07-05T11:30:00",
+            }),
+        })
+
+    def test_missing_retry_inputs_are_reconstructed_from_attachments(self):
+        self._create_payload_attachment()
+        self._create_signing_metadata_attachment()
+        transmission = self._scheduled_transmission()
+
+        result = self.service.execute_retry(
+            transmission,
+            **self._explicit_credential_kwargs(),
+        )
+
+        self.assertEqual(result["execution_status"], "executed")
+        self.assertEqual(self.pipeline.calls[0][1]["payload"], {
+            "payload": "stored-fixture",
+        })
+        self.assertEqual(
+            self.pipeline.calls[0][1]["signing_timestamp"],
+            "2026-07-05T11:30:00",
+        )
+
+    def test_explicit_retry_inputs_bypass_attachment_reconstruction(self):
+        transmission = self._scheduled_transmission()
+        payload = {"payload": "explicit-fixture"}
+        signing_timestamp = datetime(2026, 7, 5, 10, 0, 0)
+
+        self.service.execute_retry(
+            transmission,
+            payload=payload,
+            signing_timestamp=signing_timestamp,
+            **self._explicit_credential_kwargs(),
+        )
+
+        self.assertIs(self.pipeline.calls[0][1]["payload"], payload)
+        self.assertIs(
+            self.pipeline.calls[0][1]["signing_timestamp"],
+            signing_timestamp,
+        )
+
+    def test_missing_payload_attachment_fails_safely_before_submission(self):
+        transmission = self._scheduled_transmission()
+
+        with self.assertRaisesRegex(ValidationError, "stored Paraguay payload"):
+            self.service.execute_retry(
+                transmission,
+                **self._explicit_credential_kwargs(),
+            )
+
+        self.assertEqual(self.pipeline.calls, [])
+
+    def test_malformed_payload_attachment_fails_without_parser_details(self):
+        attachment = self._create_payload_attachment()
+        attachment.ir_attachment_id.datas = base64.b64encode(
+            b"secret malformed payload {"
+        )
+        transmission = self._scheduled_transmission()
+
+        with self.assertRaises(ValidationError) as raised:
+            self.service.execute_retry(
+                transmission,
+                **self._explicit_credential_kwargs(),
+            )
+
+        message = str(raised.exception)
+        self.assertEqual(message, "Stored Paraguay retry payload is invalid.")
+        self.assertNotIn("secret malformed payload", message)
+        self.assertEqual(self.pipeline.calls, [])
+
+    def test_missing_signing_attachment_fails_safely_before_submission(self):
+        self._create_payload_attachment()
+        transmission = self._scheduled_transmission()
+
+        with self.assertRaisesRegex(ValidationError, "stored Paraguay signing metadata"):
+            self.service.execute_retry(
+                transmission,
+                **self._explicit_credential_kwargs(),
+            )
+
+        self.assertEqual(self.pipeline.calls, [])
+
+    def test_malformed_signing_metadata_fails_without_parser_details(self):
+        self._create_payload_attachment()
+        self._create_signing_metadata_attachment(
+            metadata_json='{"signing_time": "secret malformed timestamp"}',
+        )
+        transmission = self._scheduled_transmission()
+
+        with self.assertRaises(ValidationError) as raised:
+            self.service.execute_retry(
+                transmission,
+                **self._explicit_credential_kwargs(),
+            )
+
+        message = str(raised.exception)
+        self.assertEqual(
+            message,
+            "Stored Paraguay retry signing metadata is invalid.",
+        )
+        self.assertNotIn("secret malformed timestamp", message)
+        self.assertEqual(self.pipeline.calls, [])
 
     def test_successful_retry_executes_due_transmission(self):
         transmission = self._scheduled_transmission()
