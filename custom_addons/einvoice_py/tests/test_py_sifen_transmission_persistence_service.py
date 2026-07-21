@@ -4,6 +4,9 @@ from datetime import datetime
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 
+from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
+    PySifenCredentialConfigurationError,
+)
 from odoo.addons.einvoice_py.services.py_sifen_transmission_persistence_service import (
     PySifenTransmissionPersistenceService,
 )
@@ -21,6 +24,16 @@ class _SubmissionPipelineStub:
     def submit_production(self, **kwargs):
         self.calls.append(("production", kwargs))
         return dict(self.result)
+
+
+class _CredentialProviderStub:
+    def __init__(self, credentials):
+        self.credentials = credentials
+        self.documents = []
+
+    def resolve(self, *, document):
+        self.documents.append(document)
+        return self.credentials
 
 
 class TestPySifenTransmissionPersistenceService(TransactionCase):
@@ -111,6 +124,91 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
         self.assertTrue(transmission.finished_at)
         self.assertEqual(len(self.pipeline.calls), 1)
         self.assertEqual(self.pipeline.calls[0][0], "test")
+
+    def test_resolves_credentials_when_no_credential_inputs_are_supplied(self):
+        credentials = object()
+        provider = _CredentialProviderStub(credentials)
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            credential_provider=provider,
+        )
+
+        service.submit_and_persist(
+            document=self.document,
+            payload={"payload": "fixture"},
+            signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+        )
+
+        self.assertEqual(provider.documents, [self.document])
+        self.assertEqual(len(self.pipeline.calls), 1)
+        self.assertEqual(self.pipeline.calls[0][0], "test")
+        self.assertIs(self.pipeline.calls[0][1]["credentials"], credentials)
+
+    def test_credential_provider_failure_prevents_submission_and_persistence(self):
+        class _FailingCredentialProvider:
+            def resolve(self, *, document):
+                raise PySifenCredentialConfigurationError(
+                    "Paraguay SIFEN credentials are not configured."
+                )
+
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            credential_provider=_FailingCredentialProvider(),
+        )
+
+        with self.assertRaises(PySifenCredentialConfigurationError):
+            service.submit_and_persist(
+                document=self.document,
+                payload={"payload": "fixture"},
+                signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+            )
+
+        self.assertEqual(self.pipeline.calls, [])
+        self.assertFalse(self.env["fiscal.transmission"].search([
+            ("document_id", "=", self.document.id),
+        ]))
+
+    def test_supplied_runtime_credentials_bypass_resolution(self):
+        credentials = object()
+        provider = _CredentialProviderStub(object())
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            credential_provider=provider,
+        )
+
+        service.submit_and_persist(
+            document=self.document,
+            payload={"payload": "fixture"},
+            signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+            credentials=credentials,
+        )
+
+        self.assertEqual(provider.documents, [])
+        self.assertIs(self.pipeline.calls[0][1]["credentials"], credentials)
+
+    def test_explicit_credential_inputs_bypass_resolution(self):
+        provider = _CredentialProviderStub(object())
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            credential_provider=provider,
+        )
+
+        service.submit_and_persist(
+            document=self.document,
+            payload={"payload": "fixture"},
+            certificate_bytes=b"certificate-secret-fixture",
+            private_key_bytes=b"private-key-secret-fixture",
+            private_key_password="password-secret-fixture",
+            signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+            endpoint_url="https://sifen-test.example.test/de",
+        )
+
+        self.assertEqual(provider.documents, [])
+        self.assertNotIn("credentials", self.pipeline.calls[0][1])
 
     def test_idempotent_repeated_persistence_updates_existing_record(self):
         first = self._submit_and_persist()

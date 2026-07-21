@@ -823,18 +823,18 @@ Stage 8.7 adds `PySifenRetryExecutionService` for callable retry execution. It s
 
 Stage 8.8 adds `py.sifen.retry.runner` as a manual Odoo runner plus a disabled-by-default cron record. The runner delegates to `PySifenRetryExecutionService`, applies a small batch limit, selects due retries through the existing execution service, and logs only secret-free summary counts. Enabling the cron remains an administrator decision because sandbox retry execution still depends on configured submission inputs and credential boundaries.
 
-Stage 8 does not yet wire live SIFEN submission into adapter processing, manage mTLS/session credentials beyond transient provider output, perform trust-chain or revocation validation, or support production submission. The current persistence, retry scheduling, callable retry execution, and disabled automatic runner are test-only.
+Stage 8.15 adds automatic credential resolution at the persistence boundary. `PySifenTransmissionPersistenceService` defaults to `PySifenCredentialProvider`, resolves credentials only when callers provide neither `PySifenRuntimeCredentials` nor legacy explicit credential arguments, and passes the resolved runtime object transiently into the existing submission pipeline. Supplied runtime credentials bypass automatic resolution, while certificate, private-key, password, endpoint, mutual-TLS credential, and timeout arguments remain backward compatible. Retry execution reuses the same persistence service and therefore inherits automatic resolution. A credential-provider failure propagates before pipeline execution and before any `fiscal.transmission` is created.
 
-The remaining Stage 8 roadmap follows Option A: finish the reusable Paraguay SIFEN engine before adapter/Odoo process integration. The intended order is:
+The `einvoice_py` suite currently reports 367 counted tests across 327 test methods. Production service composition is covered with deterministic fixtures, but the tests do not make live SIFEN calls or validate real certificates, mutual TLS, or CSC behavior against the authority.
 
-* Stage 8.9 Credential Provider implementation
-* Stage 8.10 Production Submission support
-* Stage 8.11 Trust-chain Validation
-* Stage 8.12 Revocation Validation
-* Stage 8.13 Live Sandbox Validation
-* Stage 8.14 Adapter Integration
+Still pending:
 
-This keeps adapter integration last so credentials, production mode, trust, and revocation boundaries are designed before the engine is wired into tenant processing.
+* live SIFEN sandbox and production calls
+* real certificates and mutual-TLS validation
+* real CSC validation against SIFEN behavior
+* retry cron activation
+* autonomous retry payload reconstruction
+* operational monitoring and production go-live
 
 Future SIFEN work should build on:
 

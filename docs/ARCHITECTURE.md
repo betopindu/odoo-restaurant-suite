@@ -16,9 +16,9 @@ The core owns common fiscal concepts such as document lifecycle, events, transmi
 Country addons own country-specific concepts such as numbering, fiscal identifiers, payloads, authority-specific configuration, XML signing, QR generation, and authority integration.
 Paraguay includes an unsigned SIFEN-oriented XML builder, pinned local SIFEN v150 schemas, XMLDSig preparation/generation/verification, sensitive signed-XML attachment persistence, QR payload generation, and final official XSD validation. Tenant-scoped `fiscal.credential` references and separate adapter bindings preserve the distinction between XML signing and mutual TLS without persisting certificate bundles, PEM content, private keys, or passwords.
 
-Stages 8.9 through 8.13 complete the current production-capable service composition. `PySifenCredentialProvider` resolves a production document's adapter, scoped signing and mutual-TLS credentials, signing material, CSC, endpoint, and timeout into a fully redacted runtime object. `PySifenSubmissionService` and `PySifenSubmissionPipelineService` are environment-independent, while `PySifenTestSubmissionService` remains a compatibility wrapper for TEST callers. The pipeline dispatches TEST and PRODUCTION documents through the same signing, QR, final XML, XSD, and normalized submission implementation. `PySifenTransmissionPersistenceService` stores secret-free transmission results for either environment, and the existing scheduler and execution services accept eligible `test_submission` and `production_submission` transport failures with the same backoff, limits, idempotency, and stale-state protections. The retry runner and cron entry remain unchanged, and the cron remains disabled by default.
+Stages 8.9 through 8.15 complete the current production-capable service composition. `PySifenCredentialProvider` resolves a production document's adapter, scoped signing and mutual-TLS credentials, signing material, CSC, endpoint, and timeout into a fully redacted runtime object. `PySifenSubmissionService` and `PySifenSubmissionPipelineService` are environment-independent, while `PySifenTestSubmissionService` remains a compatibility wrapper for TEST callers. The pipeline dispatches TEST and PRODUCTION documents through the same signing, QR, final XML, XSD, and normalized submission implementation. `PySifenTransmissionPersistenceService` stores secret-free transmission results for either environment and now resolves runtime credentials automatically when neither runtime credentials nor legacy explicit credential arguments are supplied. Supplied runtime credentials bypass resolution, and legacy explicit arguments remain backward compatible. The existing scheduler and execution services accept eligible `test_submission` and `production_submission` transport failures with the same backoff, limits, idempotency, and stale-state protections; retry execution inherits automatic credential resolution through the persistence service. Provider failures occur before pipeline execution and transmission creation. The retry runner and cron entry remain unchanged, and the cron remains disabled by default.
 
-Stage 8.13 is tests-only: one deterministic integration scenario proves production credential resolution, pipeline dispatch, persistence, retry scheduling, retry execution, and final acceptance compose correctly without a network call. The current `einvoice_py` suite reports 363 counted tests across 323 test methods. This coverage is not live SIFEN certification. Real sandbox calls, authority-issued certificates and mutual TLS, real CSC behavior, cron activation, operational monitoring, and production go-live remain pending.
+Stage 8.13 is tests-only: one deterministic integration scenario proves production credential resolution, pipeline dispatch, persistence, retry scheduling, retry execution, and final acceptance compose correctly without a network call. Stage 8.15 moves automatic credential selection to the persistence boundary without changing environment dispatch, persistence mapping, or retry policy. The current `einvoice_py` suite reports 367 counted tests across 327 test methods. This coverage is not live SIFEN certification. Real sandbox calls, authority-issued certificates and mutual TLS, real CSC behavior, cron activation, autonomous retry payload reconstruction, operational monitoring, and production go-live remain pending.
 
 The sandbox transport continues to avoid persisting secret material to Odoo or logs. Because stdlib `ssl` requires temporary certificate/key files for `load_cert_chain`, it creates restrictive OS-managed temporary files only during SSL context construction and unlinks them immediately afterward. Trust-chain validation, revocation validation, official QR/cHashQR confirmation, QR image rendering, adapter processing integration, and KuDE/PDF remain future work.
 
@@ -90,6 +90,7 @@ Administrative UI labels should remain country-neutral whenever a generic concep
   * Paraguay SIFEN production transmission persistence
   * Paraguay SIFEN production retry scheduling and execution
   * Paraguay SIFEN production composition integration test
+  * Paraguay SIFEN automatic credential resolution at persistence
 * future `einvoice_cr`
 * future `einvoice_ar`
 
@@ -138,6 +139,7 @@ Fiscal Document
 -> Callable Retry Execution
 -> Automatic Retry Runner
 -> Production service composition (tested without live SIFEN calls)
+-> Automatic runtime credential resolution at persistence
 
 ## Related Documents
 

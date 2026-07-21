@@ -152,10 +152,10 @@ class TestPySifenProductionFlow(TransactionCase):
             "private_key_bytes": self.PRIVATE_KEY_SECRET,
             "password": self.PASSWORD_SECRET,
         })
-        credentials = PySifenCredentialProvider(
+        credential_provider = PySifenCredentialProvider(
             self.env,
             provider_registry=registry,
-        ).resolve(document=self.document)
+        )
 
         signed_xml = _pipeline_fixtures.TestPySifenSubmissionPipelineService._signed_xml(
             self
@@ -180,6 +180,7 @@ class TestPySifenProductionFlow(TransactionCase):
         persistence = PySifenTransmissionPersistenceService(
             self.env,
             submission_pipeline_service=pipeline,
+            credential_provider=credential_provider,
         )
         scheduler = PySifenRetrySchedulerService(
             self.env,
@@ -190,7 +191,6 @@ class TestPySifenProductionFlow(TransactionCase):
         submission_kwargs = {
             "payload": {"payload": "fixture"},
             "signing_timestamp": self.NOW,
-            "credentials": credentials,
         }
         first = persistence.submit_and_persist(
             document=self.document,
@@ -228,7 +228,15 @@ class TestPySifenProductionFlow(TransactionCase):
         self.assertEqual(len(qr.calls), 2)
         self.assertEqual(len(xsd.calls), 2)
         self.assertEqual(len(submission.calls), 2)
-        self.assertEqual(registry.credentials, [self.signing_credential])
+        self.assertEqual(
+            registry.credentials,
+            [self.signing_credential, self.signing_credential],
+        )
+
+        for call in signing.calls:
+            self.assertEqual(call["certificate_bytes"], self.CERTIFICATE_SECRET)
+            self.assertEqual(call["private_key_bytes"], self.PRIVATE_KEY_SECRET)
+            self.assertEqual(call["private_key_password"], self.PASSWORD_SECRET)
 
         for call in submission.calls:
             self.assertEqual(
@@ -245,7 +253,6 @@ class TestPySifenProductionFlow(TransactionCase):
             "first_result": first["result"],
             "retry_result": retry,
             "transmission": final_transmission.read()[0],
-            "credentials": repr(credentials),
         }, default=str, sort_keys=True)
         for secret in (
             self.CERTIFICATE_SECRET.decode(),

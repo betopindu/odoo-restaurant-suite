@@ -3,6 +3,9 @@ import json
 from odoo import fields
 from odoo.exceptions import ValidationError
 
+from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
+    PySifenCredentialProvider,
+)
 from odoo.addons.einvoice_py.services.py_sifen_submission_pipeline_service import (
     PySifenSubmissionPipelineService,
 )
@@ -13,10 +16,18 @@ class PySifenTransmissionPersistenceService:
 
     TRANSMISSION_TYPE = "submit"
 
-    def __init__(self, env, submission_pipeline_service=None):
+    def __init__(
+        self,
+        env,
+        submission_pipeline_service=None,
+        credential_provider=None,
+    ):
         self.env = env
         self.submission_pipeline_service = (
             submission_pipeline_service or PySifenSubmissionPipelineService(env)
+        )
+        self.credential_provider = (
+            credential_provider or PySifenCredentialProvider(env)
         )
 
     def submit_and_persist(self, **kwargs):
@@ -25,8 +36,15 @@ class PySifenTransmissionPersistenceService:
             raise ValidationError("SIFEN transmission persistence requires a document.")
         document.ensure_one()
         self._validate_document(document)
+        submission_kwargs = self._submission_kwargs(
+            document=document,
+            kwargs=kwargs,
+        )
         started_at = fields.Datetime.now()
-        result = self._submit_for_environment(document=document, kwargs=kwargs)
+        result = self._submit_for_environment(
+            document=document,
+            kwargs=submission_kwargs,
+        )
         finished_at = fields.Datetime.now()
         transmission = self.persist_result(
             document=document,
@@ -70,6 +88,25 @@ class PySifenTransmissionPersistenceService:
         if document.environment == "test":
             return self.submission_pipeline_service.submit_test(**kwargs)
         return self.submission_pipeline_service.submit_production(**kwargs)
+
+    def _submission_kwargs(self, *, document, kwargs):
+        if kwargs.get("credentials") is not None:
+            return kwargs
+        explicit_inputs = (
+            kwargs.get("certificate_bytes"),
+            kwargs.get("private_key_bytes"),
+            kwargs.get("private_key_password"),
+            kwargs.get("endpoint_url"),
+            kwargs.get("mutual_tls_credential"),
+            kwargs.get("timeout_seconds"),
+        )
+        if any(value is not None and value is not False for value in explicit_inputs):
+            return kwargs
+        submission_kwargs = dict(kwargs)
+        submission_kwargs["credentials"] = self.credential_provider.resolve(
+            document=document,
+        )
+        return submission_kwargs
 
     def _validate_result(self, result):
         if not isinstance(result, dict):
