@@ -827,13 +827,16 @@ Stage 8.15 adds automatic credential resolution at the persistence boundary. `Py
 
 Stage 8.16 makes retry inputs reconstructable from existing fiscal attachments. When omitted, `PySifenRetryExecutionService` reads the normalized payload only from `paraguay_payload_json` and the original signing timestamp only from the allow-listed `signing_time` value in `paraguay_xml_signed` metadata. Explicit payload and signing timestamp arguments continue to take precedence. Missing attachments, malformed JSON, and invalid signing metadata raise fixed, safe `ValidationError` messages without exposing attachment content, parser details, secrets, or raw XML.
 
-The `einvoice_py` suite currently reports 374 counted tests across 334 test methods. Production service composition is covered with deterministic fixtures, but the tests do not make live SIFEN calls or validate real certificates, mutual TLS, or CSC behavior against the authority.
+Stage 8.17 adds the configuration-driven `PySifenSandboxTransport.verify_document_connection()` preflight for Paraguay TEST documents. It resolves the endpoint, timeout, and mutual-TLS credential from the document's runtime credentials and delegates exclusively to the existing `verify_connection()` HEAD probe. It does not generate a payload or XML, create a POST request, or submit a document. An explicitly supplied credential provider always takes precedence, including a falsey provider instance. Fixed `ValidationError` messages with suppressed exception chaining prevent provider text, PKCS#12 and SSL details, passwords, certificate contents, and parser details from escaping.
+
+The `einvoice_py` suite currently reports 378 counted tests across 338 test methods. Production service composition and configuration-driven sandbox preflight are covered with deterministic fixtures, but the tests do not make live SIFEN calls or validate real certificates, mutual TLS, or CSC behavior against the authority.
 
 Still pending:
 
-* live SIFEN sandbox and production calls
-* real certificates and mutual-TLS validation
-* real CSC validation against SIFEN behavior
+* live SIFEN sandbox validation
+* real certificate installation and mutual-TLS certificates
+* authority and real CSC validation
+* production connection preflight
 * retry cron activation
 * operational monitoring and production go-live
 

@@ -12,6 +12,9 @@ from odoo.exceptions import ValidationError
 from odoo.addons.einvoice_module.services.credential_provider import (
     FiscalCredentialProviderRegistry,
 )
+from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
+    PySifenCredentialProvider,
+)
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
     PySifenConnectionError,
     PySifenDnsError,
@@ -131,6 +134,42 @@ class PySifenSandboxTransport:
             return self._verification_failure_result(PySifenTcpError())
         except OSError:
             return self._verification_failure_result(PySifenConnectionError())
+
+    def verify_document_connection(self, document, credential_provider=None):
+        """Verify a Paraguay TEST document's configured sandbox connection."""
+        document.ensure_one()
+        if (document.country_code or "").upper() != "PY":
+            raise ValidationError(
+                "SIFEN sandbox document connection verification requires a Paraguay document."
+            )
+        if document.environment != "test":
+            raise ValidationError(
+                "SIFEN sandbox document connection verification requires a TEST document."
+            )
+        provider = (
+            credential_provider
+            if credential_provider is not None
+            else PySifenCredentialProvider(
+                self.env,
+                provider_registry=self.provider_registry,
+            )
+        )
+        try:
+            credentials = provider.resolve(document=document)
+        except Exception:
+            raise ValidationError(
+                "SIFEN sandbox document connection credentials could not be resolved."
+            ) from None
+        try:
+            return self.verify_connection(
+                endpoint_url=credentials.endpoint_url,
+                timeout_seconds=credentials.timeout_seconds,
+                mutual_tls_credential=credentials.mutual_tls_credential,
+            )
+        except Exception:
+            raise ValidationError(
+                "SIFEN sandbox document connection verification could not be prepared."
+            ) from None
 
     def _validate_endpoint_url(self, endpoint_url):
         parsed = urlparse(endpoint_url or "")

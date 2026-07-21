@@ -2,6 +2,8 @@ import socket
 import ssl
 from io import BytesIO
 from datetime import datetime, timedelta
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 from urllib import error
 
 from cryptography import x509
@@ -85,6 +87,18 @@ class TestPySifenSandboxTransport(TransactionCase):
         )
         self.certificate = self._certificate(self.private_key)
         self.credential = self._credential()
+        self.document = self.env["fiscal.document"].create({
+            "name": "SIFEN Sandbox Transport Document",
+            "tenant_id": self.tenant.id,
+            "company_id": self.env.company.id,
+            "document_type": "invoice",
+            "country_code": "PY",
+            "environment": "test",
+            "adapter_code": "py_fake",
+            "customer_name": "Sandbox Customer",
+            "amount_total": 100,
+            "idempotency_key": self.id(),
+        })
         self.urlopen_calls = []
 
     def _credential(self, **overrides):
@@ -278,6 +292,135 @@ class TestPySifenSandboxTransport(TransactionCase):
         self.assertEqual(args[0].data, None)
         self.assertEqual(kwargs["timeout"], 5)
         self.assertIsInstance(kwargs["context"], ssl.SSLContext)
+
+    def test_verify_document_connection_delegates_resolved_configuration(self):
+        credentials = SimpleNamespace(
+            endpoint_url="https://sifen-test.example.test/de",
+            timeout_seconds=7,
+            mutual_tls_credential=self.credential,
+        )
+
+        class _FalseyCredentialProvider:
+            def __init__(self):
+                self.resolve = Mock(return_value=credentials)
+
+            def __bool__(self):
+                return False
+
+        credential_provider = _FalseyCredentialProvider()
+        transport = self._transport()
+        expected = {"ok": True, "category": "tls_handshake_success"}
+
+        with patch.object(
+            transport,
+            "verify_connection",
+            return_value=expected,
+        ) as verify_connection:
+            result = transport.verify_document_connection(
+                self.document,
+                credential_provider=credential_provider,
+            )
+
+        self.assertIs(result, expected)
+        credential_provider.resolve.assert_called_once_with(document=self.document)
+        verify_connection.assert_called_once_with(
+            endpoint_url="https://sifen-test.example.test/de",
+            timeout_seconds=7,
+            mutual_tls_credential=self.credential,
+        )
+        self.assertEqual(self.urlopen_calls, [])
+
+    def test_verify_document_connection_defaults_credential_provider(self):
+        credentials = SimpleNamespace(
+            endpoint_url="https://sifen-test.example.test/de",
+            timeout_seconds=8,
+            mutual_tls_credential=self.credential,
+        )
+        transport = self._transport()
+
+        with patch(
+            "odoo.addons.einvoice_py.services.py_sifen_sandbox_transport."
+            "PySifenCredentialProvider"
+        ) as provider_class, patch.object(
+            transport,
+            "verify_connection",
+            return_value={"ok": True},
+        ):
+            provider_class.return_value.resolve.return_value = credentials
+            transport.verify_document_connection(self.document)
+
+        provider_class.assert_called_once_with(
+            self.env,
+            provider_registry=transport.provider_registry,
+        )
+        provider_class.return_value.resolve.assert_called_once_with(
+            document=self.document,
+        )
+
+    def test_verify_document_connection_rejects_non_test_or_non_paraguay(self):
+        credential_provider = Mock()
+        transport = self._transport()
+
+        self.document.environment = "production"
+        with self.assertRaisesRegex(ValidationError, "TEST document"):
+            transport.verify_document_connection(
+                self.document,
+                credential_provider=credential_provider,
+            )
+
+        self.document.environment = "test"
+        self.document.country_code = "AR"
+        with self.assertRaisesRegex(ValidationError, "Paraguay document"):
+            transport.verify_document_connection(
+                self.document,
+                credential_provider=credential_provider,
+            )
+
+        credential_provider.resolve.assert_not_called()
+        self.assertEqual(self.urlopen_calls, [])
+
+    def test_verify_document_connection_failures_are_sanitized(self):
+        transport = self._transport()
+        credential_provider = Mock()
+        credential_provider.resolve.side_effect = RuntimeError(
+            "secret credential provider detail"
+        )
+
+        with self.assertRaises(ValidationError) as resolution_error:
+            transport.verify_document_connection(
+                self.document,
+                credential_provider=credential_provider,
+            )
+
+        self.assertEqual(
+            str(resolution_error.exception),
+            "SIFEN sandbox document connection credentials could not be resolved.",
+        )
+
+        credential_provider.resolve.side_effect = None
+        credential_provider.resolve.return_value = SimpleNamespace(
+            endpoint_url="https://sifen-test.example.test/de",
+            timeout_seconds=7,
+            mutual_tls_credential=self.credential,
+        )
+        with patch.object(
+            transport,
+            "verify_connection",
+            side_effect=ValidationError("secret material parser detail"),
+        ):
+            with self.assertRaises(ValidationError) as verification_error:
+                transport.verify_document_connection(
+                    self.document,
+                    credential_provider=credential_provider,
+                )
+
+        self.assertEqual(
+            str(verification_error.exception),
+            "SIFEN sandbox document connection verification could not be prepared.",
+        )
+        self.assertNotIn("secret", str(resolution_error.exception))
+        self.assertNotIn("secret", str(verification_error.exception))
+        self.assertEqual(self.urlopen_calls, [])
 
     def test_verify_connection_uses_default_timeout_when_omitted(self):
         transport = self._transport()
