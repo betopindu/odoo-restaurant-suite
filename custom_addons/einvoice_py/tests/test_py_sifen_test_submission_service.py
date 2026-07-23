@@ -1,4 +1,5 @@
 from lxml import etree
+from unittest.mock import patch
 
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
@@ -31,6 +32,8 @@ class _RejectingXsdValidator:
 
 class TestPySifenTestSubmissionService(TransactionCase):
     CDC = "01444444017001001001452822017012515873260988"
+    SOAP_ENV_NS = "http://www.w3.org/2003/05/soap-envelope"
+    SIFEN_NS = "http://ekuatia.set.gov.py/sifen/xsd"
 
     @classmethod
     def setUpClass(cls):
@@ -43,6 +46,22 @@ class TestPySifenTestSubmissionService(TransactionCase):
 
     def setUp(self):
         super().setUp()
+        self.submission_sequence = self.env["ir.sequence"].create({
+            "name": "SIFEN Test Submission Identifier",
+            "implementation": "no_gap",
+            "padding": 1,
+            "number_next": 1,
+            "number_increment": 1,
+        })
+        self.adapter = self.env["fiscal.adapter.config"].create({
+            "name": "SIFEN Test Adapter",
+            "tenant_id": self.tenant.id,
+            "company_id": self.env.company.id,
+            "country_code": "PY",
+            "adapter_code": "py",
+            "environment": "test",
+            "sequence_id": self.submission_sequence.id,
+        })
         self.document = self.env["fiscal.document"].create({
             "name": "SIFEN Test Document",
             "tenant_id": self.tenant.id,
@@ -51,6 +70,7 @@ class TestPySifenTestSubmissionService(TransactionCase):
             "country_code": "PY",
             "environment": "test",
             "adapter_code": "py_fake",
+            "adapter_config_id": self.adapter.id,
             "customer_name": "Test Customer",
             "amount_total": 100,
             "idempotency_key": self.id(),
@@ -122,7 +142,7 @@ class TestPySifenTestSubmissionService(TransactionCase):
 
     def _response_xml(self, code, message, receipt=""):
         return f"""<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+<soapenv:Envelope xmlns:soapenv="http://www.w3.org/2003/05/soap-envelope">
   <soapenv:Body>
     <ns0:rResEnviDE xmlns:ns0="http://ekuatia.set.gov.py/sifen/xsd">
       <ns0:dCodRes>{code}</ns0:dCodRes>
@@ -156,6 +176,7 @@ class TestPySifenTestSubmissionService(TransactionCase):
 
     def test_generic_submission_service_accepts_production_document(self):
         self.document.environment = "production"
+        self.adapter.environment = "production"
 
         result = self._generic_service().submit_final_xml(
             document=self.document,
@@ -171,6 +192,7 @@ class TestPySifenTestSubmissionService(TransactionCase):
 
     def test_generic_production_failure_message_is_environment_neutral(self):
         self.document.environment = "production"
+        self.adapter.environment = "production"
         service = self._generic_service(response={
             "status_code": 200,
             "content": b"<not-xml",
@@ -193,16 +215,130 @@ class TestPySifenTestSubmissionService(TransactionCase):
         request_xml = self.transport_calls[0]["body"]
         root = etree.fromstring(request_xml)
 
-        self.assertEqual(etree.QName(root).localname, "Envelope")
+        self.assertEqual(root.tag, f"{{{self.SOAP_ENV_NS}}}Envelope")
+        body = root.find(f"{{{self.SOAP_ENV_NS}}}Body")
+        self.assertIsNotNone(body)
+        request_node = body.find(f"{{{self.SIFEN_NS}}}rEnviDe")
+        self.assertIsNotNone(request_node)
         self.assertEqual(
-            root.find(".//{http://ekuatia.set.gov.py/sifen/xsd}DE").get("Id"),
+            [etree.QName(child).localname for child in request_node],
+            ["dId", "xDE"],
+        )
+        submission_id = request_node.findtext(f"{{{self.SIFEN_NS}}}dId")
+        self.assertRegex(submission_id, r"^\d{1,15}$")
+        document_node = request_node.find(f"{{{self.SIFEN_NS}}}xDE")
+        submitted_de = document_node.find(f"{{{self.SIFEN_NS}}}rDE")
+        self.assertIsNotNone(submitted_de)
+        self.assertEqual(
+            submitted_de.find(f"{{{self.SIFEN_NS}}}DE").get("Id"),
             self.CDC,
         )
-        self.assertIsNotNone(root.find(".//{http://ekuatia.set.gov.py/sifen/xsd}dCarQR"))
+        self.assertIsNotNone(submitted_de.find(f"{{{self.SIFEN_NS}}}gCamFuFD"))
         self.assertEqual(
             self.transport_calls[0]["mutual_tls_credential"],
             self.mutual_tls_credential,
         )
+
+    def test_soap_body_validates_against_official_synchronous_structure(self):
+        self._submit()
+        root = etree.fromstring(self.transport_calls[0]["body"])
+        request_node = root.find(
+            f"{{{self.SOAP_ENV_NS}}}Body/{{{self.SIFEN_NS}}}rEnviDe"
+        )
+        schema = etree.XMLSchema(etree.fromstring(f"""
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="{self.SIFEN_NS}"
+           xmlns="{self.SIFEN_NS}"
+           elementFormDefault="qualified">
+  <xs:element name="rEnviDe">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="dId">
+          <xs:simpleType>
+            <xs:restriction base="xs:integer">
+              <xs:totalDigits value="15"/>
+            </xs:restriction>
+          </xs:simpleType>
+        </xs:element>
+        <xs:element name="xDE">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:any namespace="{self.SIFEN_NS}" processContents="skip"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
+""".encode("utf-8")))
+
+        self.assertTrue(schema.validate(request_node), schema.error_log)
+
+    def test_submission_identifier_is_persistent_sequential_and_scoped(self):
+        with patch(
+            "odoo.addons.einvoice_py.services.py_sifen_test_submission_service.time.time",
+            return_value=1234567890,
+        ):
+            self._submit()
+            self._submit()
+        submission_ids = [
+            etree.fromstring(call["body"]).findtext(
+                f"{{{self.SOAP_ENV_NS}}}Body/"
+                f"{{{self.SIFEN_NS}}}rEnviDe/"
+                f"{{{self.SIFEN_NS}}}dId"
+            )
+            for call in self.transport_calls
+        ]
+
+        self.assertEqual(submission_ids, ["1", "2"])
+        self.assertTrue(all(value.isdigit() for value in submission_ids))
+        self.assertTrue(all(1 <= len(value) <= 15 for value in submission_ids))
+
+        other_company = self.env["res.company"].create({
+            "name": "Other SIFEN Test Company",
+        })
+        other_tenant = self.env["fiscal.tenant"].create({
+            "name": "Other SIFEN Test Tenant",
+            "code": f"other-{self.id()}",
+            "company_id": other_company.id,
+        })
+        other_sequence = self.env["ir.sequence"].create({
+            "name": "Other SIFEN Test Submission Identifier",
+            "implementation": "no_gap",
+            "padding": 1,
+            "number_next": 1,
+            "number_increment": 1,
+        })
+        other_adapter = self.env["fiscal.adapter.config"].create({
+            "name": "Other SIFEN Test Adapter",
+            "tenant_id": other_tenant.id,
+            "company_id": other_company.id,
+            "country_code": "PY",
+            "adapter_code": "py",
+            "environment": "test",
+            "sequence_id": other_sequence.id,
+        })
+        other_document = self.document.copy({
+            "name": "Other SIFEN Test Document",
+            "tenant_id": other_tenant.id,
+            "company_id": other_company.id,
+            "adapter_config_id": other_adapter.id,
+            "idempotency_key": f"other-{self.id()}",
+        })
+        self._service().submit_final_xml(
+            document=other_document,
+            final_xml_bytes=self._final_xml(),
+            endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.mutual_tls_credential,
+        )
+        other_submission_id = etree.fromstring(self.transport_calls[-1]["body"]).findtext(
+            f"{{{self.SOAP_ENV_NS}}}Body/"
+            f"{{{self.SIFEN_NS}}}rEnviDe/"
+            f"{{{self.SIFEN_NS}}}dId"
+        )
+
+        self.assertEqual(other_submission_id, "1")
 
     def test_local_xsd_failure_blocks_transport(self):
         service = self._service(validator=_RejectingXsdValidator())
@@ -374,7 +510,7 @@ class TestPySifenTestSubmissionService(TransactionCase):
 
     def test_soap_fault_is_retryable_and_normalized(self):
         fault = b"""<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+<soapenv:Envelope xmlns:soapenv="http://www.w3.org/2003/05/soap-envelope">
   <soapenv:Body>
     <soapenv:Fault>
       <faultcode>soapenv:Server</faultcode>

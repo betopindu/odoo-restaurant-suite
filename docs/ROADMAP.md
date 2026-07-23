@@ -67,6 +67,7 @@
 [x] Stage 8.15 Paraguay SIFEN automatic credential resolution at persistence
 [x] Stage 8.16 Paraguay SIFEN autonomous retry input reconstruction
 [x] Stage 8.17 Paraguay SIFEN configuration-driven sandbox preflight
+[x] Stage 8.18 Paraguay SIFEN SOAP 1.2 synchronous submission compliance
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -77,7 +78,7 @@
 
 ## Current Validation Status
 
-The `einvoice_py` suite currently reports 378 counted tests across 338 test methods, with production coverage for credential resolution, submission dispatch, fiscal transmission persistence, and eligible retry scheduling/execution. Stage 8.13 adds one tests-only composition scenario across those existing services. Stage 8.15 makes `PySifenTransmissionPersistenceService` resolve runtime credentials automatically when callers supply neither a runtime credential object nor legacy explicit credential arguments. Stage 8.16 lets retry execution reconstruct omitted inputs from fiscal attachments. Stage 8.17 adds `verify_document_connection()` as a configuration-driven, Paraguay TEST-only sandbox preflight that resolves endpoint, timeout, and mutual-TLS credentials from the document and delegates exclusively to the existing connection verifier. It generates no payload or XML and submits no document. Explicit credential providers, including falsey instances, take precedence, and fixed validation errors suppress provider and credential-material details. The coverage uses deterministic injected fixtures and makes no live SIFEN calls.
+The `einvoice_py` suite currently reports 380 counted tests across 340 test methods, with production coverage for credential resolution, submission dispatch, fiscal transmission persistence, and eligible retry scheduling/execution. Stage 8.13 adds one tests-only composition scenario across those existing services. Stage 8.15 makes `PySifenTransmissionPersistenceService` resolve runtime credentials automatically when callers supply neither a runtime credential object nor legacy explicit credential arguments. Stage 8.16 lets retry execution reconstruct omitted inputs from fiscal attachments. Stage 8.17 adds `verify_document_connection()` as a configuration-driven, Paraguay TEST-only sandbox preflight that resolves endpoint, timeout, and mutual-TLS credentials from the document and delegates exclusively to the existing connection verifier. Stage 8.18 makes synchronous DE submission use SOAP 1.2 with `application/soap+xml` and the official `rEnviDe/dId/xDE/rDE` structure. The numeric, 15-digit-maximum `dId` comes from the taxpayer-controlled persistent `fiscal.adapter.config.sequence_id`. Stage fixtures configure `no_gap`, but gapless allocation is not treated as a DNIT protocol requirement. The coverage uses deterministic injected fixtures and makes no live SIFEN calls.
 
 ## Next
 

@@ -174,7 +174,11 @@ class TestPySifenSandboxTransport(TransactionCase):
         self.assertEqual(result["status_code"], 200)
         args, kwargs = self.urlopen_calls[0]
         self.assertEqual(args[0].full_url, "https://sifen-test.example.test/de")
-        self.assertEqual(args[0].headers["Soapaction"], "submit")
+        self.assertEqual(
+            args[0].headers["Content-type"],
+            'application/soap+xml; charset=utf-8; action="submit"',
+        )
+        self.assertNotIn("Soapaction", args[0].headers)
         self.assertEqual(kwargs["timeout"], 12)
         self.assertIsInstance(kwargs["context"], ssl.SSLContext)
 

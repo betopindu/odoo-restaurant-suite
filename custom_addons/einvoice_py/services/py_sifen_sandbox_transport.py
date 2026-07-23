@@ -45,11 +45,11 @@ class PySifenSandboxTransport:
         self._validate_endpoint_url(endpoint_url)
         context = self._ssl_context_from_credential(mutual_tls_credential)
         headers = {
-            "Content-Type": "text/xml; charset=utf-8",
-            "Accept": "text/xml, application/xml",
+            "Content-Type": "application/soap+xml; charset=utf-8",
+            "Accept": "application/soap+xml, application/xml",
         }
         if soap_action:
-            headers["SOAPAction"] = soap_action
+            headers["Content-Type"] += f'; action="{soap_action}"'
         http_request = request.Request(
             endpoint_url,
             data=body,

@@ -43,7 +43,7 @@ class PySifenSubmissionService:
     and response normalization.
     """
 
-    SOAP_ENV_NS = "http://schemas.xmlsoap.org/soap/envelope/"
+    SOAP_ENV_NS = "http://www.w3.org/2003/05/soap-envelope"
     SIFEN_NS = PyUnsignedXmlBuilder.SIFEN_NS
 
     DEFAULT_TIMEOUT_SECONDS = 30
@@ -89,7 +89,7 @@ class PySifenSubmissionService:
                 "before submission."
             )
 
-        request_xml = self.build_soap_envelope(final_xml_bytes)
+        request_xml = self.build_soap_envelope(final_xml_bytes, document=document)
         started = time.monotonic()
         try:
             http_response = self._transport()(
@@ -118,7 +118,7 @@ class PySifenSubmissionService:
             environment=environment,
         )
 
-    def build_soap_envelope(self, final_xml_bytes):
+    def build_soap_envelope(self, final_xml_bytes, *, document):
         try:
             de_node = self._parse_xml(final_xml_bytes)
         except etree.XMLSyntaxError as error:
@@ -129,10 +129,37 @@ class PySifenSubmissionService:
             "sifen": self.SIFEN_NS,
         })
         body = etree.SubElement(envelope, f"{{{self.SOAP_ENV_NS}}}Body")
-        request_node = etree.SubElement(body, f"{{{self.SIFEN_NS}}}rEnviDE")
-        request_node.append(de_node)
+        request_node = etree.SubElement(body, f"{{{self.SIFEN_NS}}}rEnviDe")
+        etree.SubElement(request_node, f"{{{self.SIFEN_NS}}}dId").text = (
+            self._next_submission_id(document)
+        )
+        document_node = etree.SubElement(request_node, f"{{{self.SIFEN_NS}}}xDE")
+        document_node.append(de_node)
         etree.indent(envelope, space="  ")
         return etree.tostring(envelope, encoding="UTF-8", xml_declaration=True)
+
+    def _next_submission_id(self, document):
+        adapter = document.adapter_config_id
+        if (
+            not adapter
+            or adapter.tenant_id != document.tenant_id
+            or adapter.company_id != document.company_id
+            or adapter.environment != document.environment
+        ):
+            raise ValidationError(
+                "SIFEN submission identifier requires matching adapter configuration."
+            )
+        sequence = adapter.sequence_id
+        if not sequence:
+            raise ValidationError(
+                "SIFEN submission identifier sequence is required."
+            )
+        submission_id = sequence.next_by_id()
+        if not submission_id or not submission_id.isdigit() or len(submission_id) > 15:
+            raise ValidationError(
+                "SIFEN submission identifier sequence must generate 1 to 15 digits."
+            )
+        return submission_id
 
     def normalize_response(
         self,
@@ -269,11 +296,11 @@ class PySifenSubmissionService:
         if mutual_tls_credential:
             raise ValidationError(self.MUTUAL_TLS_TRANSPORT_ERROR)
         headers = {
-            "Content-Type": "text/xml; charset=utf-8",
-            "Accept": "text/xml, application/xml",
+            "Content-Type": "application/soap+xml; charset=utf-8",
+            "Accept": "application/soap+xml, application/xml",
         }
         if soap_action:
-            headers["SOAPAction"] = soap_action
+            headers["Content-Type"] += f'; action="{soap_action}"'
         http_request = request.Request(
             endpoint_url,
             data=body,

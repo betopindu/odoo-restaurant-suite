@@ -762,7 +762,7 @@ Stage 8.1 adds a pure service for test-environment submission. It:
 * requires an HTTPS SIFEN test endpoint supplied by the caller
 * rejects endpoint URLs containing credentials, query strings, or fragments
 * validates the final signed XML locally with `PyXsdValidationService.validate_final_signed_xml` before transport
-* builds a SOAP envelope containing the final `rDE`
+* builds the official SOAP 1.2 `rEnviDe/dId/xDE/rDE` envelope around the final `rDE`
 * delegates HTTP transport through an injectable transport callable
 * sanitizes retryable transport errors so raw exception text is not returned for later persistence
 * normalizes accepted, rejected, SOAP fault, malformed, and retryable transport outcomes into a secret-free result dictionary
@@ -829,7 +829,9 @@ Stage 8.16 makes retry inputs reconstructable from existing fiscal attachments. 
 
 Stage 8.17 adds the configuration-driven `PySifenSandboxTransport.verify_document_connection()` preflight for Paraguay TEST documents. It resolves the endpoint, timeout, and mutual-TLS credential from the document's runtime credentials and delegates exclusively to the existing `verify_connection()` HEAD probe. It does not generate a payload or XML, create a POST request, or submit a document. An explicitly supplied credential provider always takes precedence, including a falsey provider instance. Fixed `ValidationError` messages with suppressed exception chaining prevent provider text, PKCS#12 and SSL details, passwords, certificate contents, and parser details from escaping.
 
-The `einvoice_py` suite currently reports 378 counted tests across 338 test methods. Production service composition and configuration-driven sandbox preflight are covered with deterministic fixtures, but the tests do not make live SIFEN calls or validate real certificates, mutual TLS, or CSC behavior against the authority.
+Stage 8.18 makes synchronous DE submission compliant with the DNIT v150 wire structure. Requests use SOAP 1.2 with `application/soap+xml` and contain `rEnviDe`, a mandatory `dId`, `xDE`, and the signed `rDE` nested under `xDE`. The taxpayer-controlled, sequential `dId` is generated from the existing persistent `fiscal.adapter.config.sequence_id` and must be numeric with no more than 15 digits. Stage test configuration uses `no_gap`, but DNIT does not explicitly require gapless allocation; `no_gap` is therefore not treated as a protocol requirement.
+
+The `einvoice_py` suite currently reports 380 counted tests across 340 test methods. Production service composition, configuration-driven sandbox preflight, and SOAP 1.2 synchronous framing are covered with deterministic fixtures, but the tests do not make live SIFEN calls or validate real certificates, mutual TLS, or CSC behavior against the authority.
 
 Still pending:
 

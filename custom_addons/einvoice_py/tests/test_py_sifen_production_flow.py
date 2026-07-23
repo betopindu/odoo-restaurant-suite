@@ -87,6 +87,13 @@ class TestPySifenProductionFlow(TransactionCase):
 
     def setUp(self):
         super().setUp()
+        self.submission_sequence = self.env["ir.sequence"].create({
+            "name": "SIFEN Production Flow Submission Identifier",
+            "implementation": "no_gap",
+            "padding": 1,
+            "number_next": 1,
+            "number_increment": 1,
+        })
         self.adapter = self.env["fiscal.adapter.config"].create({
             "name": "SIFEN Production Flow",
             "tenant_id": self.tenant.id,
@@ -96,6 +103,7 @@ class TestPySifenProductionFlow(TransactionCase):
             "environment": "production",
             "endpoint_base_url": "https://sifen-production.example.test/de",
             "timeout_seconds": 12,
+            "sequence_id": self.submission_sequence.id,
         })
         self.csc = self.env["fiscal.py.csc"].create({
             "name": "SIFEN Production Flow CSC",
