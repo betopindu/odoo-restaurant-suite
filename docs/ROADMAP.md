@@ -69,6 +69,7 @@
 [x] Stage 8.17 Paraguay SIFEN configuration-driven sandbox preflight
 [x] Stage 8.18 Paraguay SIFEN SOAP 1.2 synchronous submission compliance
 [x] Stage 8.19 Paraguay qualified certificate documentation and lifecycle ADR
+[x] Stage 8.20 Concrete PKCS#12 Material Provider
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -83,7 +84,6 @@ The `einvoice_py` suite currently reports 380 counted tests across 340 test meth
 
 ## Next
 
-[ ] Stage 8.20 Concrete PKCS#12 Material Provider
 [ ] Stage 8.21 Qualified Certificate Installation Validation
 [ ] Stage 8.22 Live TEST mTLS Preflight
 [ ] Stage 8.23 First Live Synchronous TEST DE

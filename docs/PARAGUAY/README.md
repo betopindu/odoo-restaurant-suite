@@ -725,9 +725,17 @@ The credential services have different responsibilities:
 * `PySifenCredentialProvider` resolves the document adapter, scoped role bindings, XML-signing material, CSC, endpoint, and timeout into one fully redacted runtime object.
 * `FiscalCredentialMaterialProvider` defines the interface for loading referenced secret material transiently.
 * `FiscalCredentialProviderRegistry` selects the registered material provider for a credential.
-* A concrete provider that retrieves operational PKCS#12 material is still pending.
+* `ExternalSecretPkcs12MaterialProvider` is the concrete provider for `external_secret` PKCS#12 credentials.
 
-No encrypted Odoo storage, external secret-store, KMS, or PKCS#11/HSM provider is implemented yet, so the current repository cannot retrieve real secret material without a deployment-supplied provider. The provider boundary must remain independent of every specific Prestador Cualificado de Servicios de Confianza (PCSC) habilitado.
+`ExternalSecretPkcs12MaterialProvider` resolves the existing references without storing secret material in Odoo:
+
+* `secret_ref` must be an absolute `file://` reference to deployment-mounted PKCS#12 material.
+* `password_secret_ref` is optional and may be an absolute `file://` reference or an `env://VARIABLE_NAME` reference.
+* password files may contain one trailing line ending, which is removed when material is loaded.
+* missing, empty, oversized, invalid, or unsupported references fail with fixed errors that do not expose paths, variable names, operating-system errors, or secret content.
+* the provider returns only `{"pkcs12_bytes": ..., "password": ...}` and does not cache the result.
+
+Encrypted Odoo storage, KMS, and PKCS#11/HSM providers remain unimplemented. The implemented provider boundary remains independent of every specific Prestador Cualificado de Servicios de Confianza (PCSC) habilitado.
 
 Credential references and bindings are restricted to system administrators for now.
 
@@ -862,7 +870,6 @@ The `einvoice_py` suite currently reports 380 counted tests across 340 test meth
 Still pending:
 
 * live SIFEN sandbox validation
-* concrete PKCS#12 material provider
 * qualified certificate installation and role validation
 * live TEST mutual-TLS preflight
 * first live synchronous TEST DE

@@ -204,10 +204,13 @@ class TestFiscalCredentials(TransactionCase):
         class TestProvider(FiscalCredentialMaterialProvider):
             provider_type = "external_secret"
 
+        previous_provider = FiscalCredentialProviderRegistry.get_provider_class(
+            TestProvider.provider_type
+        )
         FiscalCredentialProviderRegistry.register(TestProvider)
         self.addCleanup(
-            FiscalCredentialProviderRegistry.unregister,
-            TestProvider.provider_type,
+            FiscalCredentialProviderRegistry.register,
+            previous_provider,
         )
 
         provider = FiscalCredentialProviderRegistry(self.env).get_provider(

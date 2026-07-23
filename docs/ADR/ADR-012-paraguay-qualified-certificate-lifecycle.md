@@ -39,7 +39,7 @@ Both bindings may reference the same `fiscal.credential`. Their separation is lo
 
 `PySifenCredentialProvider` resolves the document adapter, scoped bindings, XML-signing material, CSC, endpoint, and timeout into a redaction-safe runtime credential object. It does not define how secret bytes are retrieved.
 
-`FiscalCredentialMaterialProvider` is the boundary for transient retrieval of referenced material. The concrete PKCS#12 material provider remains pending. It must return material through the existing provider contract and must not depend on the identity or API of any specific Prestador Cualificado de Servicios de Confianza (PCSC) habilitado.
+`FiscalCredentialMaterialProvider` is the boundary for transient retrieval of referenced material. `ExternalSecretPkcs12MaterialProvider` implements the existing `external_secret` provider type. It reads PKCS#12 bytes from an absolute deployment-managed `file://` reference and resolves an optional password from a `file://` or `env://` reference. It returns material through the existing `pkcs12_bytes` and `password` contract and does not depend on the identity or API of any specific Prestador Cualificado de Servicios de Confianza (PCSC) habilitado.
 
 The supported operational certificate input is PKCS#12 (`.p12`). Normalized certificate, private-key, and password values remain transient and must not be logged, included in normalized results, or persisted in fiscal transmissions or payload attachments.
 
@@ -63,7 +63,7 @@ Certificate rotation is a configuration and deployment operation that must be co
 * The platform remains independent of every Prestador Cualificado de Servicios de Confianza (PCSC) habilitado.
 * A taxpayer may operate one qualified certificate for both XML signing and mutual TLS.
 * Role-specific validation and tenant isolation remain explicit.
-* A concrete PKCS#12 material provider is required before live preflight.
+* Deployment must mount the PKCS#12 material and configure its external references before live preflight.
 * Local success does not claim SIFEN trust or acceptance.
 * Certificate replacement does not require redesigning consumer services.
 * Operational procedures must track expiry and complete rotation before the active certificate becomes unusable.
