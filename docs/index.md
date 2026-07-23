@@ -69,6 +69,7 @@ Use ADRs to understand why the platform is shaped the way it is.
 * [ADR-009 CSC Only For QR](ADR/ADR-009-csc-only-for-qr.md): reserve CSC for future QR, not CDC.
 * [ADR-010 SIFEN XSD Validation Strategy](ADR/ADR-010-sifen-xsd-validation-strategy.md): distinguish pre-signature schema readiness from full official XSD validation.
 * [ADR-011 Paraguay Digital Signature Strategy](ADR/ADR-011-paraguay-digital-signature-strategy.md): define SIFEN XMLDSig placement, credential boundaries, artifact handling, and signature-before-QR ordering.
+* [ADR-012 Paraguay Qualified Certificate Lifecycle](ADR/ADR-012-paraguay-qualified-certificate-lifecycle.md): define qualified-certificate requirements, logical credential roles, provider-neutral PKCS#12 resolution, trust boundaries, and rotation.
 
 ## Country Implementations
 

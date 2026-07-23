@@ -698,7 +698,7 @@ The service supports:
 
 XML-signing certificates require `digitalSignature` and `contentCommitment`. Mutual-TLS certificates require `clientAuth` and require `digitalSignature` when KeyUsage is present.
 
-The service does not persist certificate bundles, private keys, or passwords. Tenant-safe secret-provider implementations, XML signing, trust-chain validation, and revocation validation are not implemented yet.
+The service does not persist certificate bundles, private keys, or passwords. XML signing is implemented by the signing pipeline. A concrete tenant-safe provider for retrieving operational secret material is still pending. Inspection is local preventive validation; it does not establish that SIFEN trusts the client certificate.
 
 ## Credential Architecture
 
@@ -718,13 +718,39 @@ It does not store private keys, PKCS#12 or PEM contents, or passwords.
 * `xml_signing`
 * `mutual_tls`
 
-Bindings require the credential and adapter configuration to belong to the same tenant and company. XML-signing and mutual-TLS roles may use different credentials.
+Bindings require the credential and adapter configuration to belong to the same tenant and company. XML-signing and mutual-TLS roles are logically separate and retain their role-specific validation. They may use different credentials, or both bindings may point to the same `fiscal.credential` when one qualified certificate satisfies both roles.
 
-`FiscalCredentialMaterialProvider` and `FiscalCredentialProviderRegistry` define the provider boundary only. No encrypted Odoo storage, external secret-store, KMS, or PKCS#11/HSM provider is implemented yet, so the architecture cannot retrieve production secret material.
+The credential services have different responsibilities:
+
+* `PySifenCredentialProvider` resolves the document adapter, scoped role bindings, XML-signing material, CSC, endpoint, and timeout into one fully redacted runtime object.
+* `FiscalCredentialMaterialProvider` defines the interface for loading referenced secret material transiently.
+* `FiscalCredentialProviderRegistry` selects the registered material provider for a credential.
+* A concrete provider that retrieves operational PKCS#12 material is still pending.
+
+No encrypted Odoo storage, external secret-store, KMS, or PKCS#11/HSM provider is implemented yet, so the current repository cannot retrieve real secret material without a deployment-supplied provider. The provider boundary must remain independent of every specific Prestador Cualificado de Servicios de Confianza (PCSC) habilitado.
 
 Credential references and bindings are restricted to system administrators for now.
 
 The legacy `fiscal.adapter.config` fields `certificate_ref` and `private_key_ref` remain temporarily for compatibility. They are references only and must never contain raw certificates, PKCS#12 or PEM content, passwords, or private-key material. Future work should migrate these references to role bindings before removing the legacy fields.
+
+## Qualified Certificate Lifecycle
+
+Real SIFEN TEST acceptance requires the taxpayer's Qualified Certificate issued by a Prestador Cualificado de Servicios de Confianza (PCSC) habilitado. The supported operational format is a password-protected PKCS#12 (`.p12`) bundle containing the certificate and corresponding private key.
+
+The same qualified certificate may be used for:
+
+* XML signing through the `xml_signing` binding
+* mutual-TLS client authentication through the `mutual_tls` binding
+
+The bindings remain distinct even when they reference the same credential. This is a logical separation between consumers and validation rules, not a requirement to install two physical certificates.
+
+The certificate inspection service validates structure, supported key characteristics, certificate/private-key correspondence, taxpayer RUC, validity interval, and role-specific usages. The signing pipeline then generates and verifies XMLDSig locally. These checks do not make a certificate trusted by the authority. SIFEN makes the final client-certificate trust and acceptance decision during mutual TLS and its authority validations.
+
+A self-signed certificate can exercise local parsing, XML signing, verification, and negative TLS scenarios. It must not be used as evidence that a real SIFEN TEST submission can be accepted.
+
+The qualified certificate has a one-year operational validity. Rotation must make replacement PKCS#12 material available through the configured material provider, inspect it for both required roles, update or replace the scoped credential bindings, and complete a TEST preflight before expiry and cutover. The signing, submission, persistence, and retry services continue consuming the existing credential interfaces and must not change for a certificate rotation.
+
+See [ADR-012 Paraguay Qualified Certificate Lifecycle](../ADR/ADR-012-paraguay-qualified-certificate-lifecycle.md).
 
 ## Signed XML Preparation
 
@@ -831,12 +857,15 @@ Stage 8.17 adds the configuration-driven `PySifenSandboxTransport.verify_documen
 
 Stage 8.18 makes synchronous DE submission compliant with the DNIT v150 wire structure. Requests use SOAP 1.2 with `application/soap+xml` and contain `rEnviDe`, a mandatory `dId`, `xDE`, and the signed `rDE` nested under `xDE`. The taxpayer-controlled, sequential `dId` is generated from the existing persistent `fiscal.adapter.config.sequence_id` and must be numeric with no more than 15 digits. Stage test configuration uses `no_gap`, but DNIT does not explicitly require gapless allocation; `no_gap` is therefore not treated as a protocol requirement.
 
-The `einvoice_py` suite currently reports 380 counted tests across 340 test methods. Production service composition, configuration-driven sandbox preflight, and SOAP 1.2 synchronous framing are covered with deterministic fixtures, but the tests do not make live SIFEN calls or validate real certificates, mutual TLS, or CSC behavior against the authority.
+The `einvoice_py` suite currently reports 380 counted tests across 340 test methods. Production service composition, configuration-driven sandbox preflight, and SOAP 1.2 synchronous framing are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
 
 Still pending:
 
 * live SIFEN sandbox validation
-* real certificate installation and mutual-TLS certificates
+* concrete PKCS#12 material provider
+* qualified certificate installation and role validation
+* live TEST mutual-TLS preflight
+* first live synchronous TEST DE
 * authority and real CSC validation
 * production connection preflight
 * retry cron activation
@@ -872,10 +901,12 @@ Future SIFEN work should build on:
 * [ADR-009 CSC Only For QR](../ADR/ADR-009-csc-only-for-qr.md)
 * [ADR-010 SIFEN XSD Validation Strategy](../ADR/ADR-010-sifen-xsd-validation-strategy.md)
 * [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digital-signature-strategy.md)
+* [ADR-012 Paraguay Qualified Certificate Lifecycle](../ADR/ADR-012-paraguay-qualified-certificate-lifecycle.md)
 
 ## Next Recommended Reading
 
 * [ADR-008 Paraguay Numbering Before CDC](../ADR/ADR-008-paraguay-numbering-before-cdc.md)
 * [ADR-009 CSC Only For QR](../ADR/ADR-009-csc-only-for-qr.md)
 * [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digital-signature-strategy.md)
+* [ADR-012 Paraguay Qualified Certificate Lifecycle](../ADR/ADR-012-paraguay-qualified-certificate-lifecycle.md)
 * [Paraguay Processing Diagram](../diagrams/paraguay-processing.mmd)

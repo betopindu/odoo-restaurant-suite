@@ -81,7 +81,9 @@ Certificate and private-key access will be abstracted behind tenant-safe credent
 * XML signing certificate and private key
 * mutual TLS certificate and private key
 
-Deployments may resolve both roles to the same qualified certificate when appropriate, but application code must not assume that they are the same credential.
+Deployments may resolve both roles to the same qualified certificate when appropriate. The two bindings remain logically distinct, but both may point to the same `fiscal.credential`; application code must not collapse the two roles or assume that they always use the same material.
+
+The operational requirements for qualified certificates, provider-neutral PKCS#12 resolution, trust boundaries, and rotation are defined in [ADR-012](ADR-012-paraguay-qualified-certificate-lifecycle.md).
 
 Private keys must not be stored in ordinary plaintext model fields. Credential references may identify encrypted Odoo storage, an external secret store, KMS/HSM infrastructure, or another protected provider.
 
@@ -124,6 +126,7 @@ Private keys must not be stored in ordinary plaintext model fields. Credential r
 * [ADR-008: Paraguay Numbering Before CDC](ADR-008-paraguay-numbering-before-cdc.md)
 * [ADR-009: CSC Only For QR](ADR-009-csc-only-for-qr.md)
 * [ADR-010: SIFEN XSD Validation Strategy](ADR-010-sifen-xsd-validation-strategy.md)
+* [ADR-012: Paraguay Qualified Certificate Lifecycle](ADR-012-paraguay-qualified-certificate-lifecycle.md)
 
 ## Related Documents
 

@@ -1,16 +1,21 @@
 flowchart TD
 
-A[Fiscal API]
---> B[Fiscal Document]
-
+A[Fiscal API] --> B[Fiscal Document]
 B --> C[Orchestrator]
-
 C --> D[Country Adapter]
-
 D --> E[Payload]
+E --> F[Unsigned XML]
+F --> G[XMLDSig]
+G --> H[QR]
+H --> I[XSD Validation]
+I --> J[SOAP 1.2]
+J --> K[mTLS Transport]
+K --> L[SIFEN]
+L --> M[Transmission Persistence / Retry]
 
-E --> F[Schema-Oriented Unsigned XML]
-
-F --> G[Signature Future]
-
-G --> H[Tax Authority]
+N[Fiscal Credential References] --> O[CredentialProvider]
+O --> P[PKCS#12 Material Provider]
+P --> Q[xml_signing Binding]
+P --> R[mutual_tls Binding]
+Q --> G
+R --> K

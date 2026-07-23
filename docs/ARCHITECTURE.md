@@ -20,7 +20,13 @@ Stages 8.9 through 8.18 complete the current production-capable service composit
 
 Stage 8.13 is tests-only: one deterministic integration scenario proves production credential resolution, pipeline dispatch, persistence, retry scheduling, retry execution, and final acceptance compose correctly without a network call. Stages 8.15 and 8.16 complete automatic credential and retry-input resolution. Stage 8.17 composes document configuration with the existing injectable sandbox connection verifier. Stage 8.18 completes SOAP 1.2 synchronous request framing. The current `einvoice_py` suite reports 380 counted tests across 340 test methods. This coverage is not live SIFEN certification. Live sandbox validation, real certificate installation and mutual TLS, authority and CSC validation, production preflight, cron activation, operational monitoring, and production go-live remain pending.
 
-The sandbox transport continues to avoid persisting secret material to Odoo or logs. Because stdlib `ssl` requires temporary certificate/key files for `load_cert_chain`, it creates restrictive OS-managed temporary files only during SSL context construction and unlinks them immediately afterward. Trust-chain validation, revocation validation, official QR/cHashQR confirmation, QR image rendering, adapter processing integration, and KuDE/PDF remain future work.
+Live SIFEN TEST acceptance requires the taxpayer's Qualified Certificate issued by a Prestador Cualificado de Servicios de Confianza (PCSC) habilitado. The supported operational input format is PKCS#12 (`.p12`). One certificate may be used for both XML signing and mutual TLS, but the adapter keeps the `xml_signing` and `mutual_tls` bindings logically separate; both bindings may point to the same `fiscal.credential`. This separation preserves explicit role validation and allows rotation without changing signing, submission, persistence, or retry consumers.
+
+The credential boundaries have distinct responsibilities. `PySifenCredentialProvider` resolves document-scoped adapter configuration, role bindings, signing material, CSC, endpoint, and timeout into a redaction-safe runtime object. `FiscalCredentialMaterialProvider` defines how referenced secret material is loaded transiently. A concrete provider capable of retrieving the real PKCS#12 bytes and password is still pending. That provider must remain independent of any specific Prestador Cualificado de Servicios de Confianza (PCSC) habilitado.
+
+Local inspection validates the certificate structure, private-key match, taxpayer RUC, validity interval, and key usages. Local XMLDSig verification proves the generated signature cryptographically, but neither operation establishes that SIFEN trusts the client certificate. SIFEN makes the final client-certificate trust decision during mutual TLS and its authority validations. A self-signed certificate remains useful for deterministic local tests and negative connection scenarios, but cannot obtain real SIFEN acceptance.
+
+The sandbox transport continues to avoid persisting secret material to Odoo or logs. Because stdlib `ssl` requires temporary certificate/key files for `load_cert_chain`, it creates restrictive OS-managed temporary files only during SSL context construction and unlinks them immediately afterward. The qualified certificate has a one-year operational validity and must be rotated before expiry. Replacement material can be introduced through the credential provider and bindings, inspected, and preflighted without modifying consumer services. Official QR/cHashQR confirmation, QR image rendering, adapter processing integration, and KuDE/PDF remain future work.
 
 Administrative UI labels should remain country-neutral whenever a generic concept exists. Country-specific terminology should be used only when there is no meaningful cross-country abstraction, such as Timbrado, CDC, CSC, issuer RUC, establishment, or point of issue.
 
@@ -112,8 +118,12 @@ Administrative UI labels should remain country-neutral whenever a generic concep
 * Unsigned and signed Paraguay XML are separate fiscal artifacts
 * Certificate inspection is transient and produces secret-free reports
 * XML-signing and mutual-TLS certificate roles are validated separately
+* The two certificate roles are logically separate and may resolve to one qualified certificate
 * Fiscal credentials store provider references and inspection metadata, not secret material
 * Adapter configurations bind XML-signing and mutual-TLS credentials independently
+* Qualified certificate material is resolved through provider-neutral credential boundaries
+* SIFEN, not local inspection, makes the final client-certificate trust decision
+* Certificate rotation must not require changes to credential-consuming services
 * Fiscal credential references and bindings are administrator-only until a narrower delegated access policy is designed
 
 See the [ADR index](index.md#adrs) for detailed decision records.
@@ -144,6 +154,11 @@ Fiscal Document
 -> Automatic runtime credential resolution at persistence
 -> Automatic retry input reconstruction from fiscal attachments
 -> Configuration-driven sandbox preflight (TEST only, no submission)
+-> Credential Provider / PKCS#12 Material
+-> XML Signing Binding
+-> Mutual-TLS Binding
+-> SOAP 1.2 Submission
+-> SIFEN Client-Certificate Trust Decision
 
 ## Related Documents
 
@@ -153,6 +168,7 @@ Fiscal Document
 * [ADR-001 Country Addons](ADR/ADR-001-country-addons.md)
 * [ADR-004 Multi-Tenant Shared Core](ADR/ADR-004-multi-tenant-shared-core.md)
 * [ADR-011 Paraguay Digital Signature Strategy](ADR/ADR-011-paraguay-digital-signature-strategy.md)
+* [ADR-012 Paraguay Qualified Certificate Lifecycle](ADR/ADR-012-paraguay-qualified-certificate-lifecycle.md)
 * [Paraguay Documentation](PARAGUAY/README.md)
 * [Diagrams Index](diagrams/README.md)
 
