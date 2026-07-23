@@ -3,6 +3,7 @@ from . import numbering_service
 from . import py_certificate_inspection_service
 from . import py_payload_builder
 from . import py_qr_generation_service
+from . import py_qualified_certificate_installation_service
 from . import py_sifen_retry_execution_service
 from . import py_sifen_retry_scheduler_service
 from . import py_sifen_credential_provider
@@ -31,4 +32,7 @@ from .py_sifen_credential_provider import (
 from .py_sifen_test_submission_service import (
     PySifenSubmissionService,
     PySifenTestSubmissionService,
+)
+from .py_qualified_certificate_installation_service import (
+    PyQualifiedCertificateInstallationValidationService,
 )

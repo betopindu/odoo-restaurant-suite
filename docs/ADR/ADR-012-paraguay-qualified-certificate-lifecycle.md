@@ -58,6 +58,8 @@ A self-signed certificate may be used only for local deterministic tests or deli
 
 Certificate rotation is a configuration and deployment operation that must be completed before the one-year certificate validity expires. Replacement PKCS#12 material must be made available through the configured material provider, inspected for the required roles, bound to the correct tenant/company/environment, and verified through the TEST preflight before cutover. Signing, submission, persistence, and retry services must continue consuming the same credential interfaces without code changes.
 
+`PyQualifiedCertificateInstallationValidationService` performs the installation inspection before preflight. It loads the referenced material through the existing registry, validates both logical bindings and both certificate roles through `PyCertificateInspectionService`, and stores only non-secret inspection metadata and reports. It does not contact SIFEN or invoke any document-processing service.
+
 ## Consequences
 
 * The platform remains independent of every Prestador Cualificado de Servicios de Confianza (PCSC) habilitado.

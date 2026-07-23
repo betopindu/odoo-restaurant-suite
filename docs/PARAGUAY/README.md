@@ -698,7 +698,7 @@ The service supports:
 
 XML-signing certificates require `digitalSignature` and `contentCommitment`. Mutual-TLS certificates require `clientAuth` and require `digitalSignature` when KeyUsage is present.
 
-The service does not persist certificate bundles, private keys, or passwords. XML signing is implemented by the signing pipeline. A concrete tenant-safe provider for retrieving operational secret material is still pending. Inspection is local preventive validation; it does not establish that SIFEN trusts the client certificate.
+The service does not persist certificate bundles, private keys, or passwords. XML signing is implemented by the signing pipeline, and `ExternalSecretPkcs12MaterialProvider` retrieves deployment-mounted PKCS#12 material transiently. Inspection is local preventive validation; it does not establish that SIFEN trusts the client certificate.
 
 ## Credential Architecture
 
@@ -736,6 +736,38 @@ The credential services have different responsibilities:
 * the provider returns only `{"pkcs12_bytes": ..., "password": ...}` and does not cache the result.
 
 Encrypted Odoo storage, KMS, and PKCS#11/HSM providers remain unimplemented. The implemented provider boundary remains independent of every specific Prestador Cualificado de Servicios de Confianza (PCSC) habilitado.
+
+### PKCS#12 Installation Validation
+
+Stage 8.21 adds `PyQualifiedCertificateInstallationValidationService` for offline installation validation. It does not generate XML, sign a document, construct an SSL context, open a network connection, or submit a DE.
+
+Installation procedure:
+
+1. Mount the PKCS#12 and, when file-based, its password outside the repository. Example fictitious locations are `/run/secrets/sifen/test-client.p12` and `/run/secrets/sifen/test-client-password`.
+2. Create one active `fiscal.credential` with `provider_type="external_secret"` and `material_format="pkcs12"`.
+3. Set `secret_ref` to an absolute reference such as `file:///run/secrets/sifen/test-client.p12`.
+4. Set the optional `password_secret_ref` to either `file:///run/secrets/sifen/test-client-password` or an environment reference such as `env://SIFEN_TEST_P12_PASSWORD`.
+5. Configure the Paraguay adapter with `credentials_mode="external_secret"`.
+6. Create exactly one `xml_signing` binding and one `mutual_tls` binding. Both bindings may point to the same credential.
+7. Run the validation service with the credential, adapter, expected taxpayer RUC, and optional inspection time:
+
+```python
+from odoo.addons.einvoice_py.services import (
+    PyQualifiedCertificateInstallationValidationService,
+)
+
+report = PyQualifiedCertificateInstallationValidationService(env).validate(
+    credential=credential,
+    adapter_config=adapter_config,
+    expected_ruc="80000000-0",
+)
+```
+
+The validation loads PKCS#12 material through `FiscalCredentialProviderRegistry` and delegates cryptographic inspection to `PyCertificateInspectionService` for both roles. It checks the password, X.509 certificate and private key presence, certificate/private-key match, end-entity status, expected RUC, validity interval, `digitalSignature`, `contentCommitment`, and `clientAuth`.
+
+Only certificate metadata, inspection status/time, and a secret-free report are persisted on `fiscal.credential`. The service does not persist the PKCS#12 bundle, password, or private key, and it does not copy complete filesystem paths or environment-variable names into inspection metadata or reports. Provider failures are represented by a fixed safe message.
+
+Never place `.p12` files, password files, plaintext passwords, or real secret references in source control. The paths and RUC above are examples only.
 
 Credential references and bindings are restricted to system administrators for now.
 
@@ -865,12 +897,11 @@ Stage 8.17 adds the configuration-driven `PySifenSandboxTransport.verify_documen
 
 Stage 8.18 makes synchronous DE submission compliant with the DNIT v150 wire structure. Requests use SOAP 1.2 with `application/soap+xml` and contain `rEnviDe`, a mandatory `dId`, `xDE`, and the signed `rDE` nested under `xDE`. The taxpayer-controlled, sequential `dId` is generated from the existing persistent `fiscal.adapter.config.sequence_id` and must be numeric with no more than 15 digits. Stage test configuration uses `no_gap`, but DNIT does not explicitly require gapless allocation; `no_gap` is therefore not treated as a protocol requirement.
 
-The `einvoice_py` suite currently reports 380 counted tests across 340 test methods. Production service composition, configuration-driven sandbox preflight, and SOAP 1.2 synchronous framing are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
+The `einvoice_py` suite currently reports 392 counted tests across 350 test methods. Production service composition, configuration-driven sandbox preflight, and SOAP 1.2 synchronous framing are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
 
 Still pending:
 
 * live SIFEN sandbox validation
-* qualified certificate installation and role validation
 * live TEST mutual-TLS preflight
 * first live synchronous TEST DE
 * authority and real CSC validation
