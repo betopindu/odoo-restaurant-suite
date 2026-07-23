@@ -1,3 +1,4 @@
+import json
 import socket
 import ssl
 from io import BytesIO
@@ -158,6 +159,31 @@ class TestPySifenSandboxTransport(TransactionCase):
             urlopen=urlopen or self._urlopen_response,
         )
 
+    def _configured_adapter(self, *, inspection_status="valid", errors=None):
+        adapter = self.env["fiscal.adapter.config"].create({
+            "name": "SIFEN TEST mTLS Preflight",
+            "tenant_id": self.tenant.id,
+            "company_id": self.env.company.id,
+            "country_code": "PY",
+            "adapter_code": "py",
+            "environment": "test",
+            "credentials_mode": "external_secret",
+            "endpoint_base_url": "https://sifen-test.example.test/de",
+        })
+        self.credential.write({
+            "inspection_status": inspection_status,
+            "inspection_report_json": json.dumps({
+                "errors": errors or [],
+            }),
+        })
+        self.env["fiscal.adapter.credential.binding"].create({
+            "adapter_config_id": adapter.id,
+            "credential_id": self.credential.id,
+            "role": "mutual_tls",
+        })
+        self.document.adapter_config_id = adapter
+        return adapter
+
     def _urlopen_response(self, *args, **kwargs):
         self.urlopen_calls.append((args, kwargs))
         return _Response()
@@ -287,9 +313,11 @@ class TestPySifenSandboxTransport(TransactionCase):
         )
 
         self.assertTrue(result["ok"])
-        self.assertEqual(result["category"], "tls_handshake_success")
+        self.assertEqual(result["category"], "endpoint_reachable")
         self.assertEqual(result["http_status"], 200)
         self.assertTrue(result["tls_handshake_succeeded"])
+        self.assertTrue(result["client_certificate_configured"])
+        self.assertTrue(result["server_certificate_verified"])
         self.assertEqual(result["error_class"], "")
         args, kwargs = self.urlopen_calls[0]
         self.assertEqual(args[0].get_method(), "HEAD")
@@ -313,7 +341,12 @@ class TestPySifenSandboxTransport(TransactionCase):
 
         credential_provider = _FalseyCredentialProvider()
         transport = self._transport()
-        expected = {"ok": True, "category": "tls_handshake_success"}
+        expected = {
+            "ok": True,
+            "category": "endpoint_reachable",
+            "http_status": 200,
+            "tls_handshake_succeeded": True,
+        }
 
         with patch.object(
             transport,
@@ -366,20 +399,20 @@ class TestPySifenSandboxTransport(TransactionCase):
         transport = self._transport()
 
         self.document.environment = "production"
-        with self.assertRaisesRegex(ValidationError, "TEST document"):
-            transport.verify_document_connection(
-                self.document,
-                credential_provider=credential_provider,
-            )
+        production_result = transport.verify_document_connection(
+            self.document,
+            credential_provider=credential_provider,
+        )
 
         self.document.environment = "test"
         self.document.country_code = "AR"
-        with self.assertRaisesRegex(ValidationError, "Paraguay document"):
-            transport.verify_document_connection(
-                self.document,
-                credential_provider=credential_provider,
-            )
+        country_result = transport.verify_document_connection(
+            self.document,
+            credential_provider=credential_provider,
+        )
 
+        self.assertEqual(production_result["category"], "configuration_invalid")
+        self.assertEqual(country_result["category"], "configuration_invalid")
         credential_provider.resolve.assert_not_called()
         self.assertEqual(self.urlopen_calls, [])
 
@@ -390,15 +423,9 @@ class TestPySifenSandboxTransport(TransactionCase):
             "secret credential provider detail"
         )
 
-        with self.assertRaises(ValidationError) as resolution_error:
-            transport.verify_document_connection(
-                self.document,
-                credential_provider=credential_provider,
-            )
-
-        self.assertEqual(
-            str(resolution_error.exception),
-            "SIFEN sandbox document connection credentials could not be resolved.",
+        resolution_result = transport.verify_document_connection(
+            self.document,
+            credential_provider=credential_provider,
         )
 
         credential_provider.resolve.side_effect = None
@@ -412,18 +439,21 @@ class TestPySifenSandboxTransport(TransactionCase):
             "verify_connection",
             side_effect=ValidationError("secret material parser detail"),
         ):
-            with self.assertRaises(ValidationError) as verification_error:
-                transport.verify_document_connection(
-                    self.document,
-                    credential_provider=credential_provider,
-                )
+            verification_result = transport.verify_document_connection(
+                self.document,
+                credential_provider=credential_provider,
+            )
 
         self.assertEqual(
-            str(verification_error.exception),
-            "SIFEN sandbox document connection verification could not be prepared.",
+            resolution_result["category"],
+            "configuration_invalid",
         )
-        self.assertNotIn("secret", str(resolution_error.exception))
-        self.assertNotIn("secret", str(verification_error.exception))
+        self.assertEqual(
+            verification_result["category"],
+            "configuration_invalid",
+        )
+        self.assertNotIn("secret", str(resolution_result))
+        self.assertNotIn("secret", str(verification_result))
         self.assertEqual(self.urlopen_calls, [])
 
     def test_verify_connection_uses_default_timeout_when_omitted(self):
@@ -452,8 +482,8 @@ class TestPySifenSandboxTransport(TransactionCase):
             mutual_tls_credential=self.credential,
         )
 
-        self.assertFalse(result["ok"])
-        self.assertEqual(result["category"], "http_failure")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["category"], "http_response_received")
         self.assertEqual(result["http_status"], 405)
         self.assertTrue(result["tls_handshake_succeeded"])
 
@@ -498,6 +528,142 @@ class TestPySifenSandboxTransport(TransactionCase):
         self.assertEqual(result["category"], "tls_failure")
         self.assertEqual(result["error_class"], "PySifenTlsError")
         self.assertNotIn("secret", result["message"])
+
+    def test_verify_connection_distinguishes_server_trust_failure(self):
+        verification_error = ssl.SSLCertVerificationError(
+            1,
+            "sensitive server certificate detail",
+        )
+
+        def urlopen(*args, **kwargs):
+            raise error.URLError(verification_error)
+
+        result = self._transport(urlopen=urlopen).verify_connection(
+            endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.credential,
+        )
+
+        self.assertEqual(result["category"], "server_certificate_untrusted")
+        self.assertNotIn("sensitive", json.dumps(result))
+
+    def test_verify_connection_distinguishes_client_certificate_rejection(self):
+        rejection = ssl.SSLError(1, "sensitive client certificate detail")
+        rejection.reason = "TLSV1_ALERT_UNKNOWN_CA"
+
+        def urlopen(*args, **kwargs):
+            raise error.URLError(rejection)
+
+        result = self._transport(urlopen=urlopen).verify_connection(
+            endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.credential,
+        )
+
+        self.assertEqual(result["category"], "client_certificate_rejected")
+        self.assertNotIn("sensitive", json.dumps(result))
+
+    def test_document_preflight_classifies_installed_credential_failures(self):
+        scenarios = (
+            (
+                "credential_password_invalid",
+                ["Certificate material could not be parsed or decrypted."],
+            ),
+            (
+                "certificate_expired",
+                ["Certificate is expired at the inspection time."],
+            ),
+            (
+                "credential_invalid",
+                ["Certificate must be an end-entity certificate, not a CA."],
+            ),
+        )
+        credential_provider = Mock()
+        for category, errors in scenarios:
+            with self.subTest(category=category):
+                adapter = self._configured_adapter(
+                    inspection_status="invalid",
+                    errors=errors,
+                )
+
+                result = self._transport().verify_document_connection(
+                    self.document,
+                    credential_provider=credential_provider,
+                )
+
+                self.assertEqual(result["category"], category)
+                credential_provider.resolve.assert_not_called()
+                persisted = json.loads(adapter.metadata_json)[
+                    "sifen_test_mtls_preflight"
+                ]
+                self.assertEqual(persisted["category"], category)
+                self.assertNotIn("errors", persisted)
+                adapter.credential_binding_ids.unlink()
+
+        missing_adapter = self._configured_adapter()
+        missing_adapter.credential_binding_ids.unlink()
+        missing_result = self._transport().verify_document_connection(
+            self.document,
+            credential_provider=credential_provider,
+        )
+        self.assertEqual(missing_result["category"], "credential_absent")
+        credential_provider.resolve.assert_not_called()
+
+        expired_adapter = self._configured_adapter()
+        self.credential.not_after = datetime(2020, 1, 1)
+        expired_result = self._transport().verify_document_connection(
+            self.document,
+            credential_provider=credential_provider,
+        )
+        self.assertEqual(expired_result["category"], "certificate_expired")
+        credential_provider.resolve.assert_not_called()
+        expired_adapter.credential_binding_ids.unlink()
+
+    def test_document_preflight_persists_only_safe_http_metadata(self):
+        adapter = self._configured_adapter()
+        credentials = SimpleNamespace(
+            endpoint_url="https://sifen-test.example.test/de",
+            timeout_seconds=7,
+            mutual_tls_credential=self.credential,
+        )
+        provider = Mock()
+        provider.resolve.return_value = credentials
+        result = {
+            "ok": True,
+            "category": "http_response_received",
+            "http_status": 405,
+            "tls_handshake_succeeded": True,
+            "message": "safe",
+        }
+        transport = self._transport()
+
+        with patch.object(
+            transport,
+            "verify_connection",
+            return_value=result,
+        ):
+            returned = transport.verify_document_connection(
+                self.document,
+                credential_provider=provider,
+            )
+
+        self.assertIs(returned, result)
+        persisted = json.loads(adapter.metadata_json)[
+            "sifen_test_mtls_preflight"
+        ]
+        self.assertEqual(
+            set(persisted),
+            {
+                "ok",
+                "category",
+                "http_status",
+                "client_certificate_configured",
+                "server_certificate_verified",
+                "tls_handshake_succeeded",
+                "checked_at",
+            },
+        )
+        self.assertTrue(persisted["ok"])
+        self.assertEqual(persisted["http_status"], 405)
+        self.assertNotIn(self.credential.secret_ref, adapter.metadata_json)
 
     def test_dns_failure_is_classified_for_submission(self):
         def urlopen(*args, **kwargs):

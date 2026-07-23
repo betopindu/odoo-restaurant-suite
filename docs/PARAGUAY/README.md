@@ -845,7 +845,7 @@ Stage 8.2 adds `PySifenSandboxTransport`, the first concrete transport for calli
 * separates connection failures, TLS failures, HTTP failures, SOAP faults, and authority business responses through typed errors and normalized metadata
 * returns HTTP error response bodies for normal response normalization instead of treating them as connection failures
 
-No provider that retrieves real secret material is implemented in this stage. Deployments must supply a registered credential provider outside this slice to load transient sandbox material from the configured `fiscal.credential` reference.
+`ExternalSecretPkcs12MaterialProvider` retrieves deployment-mounted PKCS#12 material and its optional password through the configured `file://` and `env://` references. It returns transient material through the existing provider contract.
 
 The transport does not persist private keys, PKCS#12 bundles, PEM content, passwords, or certificates to Odoo records and does not log secret material or temporary file paths. Python's stdlib `ssl` API requires filesystem paths for `load_cert_chain`, so the transport writes certificate and private-key PEM bytes only to OS-managed restrictive temporary files while constructing the `ssl.SSLContext`; those files are unlinked when context construction completes.
 
@@ -856,7 +856,7 @@ Stage 8.3 extends `PySifenSandboxTransport` with a live sandbox connection verif
 * builds the same mutual-TLS `ssl.SSLContext` used by sandbox submission
 * performs an HTTPS `HEAD` request so it does not require a valid DE payload
 * treats HTTP errors as proof that DNS, TCP, and TLS reached the remote authority
-* returns secret-free categories for DNS failure, TCP failure, TLS failure, HTTP failure, and successful TLS handshake
+* returns secret-free categories for configuration, credential, DNS, TCP, TLS, client-certificate rejection, server-certificate trust, endpoint reachability, and HTTP response outcomes
 * keeps `urlopen` injectable so automated tests use stubs and do not require live sandbox access
 
 Stage 8.4 adds `PySifenSubmissionPipelineService`, a test-environment orchestration layer. It executes the existing Paraguay services in order:
@@ -895,14 +895,40 @@ Stage 8.16 makes retry inputs reconstructable from existing fiscal attachments. 
 
 Stage 8.17 adds the configuration-driven `PySifenSandboxTransport.verify_document_connection()` preflight for Paraguay TEST documents. It resolves the endpoint, timeout, and mutual-TLS credential from the document's runtime credentials and delegates exclusively to the existing `verify_connection()` HEAD probe. It does not generate a payload or XML, create a POST request, or submit a document. An explicitly supplied credential provider always takes precedence, including a falsey provider instance. Fixed `ValidationError` messages with suppressed exception chaining prevent provider text, PKCS#12 and SSL details, passwords, certificate contents, and parser details from escaping.
 
+Stage 8.22 completes the live TEST mTLS preflight operation. Configure and validate the qualified PKCS#12 credential as described above, ensure the TEST document references the active Paraguay adapter, and run from an Odoo shell:
+
+```python
+from odoo.addons.einvoice_py.services import PySifenSandboxTransport
+
+result = PySifenSandboxTransport(env).verify_document_connection(document)
+```
+
+This operation loads the `external_secret` material, constructs the client-certificate SSL context with the system trust store, resolves DNS, opens TCP, performs the TLS handshake, verifies the server certificate, and issues an HTTPS `HEAD` to the configured TEST endpoint. It never builds a payload, SOAP envelope, or POST request and never submits a DE.
+
+Result categories are:
+
+* `configuration_invalid`: document or adapter configuration cannot support the preflight.
+* `credential_absent`: the required active `mutual_tls` binding is unavailable.
+* `credential_invalid`: installed credential material or metadata is invalid.
+* `credential_password_invalid`: the installation inspection could not decrypt the PKCS#12.
+* `certificate_expired`: the installation inspection reports an expired client certificate.
+* `dns_failure`: the TEST hostname could not be resolved.
+* `tcp_failure`: the TCP connection could not be opened before the timeout.
+* `tls_failure`: the TLS handshake failed without a more specific safe classification.
+* `client_certificate_rejected`: the peer returned a recognized TLS alert rejecting the client certificate.
+* `server_certificate_untrusted`: normal server-certificate verification failed.
+* `endpoint_reachable`: TLS succeeded and a normal HTTP response was received.
+* `http_response_received`: TLS succeeded and a non-2xx HTTP response was received.
+
+Both `endpoint_reachable` and `http_response_received` set `ok=True`: any HTTP status from the mTLS-required SIFEN endpoint proves that the configured client-certificate connection and endpoint access reached the HTTP layer, regardless of whether the status is 2xx. The result and the adapter's `sifen_test_mtls_preflight` metadata contain only status, category, HTTP status, safe booleans, and timestamp. They never contain complete paths, environment-variable names, provider exception text, certificate bytes, private keys, or passwords.
+
 Stage 8.18 makes synchronous DE submission compliant with the DNIT v150 wire structure. Requests use SOAP 1.2 with `application/soap+xml` and contain `rEnviDe`, a mandatory `dId`, `xDE`, and the signed `rDE` nested under `xDE`. The taxpayer-controlled, sequential `dId` is generated from the existing persistent `fiscal.adapter.config.sequence_id` and must be numeric with no more than 15 digits. Stage test configuration uses `no_gap`, but DNIT does not explicitly require gapless allocation; `no_gap` is therefore not treated as a protocol requirement.
 
-The `einvoice_py` suite currently reports 392 counted tests across 350 test methods. Production service composition, configuration-driven sandbox preflight, and SOAP 1.2 synchronous framing are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
+The `einvoice_py` suite currently reports 396 counted tests across 354 test methods. Production service composition, configuration-driven sandbox preflight, and SOAP 1.2 synchronous framing are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
 
 Still pending:
 
 * live SIFEN sandbox validation
-* live TEST mutual-TLS preflight
 * first live synchronous TEST DE
 * authority and real CSC validation
 * production connection preflight

@@ -1,3 +1,4 @@
+import json
 import socket
 import ssl
 import tempfile
@@ -7,12 +8,15 @@ from urllib import error, request
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.serialization import pkcs12
 
+from odoo import fields
 from odoo.exceptions import ValidationError
 
 from odoo.addons.einvoice_module.services.credential_provider import (
     FiscalCredentialProviderRegistry,
 )
 from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
+    PySifenCredentialConfigurationError,
+    PySifenCredentialMaterialError,
     PySifenCredentialProvider,
 )
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
@@ -101,37 +105,59 @@ class PySifenSandboxTransport:
         connectivity check. The default timeout is intentionally short because
         this is a connectivity probe, not a document submission.
         """
-        self._validate_endpoint_url(endpoint_url)
-        context = self._ssl_context_from_credential(mutual_tls_credential)
-        http_request = request.Request(endpoint_url, headers={"Accept": "*/*"}, method="HEAD")
         timeout_seconds = timeout_seconds or self.DEFAULT_VERIFY_TIMEOUT_SECONDS
+        if not mutual_tls_credential:
+            return self._verification_result(
+                category="credential_absent",
+                status_code=0,
+                tls_handshake_succeeded=False,
+            )
         try:
+            self._validate_endpoint_url(endpoint_url)
+            context = self._ssl_context_from_credential(mutual_tls_credential)
+            http_request = request.Request(
+                endpoint_url,
+                headers={"Accept": "*/*"},
+                method="HEAD",
+            )
             with self.urlopen(
                 http_request,
                 timeout=timeout_seconds,
                 context=context,
             ) as response:
                 return self._verification_result(
-                    category="tls_handshake_success",
+                    category="endpoint_reachable",
                     status_code=response.getcode(),
                     tls_handshake_succeeded=True,
                 )
         except error.HTTPError as http_error:
             return self._verification_result(
-                category="http_failure",
+                category="http_response_received",
                 status_code=http_error.code,
                 tls_handshake_succeeded=True,
             )
         except error.URLError as transport_error:
-            return self._verification_failure_result(
-                self._connection_error_from_reason(getattr(transport_error, "reason", None))
+            return self._verification_failure_from_reason(
+                getattr(transport_error, "reason", None)
             )
-        except ssl.SSLError:
-            return self._verification_failure_result(PySifenTlsError())
+        except ssl.SSLError as transport_error:
+            return self._verification_failure_from_reason(transport_error)
+        except PySifenTlsError:
+            return self._verification_result(
+                category="credential_invalid",
+                status_code=0,
+                tls_handshake_succeeded=False,
+            )
         except socket.gaierror:
             return self._verification_failure_result(PySifenDnsError())
         except (ConnectionRefusedError, TimeoutError, socket.timeout):
             return self._verification_failure_result(PySifenTcpError())
+        except ValidationError:
+            return self._verification_result(
+                category="configuration_invalid",
+                status_code=0,
+                tls_handshake_succeeded=False,
+            )
         except OSError:
             return self._verification_failure_result(PySifenConnectionError())
 
@@ -139,12 +165,28 @@ class PySifenSandboxTransport:
         """Verify a Paraguay TEST document's configured sandbox connection."""
         document.ensure_one()
         if (document.country_code or "").upper() != "PY":
-            raise ValidationError(
-                "SIFEN sandbox document connection verification requires a Paraguay document."
+            return self._persist_document_verification(
+                document,
+                self._verification_result(
+                    category="configuration_invalid",
+                    status_code=0,
+                    tls_handshake_succeeded=False,
+                ),
             )
         if document.environment != "test":
-            raise ValidationError(
-                "SIFEN sandbox document connection verification requires a TEST document."
+            return self._persist_document_verification(
+                document,
+                self._verification_result(
+                    category="configuration_invalid",
+                    status_code=0,
+                    tls_handshake_succeeded=False,
+                ),
+            )
+        installation_failure = self._installation_failure_result(document)
+        if installation_failure:
+            return self._persist_document_verification(
+                document,
+                installation_failure,
             )
         provider = (
             credential_provider
@@ -156,20 +198,121 @@ class PySifenSandboxTransport:
         )
         try:
             credentials = provider.resolve(document=document)
+        except PySifenCredentialConfigurationError:
+            result = self._verification_result(
+                category="configuration_invalid",
+                status_code=0,
+                tls_handshake_succeeded=False,
+            )
+            return self._persist_document_verification(document, result)
+        except PySifenCredentialMaterialError:
+            result = self._verification_result(
+                category="credential_invalid",
+                status_code=0,
+                tls_handshake_succeeded=False,
+            )
+            return self._persist_document_verification(document, result)
         except Exception:
-            raise ValidationError(
-                "SIFEN sandbox document connection credentials could not be resolved."
-            ) from None
+            result = self._verification_result(
+                category="configuration_invalid",
+                status_code=0,
+                tls_handshake_succeeded=False,
+            )
+            return self._persist_document_verification(document, result)
         try:
-            return self.verify_connection(
+            result = self.verify_connection(
                 endpoint_url=credentials.endpoint_url,
                 timeout_seconds=credentials.timeout_seconds,
                 mutual_tls_credential=credentials.mutual_tls_credential,
             )
         except Exception:
-            raise ValidationError(
-                "SIFEN sandbox document connection verification could not be prepared."
-            ) from None
+            result = self._verification_result(
+                category="configuration_invalid",
+                status_code=0,
+                tls_handshake_succeeded=False,
+            )
+        return self._persist_document_verification(document, result)
+
+    def _installation_failure_result(self, document):
+        adapter = document.adapter_config_id
+        if not adapter:
+            return None
+        bindings = adapter.credential_binding_ids.filtered(
+            lambda binding: (
+                binding.role == "mutual_tls"
+                and binding.credential_id.active
+            )
+        )
+        if len(bindings) != 1:
+            return self._verification_result(
+                category="credential_absent",
+                status_code=0,
+                tls_handshake_succeeded=False,
+            )
+        credential = bindings.credential_id
+        if (
+            credential.not_after
+            and credential.not_after < fields.Datetime.now()
+        ):
+            return self._verification_result(
+                category="certificate_expired",
+                status_code=0,
+                tls_handshake_succeeded=False,
+            )
+        if credential.inspection_status == "pending":
+            return None
+        try:
+            inspection_report = json.loads(
+                credential.inspection_report_json or "{}"
+            )
+        except (TypeError, ValueError):
+            return self._verification_result(
+                category="configuration_invalid",
+                status_code=0,
+                tls_handshake_succeeded=False,
+            )
+        errors = " ".join(inspection_report.get("errors") or [])
+        if "expired at the inspection time" in errors:
+            category = "certificate_expired"
+        elif "could not be parsed or decrypted" in errors:
+            category = "credential_password_invalid"
+        elif credential.inspection_status != "valid":
+            category = "credential_invalid"
+        else:
+            return None
+        return self._verification_result(
+            category=category,
+            status_code=0,
+            tls_handshake_succeeded=False,
+        )
+
+    def _persist_document_verification(self, document, result):
+        adapter = document.adapter_config_id
+        if not adapter:
+            return result
+        try:
+            metadata = json.loads(adapter.metadata_json or "{}")
+        except (TypeError, ValueError):
+            metadata = {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        metadata["sifen_test_mtls_preflight"] = {
+            "ok": bool(result.get("ok")),
+            "category": result.get("category", "configuration_invalid"),
+            "http_status": int(result.get("http_status") or 0),
+            "client_certificate_configured": bool(
+                result.get("client_certificate_configured")
+            ),
+            "server_certificate_verified": bool(
+                result.get("server_certificate_verified")
+            ),
+            "tls_handshake_succeeded": bool(
+                result.get("tls_handshake_succeeded")
+            ),
+            "checked_at": fields.Datetime.to_string(fields.Datetime.now()),
+        }
+        adapter.metadata_json = json.dumps(metadata, sort_keys=True)
+        return result
 
     def _validate_endpoint_url(self, endpoint_url):
         parsed = urlparse(endpoint_url or "")
@@ -288,6 +431,33 @@ class PySifenSandboxTransport:
             error_class=error.__class__.__name__,
         )
 
+    def _verification_failure_from_reason(self, reason):
+        if isinstance(reason, ssl.SSLCertVerificationError):
+            return self._verification_result(
+                category="server_certificate_untrusted",
+                status_code=0,
+                tls_handshake_succeeded=False,
+            )
+        if isinstance(reason, ssl.SSLError) and self._is_client_rejection(reason):
+            return self._verification_result(
+                category="client_certificate_rejected",
+                status_code=0,
+                tls_handshake_succeeded=False,
+            )
+        return self._verification_failure_result(
+            self._connection_error_from_reason(reason)
+        )
+
+    def _is_client_rejection(self, error):
+        reason = str(getattr(error, "reason", "") or "").upper()
+        return reason in {
+            "CERTIFICATE_REQUIRED",
+            "SSLV3_ALERT_BAD_CERTIFICATE",
+            "SSLV3_ALERT_CERTIFICATE_EXPIRED",
+            "TLSV1_ALERT_ACCESS_DENIED",
+            "TLSV1_ALERT_UNKNOWN_CA",
+        }
+
     def _verification_result(
         self,
         *,
@@ -297,21 +467,45 @@ class PySifenSandboxTransport:
         error_class="",
     ):
         return {
-            "ok": category == "tls_handshake_success",
+            "ok": category in {
+                "endpoint_reachable",
+                "http_response_received",
+            },
             "category": category,
             "http_status": int(status_code or 0),
             "tls_handshake_succeeded": bool(tls_handshake_succeeded),
+            "client_certificate_configured": category in {
+                "dns_failure",
+                "tcp_failure",
+                "tls_failure",
+                "client_certificate_rejected",
+                "server_certificate_untrusted",
+                "connection_failure",
+                "endpoint_reachable",
+                "http_response_received",
+            },
+            "server_certificate_verified": category in {
+                "endpoint_reachable",
+                "http_response_received",
+            },
             "error_class": error_class,
             "message": self._verification_message(category),
         }
 
     def _verification_message(self, category):
         messages = {
-            "tls_handshake_success": "SIFEN sandbox TLS handshake completed.",
+            "endpoint_reachable": "SIFEN TEST endpoint is reachable.",
+            "http_response_received": "SIFEN TEST endpoint returned an HTTP response.",
+            "configuration_invalid": "SIFEN TEST preflight configuration is invalid.",
+            "credential_absent": "SIFEN TEST mutual TLS credential is absent.",
+            "credential_invalid": "SIFEN TEST mutual TLS credential is invalid.",
+            "credential_password_invalid": "SIFEN TEST PKCS#12 password is invalid.",
+            "certificate_expired": "SIFEN TEST client certificate is expired.",
             "dns_failure": "SIFEN sandbox host could not be resolved.",
             "tcp_failure": "SIFEN sandbox TCP connection failed.",
             "tls_failure": "SIFEN sandbox TLS handshake failed.",
-            "http_failure": "SIFEN sandbox returned an HTTP failure after TLS handshake.",
+            "client_certificate_rejected": "SIFEN TEST rejected the client certificate.",
+            "server_certificate_untrusted": "SIFEN TEST server certificate is not trusted.",
             "connection_failure": "SIFEN sandbox connection failed.",
         }
         return messages.get(category, "SIFEN sandbox connection check failed.")
