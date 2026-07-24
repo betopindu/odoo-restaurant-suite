@@ -1,5 +1,7 @@
 import json
 
+from psycopg2 import errors
+
 from odoo import fields
 from odoo.exceptions import ValidationError
 
@@ -36,26 +38,132 @@ class PySifenTransmissionPersistenceService:
             raise ValidationError("SIFEN transmission persistence requires a document.")
         document.ensure_one()
         self._validate_document(document)
+        self._lock_document(document)
+        self._validate_not_accepted(document)
         submission_kwargs = self._submission_kwargs(
             document=document,
             kwargs=kwargs,
         )
+        self._persist_retry_payload(document, submission_kwargs.get("payload"))
         started_at = fields.Datetime.now()
+        transmission = self._create_pending_transmission(
+            document=document,
+            started_at=started_at,
+        )
+        document.with_context(einvoice_skip_fiscal_document_lock=True).write({
+            "state": "submitted",
+            "submitted_at": started_at,
+        })
         result = self._submit_for_environment(
             document=document,
             kwargs=submission_kwargs,
         )
+        self._validate_result(result)
         finished_at = fields.Datetime.now()
-        transmission = self.persist_result(
+        transmission.write(self._transmission_values(
             document=document,
             result=result,
             started_at=started_at,
             finished_at=finished_at,
-        )
+        ))
+        self._update_document_from_result(document, result)
         return {
             "result": result,
             "transmission_id": transmission.id,
         }
+
+    def _lock_document(self, document):
+        try:
+            with self.env.cr.savepoint():
+                self.env.cr.execute(
+                    """
+                    SELECT id
+                      FROM fiscal_document
+                     WHERE id = %s
+                     FOR UPDATE NOWAIT
+                    """,
+                    [document.id],
+                )
+                locked_id = self.env.cr.fetchone()
+        except errors.LockNotAvailable:
+            raise ValidationError(
+                "SIFEN submission is already in progress for this document."
+            ) from None
+        if not locked_id:
+            raise ValidationError("SIFEN submission document no longer exists.")
+
+    def _validate_not_accepted(self, document):
+        if document.state == "accepted":
+            raise ValidationError(
+                "An accepted fiscal document cannot be submitted again."
+            )
+        if self.env["fiscal.transmission"].sudo().search_count([
+            ("document_id", "=", document.id),
+            ("transmission_type", "=", self.TRANSMISSION_TYPE),
+            ("state", "=", "accepted"),
+        ]):
+            raise ValidationError(
+                "A fiscal document with an accepted transmission cannot be submitted again."
+            )
+
+    def _persist_retry_payload(self, document, payload):
+        if not isinstance(payload, dict):
+            raise ValidationError(
+                "SIFEN submission requires a dictionary payload."
+            )
+        attachment_model = self.env["fiscal.attachment"].sudo()
+        existing = attachment_model.search([
+            ("document_id", "=", document.id),
+            ("attachment_type", "=", "paraguay_payload_json"),
+        ], limit=1)
+        if existing:
+            return existing
+        return attachment_model.create_json_payload_attachment(
+            document,
+            "paraguay_payload_json",
+            f"{document.uuid}-paraguay-payload.json",
+            payload,
+        )
+
+    def _create_pending_transmission(self, *, document, started_at):
+        return self.env["fiscal.transmission"].sudo().create({
+            "document_id": document.id,
+            "transmission_type": self.TRANSMISSION_TYPE,
+            "state": "pending",
+            "country_code": (document.country_code or "").upper(),
+            "environment": document.environment,
+            "country_identifier": (
+                document.country_identifier or document.py_cdc or ""
+            ),
+            "attempt_number": self._next_attempt_number(document),
+            "started_at": started_at,
+            "metadata_json": json.dumps(
+                {
+                    "service": "py_sifen_transmission_persistence",
+                    "submission_status": "pending",
+                },
+                ensure_ascii=True,
+                separators=(",", ":"),
+                sort_keys=True,
+            ),
+        })
+
+    def _update_document_from_result(self, document, result):
+        state = self._state_from_result(result)
+        values = {
+            "state": state,
+            "authority_status": result.get("authority_code") or "",
+            "authority_receipt_ref": (
+                result.get("authority_receipt_ref") or ""
+            ),
+        }
+        if state == "accepted":
+            values["accepted_at"] = fields.Datetime.now()
+        elif state == "rejected":
+            values["rejected_at"] = fields.Datetime.now()
+        document.with_context(einvoice_skip_fiscal_document_lock=True).write(
+            values
+        )
 
     def persist_result(self, *, document, result, started_at=None, finished_at=None):
         document.ensure_one()
@@ -181,6 +289,9 @@ class PySifenTransmissionPersistenceService:
             "submission_status": result.get("submission_status") or "",
             "retryable": bool(result.get("retryable")),
             "retry_category": result.get("retry_category") or "",
+            "authority_receipt_ref": (
+                result.get("authority_receipt_ref") or ""
+            ),
         }
         return json.dumps(
             metadata,

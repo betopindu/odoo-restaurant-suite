@@ -91,7 +91,7 @@ class TestPySifenRetryExecutionService(TransactionCase):
             "qr_hash": "3" * 64,
             "qr_payload": "https://example.test/qr?IdCSC=0001&cHashQR=" + ("3" * 64),
             "submission_status": "accepted",
-            "authority_code": "0300",
+            "authority_code": "0260",
             "authority_message": "Aprobado",
             "request_hash": hash_seed * 64,
             "response_hash": "4" * 64,
@@ -299,7 +299,7 @@ class TestPySifenRetryExecutionService(TransactionCase):
         self.assertEqual(len(self.pipeline.calls), 1)
         result_transmission = self.env["fiscal.transmission"].browse(result["transmission_id"])
         self.assertEqual(result_transmission.state, "accepted")
-        self.assertEqual(result_transmission.authority_status_code, "0300")
+        self.assertEqual(result_transmission.authority_status_code, "0260")
         self.assertEqual(transmission.retry_state, "none")
         self.assertFalse(transmission.next_retry_at)
 

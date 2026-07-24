@@ -87,7 +87,7 @@ class TestPySifenRetryRunner(TransactionCase):
             "qr_hash": "3" * 64,
             "qr_payload": "https://example.test/qr?IdCSC=0001&cHashQR=" + ("3" * 64),
             "submission_status": "accepted",
-            "authority_code": "0300",
+            "authority_code": "0260",
             "authority_message": "Aprobado",
             "request_hash": hash_seed * 64,
             "response_hash": "4" * 64,

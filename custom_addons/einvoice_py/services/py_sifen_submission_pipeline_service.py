@@ -255,6 +255,7 @@ class PySifenSubmissionPipelineService:
             "submission_status": "",
             "authority_code": "",
             "authority_message": "",
+            "authority_receipt_ref": "",
             "request_hash": "",
             "response_hash": "",
             "retryable": False,
@@ -307,11 +308,21 @@ class PySifenSubmissionPipelineService:
         result["submission_status"] = submission_result.get("outcome", "")
         result["authority_code"] = submission_result.get("authority_status_code", "")
         result["authority_message"] = submission_result.get("authority_message", "")
+        result["authority_receipt_ref"] = submission_result.get(
+            "authority_receipt_ref",
+            "",
+        )
         result["request_hash"] = submission_result.get("request_hash", "")
         result["response_hash"] = submission_result.get("response_hash", "")
         result["retryable"] = bool(submission_result.get("retryable"))
         metadata = submission_result.get("metadata_json") or {}
         result["retry_category"] = metadata.get("transport_error_category", "")
+        if (
+            not result["retry_category"]
+            and result["retryable"]
+            and metadata.get("response_category") == "http_failure"
+        ):
+            result["retry_category"] = "http_failure"
 
     def _signed_xml_bytes(self, signing_result):
         if signing_result.get("signed_xml_bytes"):

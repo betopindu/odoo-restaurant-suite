@@ -56,7 +56,7 @@ class _SequencedSubmissionStub:
             }
         return {
             "outcome": "accepted",
-            "authority_status_code": "0300",
+            "authority_status_code": "0260",
             "authority_message": "Aprobado",
             "request_hash": "c" * 64,
             "response_hash": "d" * 64,
@@ -229,7 +229,7 @@ class TestPySifenProductionFlow(TransactionCase):
         )
 
         self.assertEqual(final_transmission.state, "accepted")
-        self.assertEqual(final_transmission.authority_status_code, "0300")
+        self.assertEqual(final_transmission.authority_status_code, "0260")
         self.assertEqual(retry["retry_status"], "not_retryable")
         self.assertFalse(final_transmission.next_retry_at)
         self.assertEqual(len(signing.calls), 2)

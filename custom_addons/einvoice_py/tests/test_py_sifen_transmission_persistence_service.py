@@ -1,6 +1,8 @@
 import json
 from datetime import datetime
+from types import SimpleNamespace
 
+from psycopg2 import errors
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 
@@ -24,6 +26,42 @@ class _SubmissionPipelineStub:
     def submit_production(self, **kwargs):
         self.calls.append(("production", kwargs))
         return dict(self.result)
+
+
+class _InspectingSubmissionPipelineStub(_SubmissionPipelineStub):
+    def __init__(self, result, callback):
+        super().__init__(result)
+        self.callback = callback
+
+    def submit_test(self, **kwargs):
+        self.callback()
+        return super().submit_test(**kwargs)
+
+
+class _FakeSavepoint:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
+
+class _FakeCursor:
+    def __init__(self, *, locked_id=None, error=None):
+        self.locked_id = locked_id
+        self.error = error
+        self.queries = []
+
+    def savepoint(self):
+        return _FakeSavepoint()
+
+    def execute(self, query, params):
+        self.queries.append((query, params))
+        if self.error:
+            raise self.error
+
+    def fetchone(self):
+        return (self.locked_id,) if self.locked_id else None
 
 
 class _CredentialProviderStub:
@@ -88,8 +126,9 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
                 + ("c" * 64)
             ),
             "submission_status": "accepted",
-            "authority_code": "0300",
+            "authority_code": "0260",
             "authority_message": "Aprobado",
+            "authority_receipt_ref": "12345",
             "request_hash": "d" * 64,
             "response_hash": "e" * 64,
         }
@@ -114,7 +153,7 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
         self.assertEqual(transmission.environment, "test")
         self.assertEqual(transmission.country_identifier, self.CDC)
         self.assertEqual(transmission.state, "accepted")
-        self.assertEqual(transmission.authority_status_code, "0300")
+        self.assertEqual(transmission.authority_status_code, "0260")
         self.assertEqual(transmission.authority_message, "Aprobado")
         self.assertEqual(transmission.request_hash, "d" * 64)
         self.assertEqual(transmission.response_hash, "e" * 64)
@@ -124,6 +163,55 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
         self.assertTrue(transmission.finished_at)
         self.assertEqual(len(self.pipeline.calls), 1)
         self.assertEqual(self.pipeline.calls[0][0], "test")
+        metadata = json.loads(transmission.metadata_json)
+        self.assertEqual(metadata["authority_receipt_ref"], "12345")
+        self.assertEqual(self.document.state, "accepted")
+        self.assertEqual(self.document.authority_status, "0260")
+        self.assertEqual(self.document.authority_receipt_ref, "12345")
+        self.assertTrue(self.document.submitted_at)
+        self.assertTrue(self.document.accepted_at)
+
+    def test_pending_transmission_and_retry_payload_exist_before_pipeline(self):
+        observed = {}
+
+        def inspect_pre_post_state():
+            transmission = self.env["fiscal.transmission"].search([
+                ("document_id", "=", self.document.id),
+            ])
+            payload_attachment = self.env["fiscal.attachment"].search([
+                ("document_id", "=", self.document.id),
+                ("attachment_type", "=", "paraguay_payload_json"),
+            ])
+            observed.update({
+                "transmission_state": transmission.state,
+                "document_state": self.document.state,
+                "payload_count": len(payload_attachment),
+            })
+
+        pipeline = _InspectingSubmissionPipelineStub(
+            self._accepted_result(),
+            inspect_pre_post_state,
+        )
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=pipeline,
+        )
+
+        service.submit_and_persist(
+            document=self.document,
+            payload={"payload": "fixture"},
+            certificate_bytes=b"certificate-secret-fixture",
+            private_key_bytes=b"private-key-secret-fixture",
+            private_key_password="password-secret-fixture",
+            signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+            endpoint_url="https://sifen-test.example.test/de",
+        )
+
+        self.assertEqual(observed, {
+            "transmission_state": "pending",
+            "document_state": "submitted",
+            "payload_count": 1,
+        })
 
     def test_resolves_credentials_when_no_credential_inputs_are_supplied(self):
         credentials = object()
@@ -210,19 +298,44 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
         self.assertEqual(provider.documents, [])
         self.assertNotIn("credentials", self.pipeline.calls[0][1])
 
-    def test_idempotent_repeated_persistence_updates_existing_record(self):
-        first = self._submit_and_persist()
-        self.pipeline.result["authority_message"] = "Aprobado nuevamente"
-        second = self._submit_and_persist()
+    def test_accepted_document_cannot_be_submitted_again(self):
+        self._submit_and_persist()
+
+        with self.assertRaisesRegex(ValidationError, "accepted fiscal document"):
+            self._submit_and_persist()
+
         transmissions = self.env["fiscal.transmission"].search([
             ("document_id", "=", self.document.id),
         ])
 
-        self.assertEqual(first["transmission_id"], second["transmission_id"])
         self.assertEqual(len(transmissions), 1)
-        self.assertEqual(transmissions.authority_message, "Aprobado nuevamente")
-        self.assertEqual(transmissions.attempt_number, 1)
-        self.assertEqual(len(self.pipeline.calls), 2)
+        self.assertEqual(len(self.pipeline.calls), 1)
+
+    def test_accepted_transmission_prevents_submission(self):
+        self.service.persist_result(
+            document=self.document,
+            result=self._accepted_result(),
+        )
+
+        with self.assertRaisesRegex(ValidationError, "accepted transmission"):
+            self._submit_and_persist()
+
+        self.assertEqual(self.pipeline.calls, [])
+
+    def test_concurrent_submission_lock_is_safe_and_uses_nowait(self):
+        cursor = _FakeCursor(locked_id=self.document.id)
+        service = object.__new__(PySifenTransmissionPersistenceService)
+        service.env = SimpleNamespace(cr=cursor)
+
+        service._lock_document(SimpleNamespace(id=self.document.id))
+
+        self.assertIn("FOR UPDATE NOWAIT", cursor.queries[0][0])
+        self.assertEqual(cursor.queries[0][1], [self.document.id])
+
+        locked_cursor = _FakeCursor(error=errors.LockNotAvailable())
+        service.env = SimpleNamespace(cr=locked_cursor)
+        with self.assertRaisesRegex(ValidationError, "already in progress"):
+            service._lock_document(SimpleNamespace(id=self.document.id))
 
     def test_persistence_after_submission_failure(self):
         self.pipeline.result = dict(self._accepted_result(), **{
@@ -278,21 +391,24 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
     def test_production_idempotency(self):
         self.document.environment = "production"
 
-        first = self._submit_and_persist()
+        first = self.service.persist_result(
+            document=self.document,
+            result=self._accepted_result(),
+        )
         self.pipeline.result["authority_message"] = "Aprobado nuevamente"
-        second = self._submit_and_persist()
+        second = self.service.persist_result(
+            document=self.document,
+            result=self.pipeline.result,
+        )
         transmissions = self.env["fiscal.transmission"].search([
             ("document_id", "=", self.document.id),
         ])
 
-        self.assertEqual(first["transmission_id"], second["transmission_id"])
+        self.assertEqual(first, second)
         self.assertEqual(len(transmissions), 1)
         self.assertEqual(transmissions.authority_message, "Aprobado nuevamente")
         self.assertEqual(transmissions.attempt_number, 1)
-        self.assertEqual([call[0] for call in self.pipeline.calls], [
-            "production",
-            "production",
-        ])
+        self.assertEqual(self.pipeline.calls, [])
 
     def test_production_failure_persistence(self):
         self.document.environment = "production"

@@ -178,6 +178,16 @@ class TestPySifenRetrySchedulerService(TransactionCase):
         self.assertEqual(result["retry_status"], "not_retryable")
         self.assertEqual(transmission.retry_state, "not_retryable")
 
+    def test_http_failure_schedules_retry(self):
+        transmission = self._transmission(
+            metadata_json=self._metadata(retry_category="http_failure"),
+        )
+
+        result = self.service.schedule_retry(transmission)
+
+        self.assertEqual(result["retry_status"], "scheduled")
+        self.assertEqual(transmission.retry_state, "scheduled")
+
     def test_production_submission_failure_schedules_retry(self):
         transmission = self._transmission(
             error_code="production_submission",

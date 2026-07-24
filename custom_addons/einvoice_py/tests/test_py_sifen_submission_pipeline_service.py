@@ -67,18 +67,21 @@ class _XsdValidationStub:
 
 
 class _SubmissionStub:
-    def __init__(self, error=None, outcome="accepted"):
+    def __init__(self, error=None, outcome="accepted", result=None):
         self.error = error
         self.outcome = outcome
+        self.result = result
         self.calls = []
 
     def submit_final_xml(self, **kwargs):
         self.calls.append(kwargs)
         if self.error:
             raise self.error
+        if self.result is not None:
+            return dict(self.result)
         return {
             "outcome": self.outcome,
-            "authority_status_code": "0300" if self.outcome == "accepted" else "1300",
+            "authority_status_code": "0260" if self.outcome == "accepted" else "1300",
             "authority_message": "Aprobado" if self.outcome == "accepted" else "Rechazado",
             "request_hash": "c" * 64,
             "response_hash": "d" * 64,
@@ -192,7 +195,7 @@ class TestPySifenSubmissionPipelineService(TransactionCase):
         self.assertEqual(result["qr_hash"], "b" * 64)
         self.assertTrue(result["qr_payload"].startswith("https://example.test/qr?"))
         self.assertEqual(result["submission_status"], "accepted")
-        self.assertEqual(result["authority_code"], "0300")
+        self.assertEqual(result["authority_code"], "0260")
         self.assertEqual(result["authority_message"], "Aprobado")
         self.assertEqual(result["request_hash"], "c" * 64)
         self.assertEqual(result["response_hash"], "d" * 64)
@@ -200,6 +203,24 @@ class TestPySifenSubmissionPipelineService(TransactionCase):
         self.assertNotIn("private-key-secret-fixture", serialized)
         self.assertNotIn("certificate-secret-fixture", serialized)
         self.assertNotIn("password-secret-fixture", serialized)
+
+    def test_http_5xx_failure_has_scheduler_retry_category(self):
+        self.submission.result = {
+            "outcome": "transport_error",
+            "authority_status_code": "",
+            "authority_message": "SIFEN submission failed.",
+            "authority_receipt_ref": "",
+            "request_hash": "c" * 64,
+            "response_hash": "d" * 64,
+            "retryable": True,
+            "metadata_json": {"response_category": "http_failure"},
+        }
+
+        result = self._submit()
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["retryable"])
+        self.assertEqual(result["retry_category"], "http_failure")
 
     def test_generic_submit_reuses_single_pipeline_execution(self):
         self.document.environment = "production"

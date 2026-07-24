@@ -96,7 +96,7 @@ class TestPySifenTestSubmissionService(TransactionCase):
                 raise transport_error
             return response or {
                 "status_code": 200,
-                "content": self._response_xml("0300", "Aprobado", "12345"),
+                "content": self._response_xml("0260", "Aprobado", "12345"),
             }
 
         return PySifenTestSubmissionService(
@@ -114,7 +114,7 @@ class TestPySifenTestSubmissionService(TransactionCase):
             self.transport_calls.append(kwargs)
             return response or {
                 "status_code": 200,
-                "content": self._response_xml("0300", "Aprobado", "12345"),
+                "content": self._response_xml("0260", "Aprobado", "12345"),
             }
 
         return PySifenSubmissionService(
@@ -153,6 +153,7 @@ class TestPySifenTestSubmissionService(TransactionCase):
 </soapenv:Envelope>""".encode("utf-8")
 
     def _submit(self, **overrides):
+        response = overrides.pop("response", None)
         values = {
             "document": self.document,
             "final_xml_bytes": self._final_xml(),
@@ -160,19 +161,34 @@ class TestPySifenTestSubmissionService(TransactionCase):
             "mutual_tls_credential": self.mutual_tls_credential,
         }
         values.update(overrides)
-        return self._service().submit_final_xml(**values)
+        return self._service(response=response).submit_final_xml(**values)
 
     def test_accepted_sifen_test_response_is_normalized(self):
         result = self._submit()
 
         self.assertEqual(result["outcome"], "accepted")
-        self.assertEqual(result["authority_status_code"], "0300")
+        self.assertEqual(result["authority_status_code"], "0260")
         self.assertEqual(result["authority_message"], "Aprobado")
         self.assertEqual(result["authority_receipt_ref"], "12345")
         self.assertEqual(result["country_identifier"], self.CDC)
         self.assertFalse(result["retryable"])
         self.assertEqual(len(result["request_hash"]), 64)
         self.assertEqual(len(result["response_hash"]), 64)
+
+    def test_synchronous_lot_code_is_not_accepted(self):
+        result = self._submit(
+            response={
+                "status_code": 200,
+                "content": self._response_xml(
+                    "0300",
+                    "Lote recibido",
+                    "12345",
+                ),
+            },
+        )
+
+        self.assertEqual(result["outcome"], "rejected")
+        self.assertEqual(result["authority_status_code"], "0300")
 
     def test_generic_submission_service_accepts_production_document(self):
         self.document.environment = "production"

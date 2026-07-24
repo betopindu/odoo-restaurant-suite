@@ -14,6 +14,7 @@ class PySifenRetrySchedulerService:
         "connection_failure",
         "tls_failure",
         "transport_failure",
+        "http_failure",
     }
     RETRYABLE_SUBMISSION_STAGES = {
         "test_submission",

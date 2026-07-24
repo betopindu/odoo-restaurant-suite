@@ -47,7 +47,7 @@ class PySifenSubmissionService:
     SIFEN_NS = PyUnsignedXmlBuilder.SIFEN_NS
 
     DEFAULT_TIMEOUT_SECONDS = 30
-    DEFAULT_ACCEPTED_CODES = {"0300"}
+    DEFAULT_ACCEPTED_CODES = {"0260"}
     DEFAULT_RETRYABLE_CODES = {"0500", "0501", "0600"}
     ALLOWED_ENVIRONMENTS = {"test", "production"}
     REQUIRED_ENVIRONMENT = None
