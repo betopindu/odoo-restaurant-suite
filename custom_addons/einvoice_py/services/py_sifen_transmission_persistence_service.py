@@ -40,6 +40,7 @@ class PySifenTransmissionPersistenceService:
         self._validate_document(document)
         self._lock_document(document)
         self._validate_not_accepted(document)
+        self._validate_no_ambiguous_submission(document)
         submission_kwargs = self._submission_kwargs(
             document=document,
             kwargs=kwargs,
@@ -104,6 +105,25 @@ class PySifenTransmissionPersistenceService:
         ]):
             raise ValidationError(
                 "A fiscal document with an accepted transmission cannot be submitted again."
+            )
+
+    def _validate_no_ambiguous_submission(self, document):
+        cdc = (document.country_identifier or document.py_cdc or "").strip()
+        if not cdc:
+            return
+        if self.env["fiscal.transmission"].sudo().search_count([
+            ("transmission_type", "=", self.TRANSMISSION_TYPE),
+            ("country_code", "=", "PY"),
+            ("environment", "=", "test"),
+            ("tenant_id", "=", document.tenant_id.id),
+            ("company_id", "=", document.company_id.id),
+            ("country_identifier", "=", cdc),
+            "|",
+            ("state", "=", "sent"),
+            ("error_code", "=", "ambiguous_submission"),
+        ]):
+            raise ValidationError(
+                "SIFEN submission status is ambiguous; Consulta DE reconciliation is required."
             )
 
     def _persist_retry_payload(self, document, payload):
@@ -225,6 +245,7 @@ class PySifenTransmissionPersistenceService:
             )
 
     def _transmission_values(self, *, document, result, started_at, finished_at):
+        ambiguous = bool(result.get("ambiguous"))
         return {
             "document_id": document.id,
             "transmission_type": self.TRANSMISSION_TYPE,
@@ -236,7 +257,11 @@ class PySifenTransmissionPersistenceService:
             "response_hash": result.get("response_hash") or "",
             "authority_status_code": result.get("authority_code") or "",
             "authority_message": result.get("authority_message") or "",
-            "error_code": result.get("failed_stage") or "",
+            "error_code": (
+                "ambiguous_submission"
+                if ambiguous
+                else result.get("failed_stage") or ""
+            ),
             "error_message": result.get("error_message") or "",
             "error_type": "sifen_submission_pipeline" if result.get("failed_stage") else "",
             "signed_xml_sha256": result.get("signed_xml_sha256") or "",
@@ -268,6 +293,8 @@ class PySifenTransmissionPersistenceService:
         return max(attempts or [0]) + 1
 
     def _state_from_result(self, result):
+        if result.get("ambiguous"):
+            return "manual_review"
         status = result.get("submission_status")
         if status == "accepted":
             return "accepted"
@@ -289,6 +316,12 @@ class PySifenTransmissionPersistenceService:
             "submission_status": result.get("submission_status") or "",
             "retryable": bool(result.get("retryable")),
             "retry_category": result.get("retry_category") or "",
+            "ambiguous": bool(result.get("ambiguous")),
+            "resolution_status": (
+                "remote_query_required"
+                if result.get("ambiguous")
+                else ""
+            ),
             "authority_receipt_ref": (
                 result.get("authority_receipt_ref") or ""
             ),

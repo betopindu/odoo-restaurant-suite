@@ -1,6 +1,8 @@
 from . import cdc_service
 from . import numbering_service
 from . import py_certificate_inspection_service
+from . import py_sifen_ambiguous_reconciliation_service
+from . import py_sifen_consulta_de_service
 from . import py_payload_builder
 from . import py_qr_generation_service
 from . import py_qualified_certificate_installation_service
@@ -29,6 +31,10 @@ from .py_sifen_credential_provider import (
     PySifenCredentialScopeError,
     PySifenRuntimeCredentials,
 )
+from .py_sifen_ambiguous_reconciliation_service import (
+    PySifenAmbiguousSubmissionReconciliationService,
+)
+from .py_sifen_consulta_de_service import PySifenConsultaDeService
 from .py_sifen_test_submission_service import (
     PySifenSubmissionService,
     PySifenTestSubmissionService,

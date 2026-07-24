@@ -1,0 +1,404 @@
+import hashlib
+
+from lxml import etree
+
+from odoo import fields
+from odoo.exceptions import ValidationError
+
+from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
+    PySifenCredentialProvider,
+    PySifenRuntimeCredentials,
+)
+from odoo.addons.einvoice_py.services.py_sifen_sandbox_transport import (
+    PySifenSandboxTransport,
+)
+from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
+    PySifenTransportError,
+)
+from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import (
+    PyUnsignedXmlBuilder,
+)
+
+
+class PySifenConsultaDeService:
+    """Query an approved SIFEN TEST DTE by CDC and persist a safe audit record."""
+
+    SOAP_ENV_NS = "http://www.w3.org/2003/05/soap-envelope"
+    SIFEN_NS = PyUnsignedXmlBuilder.SIFEN_NS
+    TEST_ENDPOINT_URL = (
+        "https://sifen-test.set.gov.py/de/ws/consultas/consulta.wsdl"
+    )
+
+    def __init__(
+        self,
+        env,
+        *,
+        credential_provider=None,
+        transport=None,
+        endpoint_url=None,
+    ):
+        self.env = env
+        self.credential_provider = (
+            credential_provider
+            if credential_provider is not None
+            else PySifenCredentialProvider(env)
+        )
+        self.transport = (
+            transport
+            if transport is not None
+            else PySifenSandboxTransport(env)
+        )
+        self.endpoint_url = endpoint_url or self.TEST_ENDPOINT_URL
+
+    def query(self, *, document, cdc=None, credentials=None):
+        document.ensure_one()
+        self._validate_document(document)
+        cdc = self._cdc(document, cdc)
+        started_at = fields.Datetime.now()
+        transmission = self._create_transmission(
+            document=document,
+            cdc=cdc,
+            started_at=started_at,
+        )
+        request_hash = ""
+        try:
+            runtime_credentials = (
+                credentials
+                if credentials is not None
+                else self.credential_provider.resolve(document=document)
+            )
+            if not isinstance(runtime_credentials, PySifenRuntimeCredentials):
+                raise ValidationError(
+                    "SIFEN Consulta DE runtime credentials are invalid."
+                )
+            request_xml = self.build_request(document=document, cdc=cdc)
+            request_hash = hashlib.sha256(request_xml).hexdigest()
+            response = self.transport(
+                endpoint_url=self.endpoint_url,
+                body=request_xml,
+                timeout_seconds=runtime_credentials.timeout_seconds,
+                mutual_tls_credential=runtime_credentials.mutual_tls_credential,
+            )
+            result = self.normalize_response(
+                response=response,
+                request_hash=request_hash,
+                expected_cdc=cdc,
+            )
+        except PySifenTransportError:
+            result = self._failure_result(
+                category="transport_failure",
+                message="SIFEN Consulta DE did not return a response.",
+                retryable=True,
+            )
+        except ValidationError:
+            result = self._failure_result(
+                category="configuration_invalid",
+                message="SIFEN Consulta DE configuration is invalid.",
+                retryable=False,
+            )
+        except Exception:
+            result = self._failure_result(
+                category="consulta_failure",
+                message="SIFEN Consulta DE could not be completed.",
+                retryable=False,
+            )
+        if request_hash and not result.get("request_hash"):
+            result["request_hash"] = request_hash
+        self._finish_transmission(
+            transmission=transmission,
+            result=result,
+            finished_at=fields.Datetime.now(),
+        )
+        result["transmission_id"] = transmission.id
+        return result
+
+    def build_request(self, *, document, cdc):
+        envelope = etree.Element(
+            f"{{{self.SOAP_ENV_NS}}}Envelope",
+            nsmap={
+                "soap": self.SOAP_ENV_NS,
+                "sifen": self.SIFEN_NS,
+            },
+        )
+        body = etree.SubElement(
+            envelope,
+            f"{{{self.SOAP_ENV_NS}}}Body",
+        )
+        request_node = etree.SubElement(
+            body,
+            f"{{{self.SIFEN_NS}}}rEnviConsDeRequest",
+        )
+        etree.SubElement(
+            request_node,
+            f"{{{self.SIFEN_NS}}}dId",
+        ).text = self._next_query_id(document)
+        etree.SubElement(
+            request_node,
+            f"{{{self.SIFEN_NS}}}dCDC",
+        ).text = cdc
+        etree.indent(envelope, space="  ")
+        return etree.tostring(
+            envelope,
+            encoding="UTF-8",
+            xml_declaration=True,
+        )
+
+    def normalize_response(self, *, response, request_hash, expected_cdc):
+        status_code = self._response_status_code(response)
+        content = self._response_content(response)
+        response_hash = hashlib.sha256(content).hexdigest() if content else ""
+        base = {
+            "ok": False,
+            "category": "malformed_response",
+            "http_status": status_code,
+            "request_hash": request_hash,
+            "response_hash": response_hash,
+            "authority_code": "",
+            "authority_message": "",
+            "authority_receipt_ref": "",
+            "approved": False,
+            "not_approved": False,
+            "retryable": False,
+        }
+        if not content:
+            base["authority_message"] = "SIFEN Consulta DE response was empty."
+            return base
+        try:
+            root = self._parse_xml(content)
+        except (TypeError, ValueError, etree.XMLSyntaxError):
+            base["authority_message"] = "SIFEN Consulta DE response was malformed."
+            return base
+
+        fault = root.find(
+            f".//{{{self.SOAP_ENV_NS}}}Fault",
+        )
+        if fault is not None:
+            base.update({
+                "category": "soap_fault",
+                "authority_code": "SOAPFault",
+                "authority_message": "SIFEN Consulta DE returned a SOAP Fault.",
+                "retryable": True,
+            })
+            return base
+
+        response_node = root.find(
+            f".//{{{self.SIFEN_NS}}}rEnviConsDeResponse",
+        )
+        if response_node is None:
+            base["authority_message"] = "SIFEN Consulta DE response was malformed."
+            return base
+        authority_code = self._direct_text(response_node, "dCodRes")
+        authority_message = self._direct_text(response_node, "dMsgRes")
+        receipt_ref = self._direct_text(response_node, "dProtAut")
+        base.update({
+            "authority_code": authority_code,
+            "authority_message": authority_message,
+            "authority_receipt_ref": receipt_ref,
+        })
+        if status_code < 200 or status_code >= 300:
+            base.update({
+                "category": "http_failure",
+                "retryable": status_code >= 500,
+            })
+            return base
+        if authority_code == "0420":
+            base.update({
+                "ok": True,
+                "category": "not_approved",
+                "not_approved": True,
+            })
+            return base
+        if authority_code != "0422":
+            base.update({
+                "category": "unsupported_response",
+                "retryable": status_code >= 500,
+            })
+            return base
+
+        returned_cdc = self._returned_cdc(response_node)
+        if returned_cdc != expected_cdc:
+            base.update({
+                "category": "cdc_mismatch",
+                "authority_message": (
+                    "SIFEN Consulta DE returned content for a different CDC."
+                ),
+            })
+            return base
+        base.update({
+            "ok": True,
+            "category": "approved",
+            "approved": True,
+        })
+        return base
+
+    def _validate_document(self, document):
+        if (document.country_code or "").upper() != "PY":
+            raise ValidationError(
+                "SIFEN Consulta DE requires a Paraguay document."
+            )
+        if document.environment != "test":
+            raise ValidationError(
+                "SIFEN Consulta DE supports TEST documents only."
+            )
+
+    def _cdc(self, document, supplied_cdc):
+        cdc = (
+            supplied_cdc
+            or document.country_identifier
+            or document.py_cdc
+            or ""
+        ).strip()
+        if not cdc.isdigit() or len(cdc) != 44:
+            raise ValidationError(
+                "SIFEN Consulta DE requires a 44-digit CDC."
+            )
+        document_cdc = (
+            document.country_identifier or document.py_cdc or ""
+        ).strip()
+        if document_cdc and document_cdc != cdc:
+            raise ValidationError(
+                "SIFEN Consulta DE CDC must match the document CDC."
+            )
+        return cdc
+
+    def _next_query_id(self, document):
+        adapter = document.adapter_config_id
+        if (
+            not adapter
+            or not adapter.active
+            or (adapter.country_code or "").upper() != "PY"
+            or adapter.environment != "test"
+            or adapter.tenant_id != document.tenant_id
+            or adapter.company_id != document.company_id
+            or not adapter.sequence_id
+        ):
+            raise ValidationError(
+                "SIFEN Consulta DE requires matching adapter configuration."
+            )
+        query_id = adapter.sequence_id.next_by_id()
+        if not query_id or not query_id.isdigit() or len(query_id) > 15:
+            raise ValidationError(
+                "SIFEN Consulta DE dId must contain 1 to 15 digits."
+            )
+        return query_id
+
+    def _returned_cdc(self, response_node):
+        container = response_node.find(
+            f"{{{self.SIFEN_NS}}}xContenDE",
+        )
+        if container is None:
+            return ""
+        de_node = container.find(f".//{{{self.SIFEN_NS}}}DE")
+        if de_node is not None:
+            return (de_node.get("Id") or "").strip()
+        text = (container.text or "").strip()
+        if not text:
+            return ""
+        try:
+            parsed = self._parse_xml(text.encode("utf-8"))
+        except (TypeError, ValueError, etree.XMLSyntaxError):
+            return ""
+        if parsed.tag == f"{{{self.SIFEN_NS}}}DE":
+            de_node = parsed
+        else:
+            de_node = parsed.find(f".//{{{self.SIFEN_NS}}}DE")
+        return (de_node.get("Id") or "").strip() if de_node is not None else ""
+
+    def _parse_xml(self, content):
+        parser = etree.XMLParser(
+            resolve_entities=False,
+            load_dtd=False,
+            no_network=True,
+        )
+        return etree.fromstring(content, parser=parser)
+
+    def _direct_text(self, node, name):
+        child = node.find(f"{{{self.SIFEN_NS}}}{name}")
+        return (child.text or "").strip() if child is not None else ""
+
+    def _response_status_code(self, response):
+        if isinstance(response, dict):
+            return int(
+                response.get("status_code")
+                or response.get("http_status")
+                or 0
+            )
+        return int(
+            getattr(response, "status_code", None)
+            or getattr(response, "code", None)
+            or 0
+        )
+
+    def _response_content(self, response):
+        if isinstance(response, dict):
+            content = response.get("content") or response.get("body") or b""
+        else:
+            content = (
+                getattr(response, "content", None)
+                or getattr(response, "body", None)
+                or b""
+            )
+        return content.encode("utf-8") if isinstance(content, str) else content
+
+    def _create_transmission(self, *, document, cdc, started_at):
+        return self.env["fiscal.transmission"].sudo().create({
+            "document_id": document.id,
+            "transmission_type": "status_query",
+            "state": "pending",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": cdc,
+            "attempt_number": self._next_attempt_number(document),
+            "started_at": started_at,
+        })
+
+    def _finish_transmission(self, *, transmission, result, finished_at):
+        if result.get("approved"):
+            state = "accepted"
+        elif result.get("not_approved"):
+            state = "rejected"
+        elif result.get("retryable"):
+            state = "failed_retryable"
+        else:
+            state = "failed_final"
+        transmission.write({
+            "state": state,
+            "request_hash": result.get("request_hash") or "",
+            "response_hash": result.get("response_hash") or "",
+            "http_status": result.get("http_status") or 0,
+            "authority_status_code": result.get("authority_code") or "",
+            "authority_message": result.get("authority_message") or "",
+            "error_code": (
+                ""
+                if result.get("ok")
+                else result.get("category") or "consulta_failure"
+            ),
+            "error_message": (
+                ""
+                if result.get("ok")
+                else "SIFEN Consulta DE could not resolve the submission."
+            ),
+            "error_type": "" if result.get("ok") else "sifen_consulta_de",
+            "finished_at": finished_at,
+        })
+
+    def _next_attempt_number(self, document):
+        attempts = document.transmission_ids.filtered(
+            lambda item: item.transmission_type == "status_query"
+        ).mapped("attempt_number")
+        return max(attempts or [0]) + 1
+
+    def _failure_result(self, *, category, message, retryable):
+        return {
+            "ok": False,
+            "category": category,
+            "http_status": 0,
+            "request_hash": "",
+            "response_hash": "",
+            "authority_code": "",
+            "authority_message": message,
+            "authority_receipt_ref": "",
+            "approved": False,
+            "not_approved": False,
+            "retryable": retryable,
+        }

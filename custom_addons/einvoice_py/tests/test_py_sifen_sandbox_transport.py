@@ -26,6 +26,7 @@ from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
     PySifenConnectionError,
     PySifenDnsError,
     PySifenTcpError,
+    PySifenTimeoutError,
     PySifenTlsError,
 )
 
@@ -280,7 +281,7 @@ class TestPySifenSandboxTransport(TransactionCase):
         def urlopen(*args, **kwargs):
             raise socket.timeout("connection secret detail")
 
-        with self.assertRaises(PySifenTcpError):
+        with self.assertRaises(PySifenTimeoutError):
             self._transport(urlopen=urlopen)(
                 endpoint_url="https://sifen-test.example.test/de",
                 body=b"<soap/>",

@@ -72,6 +72,7 @@
 [x] Stage 8.20 Concrete PKCS#12 Material Provider
 [x] Stage 8.21 Qualified Certificate Installation Validation
 [x] Stage 8.22 Live TEST mTLS Preflight
+[x] Stage 8.24A SIFEN Consulta DE and ambiguous submission reconciliation
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -82,12 +83,12 @@
 
 ## Current Validation Status
 
-The `einvoice_py` suite currently reports 396 counted tests across 354 test methods, with production coverage for credential resolution, submission dispatch, fiscal transmission persistence, and eligible retry scheduling/execution. Stage 8.13 adds one tests-only composition scenario across those existing services. Stage 8.15 makes `PySifenTransmissionPersistenceService` resolve runtime credentials automatically when callers supply neither a runtime credential object nor legacy explicit credential arguments. Stage 8.16 lets retry execution reconstruct omitted inputs from fiscal attachments. Stage 8.17 adds `verify_document_connection()` as a configuration-driven, Paraguay TEST-only sandbox preflight that resolves endpoint, timeout, and mutual-TLS credentials from the document and delegates exclusively to the existing connection verifier. Stage 8.18 makes synchronous DE submission use SOAP 1.2 with `application/soap+xml` and the official `rEnviDe/dId/xDE/rDE` structure. The numeric, 15-digit-maximum `dId` comes from the taxpayer-controlled persistent `fiscal.adapter.config.sequence_id`. Stage fixtures configure `no_gap`, but gapless allocation is not treated as a DNIT protocol requirement. Stage 8.19 records that live SIFEN TEST acceptance requires the taxpayer's Qualified Certificate issued by a Prestador Cualificado de Servicios de Confianza (PCSC) habilitado, while the credential architecture remains provider-neutral. The coverage uses deterministic injected fixtures and makes no live SIFEN calls.
+The `einvoice_py` suite covers production credential resolution, submission dispatch, fiscal transmission persistence, and eligible retry scheduling/execution. Stage 8.13 adds one tests-only composition scenario across those existing services. Stage 8.15 makes `PySifenTransmissionPersistenceService` resolve runtime credentials automatically when callers supply neither a runtime credential object nor legacy explicit credential arguments. Stage 8.16 lets retry execution reconstruct omitted inputs from fiscal attachments. Stage 8.17 adds `verify_document_connection()` as a configuration-driven, Paraguay TEST-only sandbox preflight that resolves endpoint, timeout, and mutual-TLS credentials from the document and delegates exclusively to the existing connection verifier. Stage 8.18 makes synchronous DE submission use SOAP 1.2 with `application/soap+xml` and the official `rEnviDe/dId/xDE/rDE` structure. The numeric, 15-digit-maximum `dId` comes from the taxpayer-controlled persistent `fiscal.adapter.config.sequence_id`. Stage fixtures configure `no_gap`, but gapless allocation is not treated as a DNIT protocol requirement. Stage 8.19 records that live SIFEN TEST acceptance requires the taxpayer's Qualified Certificate issued by a Prestador Cualificado de Servicios de Confianza (PCSC) habilitado, while the credential architecture remains provider-neutral. Stage 8.24A adds TEST-only Consulta DE reconciliation by CDC before retrying an ambiguous synchronous submission. The coverage uses deterministic injected fixtures and makes no live SIFEN calls.
 
 ## Next
 
 [ ] Stage 8.23 First Live Synchronous TEST DE
-[ ] Stage 8.24 Authority-Driven Corrections, only if required by authority evidence
+[ ] Stage 8.24B Authority-Driven Corrections, only if required by authority evidence
 [ ] Real CSC validation against SIFEN behavior
 [ ] Production connection preflight
 [ ] Paraguay adapter integration

@@ -7,6 +7,7 @@ from odoo.tests.common import TransactionCase
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
     PySifenConnectionError,
     PySifenSubmissionService,
+    PySifenTimeoutError,
     PySifenTlsError,
     PySifenTransportError,
     PySifenTestSubmissionService,
@@ -449,6 +450,23 @@ class TestPySifenTestSubmissionService(TransactionCase):
         self.assertEqual(
             result["metadata_json"]["transport_error_category"],
             "connection_failure",
+        )
+
+    def test_timeout_is_marked_as_ambiguous(self):
+        service = self._service(transport_error=PySifenTimeoutError())
+
+        result = service.submit_final_xml(
+            document=self.document,
+            final_xml_bytes=self._final_xml(),
+            endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.mutual_tls_credential,
+        )
+
+        self.assertTrue(result["retryable"])
+        self.assertTrue(result["ambiguous"])
+        self.assertEqual(
+            result["metadata_json"]["transport_error_category"],
+            "timeout_failure",
         )
 
     def test_tls_error_is_retryable_and_classified(self):

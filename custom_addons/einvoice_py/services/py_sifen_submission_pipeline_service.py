@@ -260,6 +260,7 @@ class PySifenSubmissionPipelineService:
             "response_hash": "",
             "retryable": False,
             "retry_category": "",
+            "ambiguous": False,
         }
 
     def _run_stage(self, result, stage, operation):
@@ -315,6 +316,7 @@ class PySifenSubmissionPipelineService:
         result["request_hash"] = submission_result.get("request_hash", "")
         result["response_hash"] = submission_result.get("response_hash", "")
         result["retryable"] = bool(submission_result.get("retryable"))
+        result["ambiguous"] = bool(submission_result.get("ambiguous"))
         metadata = submission_result.get("metadata_json") or {}
         result["retry_category"] = metadata.get("transport_error_category", "")
         if (

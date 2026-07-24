@@ -31,6 +31,10 @@ class PySifenTcpError(PySifenConnectionError):
     """SIFEN transport could not open the TCP connection."""
 
 
+class PySifenTimeoutError(PySifenConnectionError):
+    """SIFEN transport timed out after the request may have started."""
+
+
 class PySifenTlsError(PySifenTransportError):
     """SIFEN transport failed during TLS or mutual TLS negotiation."""
 
@@ -351,6 +355,10 @@ class PySifenSubmissionService:
             "outcome": "failed_retryable",
             "retryable": True,
             "retry_after_seconds": 300,
+            "ambiguous": (
+                environment == "test"
+                and isinstance(error, PySifenTimeoutError)
+            ),
             "metadata_json": {
                 "environment": environment,
                 "service": self.SERVICE_NAME,
@@ -428,6 +436,8 @@ class PySifenSubmissionService:
         return int((time.monotonic() - started) * 1000)
 
     def _transport_error_category(self, error):
+        if isinstance(error, PySifenTimeoutError):
+            return "timeout_failure"
         if isinstance(error, PySifenTlsError):
             return "tls_failure"
         if isinstance(error, PySifenConnectionError):

@@ -23,6 +23,7 @@ from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
     PySifenConnectionError,
     PySifenDnsError,
     PySifenTcpError,
+    PySifenTimeoutError,
     PySifenTlsError,
 )
 
@@ -85,7 +86,9 @@ class PySifenSandboxTransport:
             raise PySifenTlsError() from transport_error
         except socket.gaierror as transport_error:
             raise PySifenDnsError() from transport_error
-        except (ConnectionRefusedError, TimeoutError, socket.timeout) as transport_error:
+        except (TimeoutError, socket.timeout) as transport_error:
+            raise PySifenTimeoutError() from transport_error
+        except ConnectionRefusedError as transport_error:
             raise PySifenTcpError() from transport_error
         except OSError as transport_error:
             raise PySifenConnectionError() from transport_error
@@ -410,7 +413,9 @@ class PySifenSandboxTransport:
             return PySifenTlsError()
         if isinstance(reason, socket.gaierror):
             return PySifenDnsError()
-        if isinstance(reason, (ConnectionRefusedError, TimeoutError, socket.timeout)):
+        if isinstance(reason, (TimeoutError, socket.timeout)):
+            return PySifenTimeoutError()
+        if isinstance(reason, ConnectionRefusedError):
             return PySifenTcpError()
         if isinstance(reason, OSError):
             return PySifenConnectionError()

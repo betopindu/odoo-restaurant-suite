@@ -924,7 +924,13 @@ Both `endpoint_reachable` and `http_response_received` set `ok=True`: any HTTP s
 
 Stage 8.18 makes synchronous DE submission compliant with the DNIT v150 wire structure. Requests use SOAP 1.2 with `application/soap+xml` and contain `rEnviDe`, a mandatory `dId`, `xDE`, and the signed `rDE` nested under `xDE`. The taxpayer-controlled, sequential `dId` is generated from the existing persistent `fiscal.adapter.config.sequence_id` and must be numeric with no more than 15 digits. Stage test configuration uses `no_gap`, but DNIT does not explicitly require gapless allocation; `no_gap` is therefore not treated as a protocol requirement.
 
-The `einvoice_py` suite currently reports 396 counted tests across 354 test methods. Production service composition, configuration-driven sandbox preflight, and SOAP 1.2 synchronous framing are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
+Stage 8.24A introduces TEST-only recovery for an uncertain synchronous POST. A transport timeout marks the submission as ambiguous and prevents any further POST for the same tenant, company, and CDC until Consulta DE reconciliation completes. The reconciliation service queries the official Consulta DE endpoint by CDC using SOAP 1.2, the existing credential provider, and the existing mTLS sandbox transport; the query itself is recorded as a `status_query` transmission with safe hashes, authority result, HTTP status, and timestamps.
+
+An authority result of `0422` confirms remote approval and reconciles the original submission and fiscal document as accepted. `accepted_at` and `authority_status` are populated, while `authority_receipt_ref` is updated only when SIFEN actually returns `dProtAut`. Result `0420` means that an approved DTE was not found: it requires explicit operator action and never triggers an automatic resend. Timeout, SOAP Fault, malformed response, unsupported result, or a CDC mismatch leaves the submission unresolved and blocked. Repeating an already completed reconciliation does not issue another query.
+
+This recovery does not change the current Odoo transaction durability model. It uses neither explicit commits nor independent cursors, outbox records, or a new queue. It also does not support the production environment.
+
+The `einvoice_py` suite currently reports 415 counted tests across 371 test methods. Production service composition, configuration-driven sandbox preflight, SOAP 1.2 synchronous framing, and TEST-only ambiguous-submission reconciliation are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
 
 Still pending:
 
