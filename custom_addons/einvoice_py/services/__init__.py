@@ -13,6 +13,7 @@ from . import py_signing_pipeline_service
 from . import py_sifen_sandbox_transport
 from . import py_sifen_submission_pipeline_service
 from . import py_sifen_test_submission_service
+from . import py_sifen_test_readiness_service
 from . import py_sifen_transmission_persistence_service
 from . import py_signed_xml_attachment_service
 from . import py_signed_xml_preparation_service
@@ -39,6 +40,7 @@ from .py_sifen_test_submission_service import (
     PySifenSubmissionService,
     PySifenTestSubmissionService,
 )
+from .py_sifen_test_readiness_service import PySifenTestReadinessService
 from .py_qualified_certificate_installation_service import (
     PyQualifiedCertificateInstallationValidationService,
 )

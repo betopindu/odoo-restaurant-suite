@@ -930,7 +930,31 @@ An authority result of `0422` confirms remote approval and reconciles the origin
 
 This recovery does not change the current Odoo transaction durability model. It uses neither explicit commits nor independent cursors, outbox records, or a new queue. It also does not support the production environment.
 
-The `einvoice_py` suite currently reports 415 counted tests across 371 test methods. Production service composition, configuration-driven sandbox preflight, SOAP 1.2 synchronous framing, and TEST-only ambiguous-submission reconciliation are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
+## SIFEN TEST homologation readiness
+
+Stage 8.25 checks the existing document-scoped TEST profile without making a network call:
+
+```python
+from odoo.addons.einvoice_py.services import PySifenTestReadinessService
+
+report = PySifenTestReadinessService(env).check(document=document)
+```
+
+Configure the profile in this order:
+
+1. Select an active Paraguay issuer in the TEST environment with its RUC and DV.
+2. For TEST homologation, configure the timbrado number as the RUC without its DV.
+3. Set the timbrado start date to the date shown on Form 364.
+4. Configure both establishment and expedition-point codes as exactly three numeric digits.
+5. Select an active TEST CSC with both IdCSC and its secret value.
+6. Select an active Paraguay TEST adapter with an HTTPS endpoint and persistent `sequence_id`.
+7. Configure one active `external_secret`/`pkcs12` credential. Its `secret_ref` points to a deployment-managed PKCS#12 file and its `password_secret_ref` points to a deployment-managed `file://` or `env://` secret.
+8. Bind that credential once to `xml_signing` and once to `mutual_tls`.
+9. Run the existing qualified-certificate installation validation, then run the readiness check.
+
+The readiness status is one of `fiscal_configuration_invalid`, `fiscal_configuration_ready`, `csc_missing`, `certificate_reference_missing`, `certificate_password_missing`, `certificate_configuration_invalid`, or `ready`. The result never returns the CSC secret, PKCS#12 path, password reference, password, certificate bytes, or provider exception text. A missing certificate or password reference produces a normal not-ready report; it does not crash normal Odoo operations. The check does not create a certificate, open a network connection, or submit a DE.
+
+The `einvoice_py` suite currently reports 422 counted tests across 376 test methods. Production service composition, configuration-driven sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission reconciliation, and local homologation readiness are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
 
 Still pending:
 

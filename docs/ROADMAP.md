@@ -73,6 +73,7 @@
 [x] Stage 8.21 Qualified Certificate Installation Validation
 [x] Stage 8.22 Live TEST mTLS Preflight
 [x] Stage 8.24A SIFEN Consulta DE and ambiguous submission reconciliation
+[x] Stage 8.25 SIFEN TEST homologation profile and readiness status
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation

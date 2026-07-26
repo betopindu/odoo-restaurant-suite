@@ -12,6 +12,7 @@ from . import test_py_sifen_credential_provider
 from . import test_py_sifen_production_flow
 from . import test_py_sifen_submission_pipeline_service
 from . import test_py_sifen_test_submission_service
+from . import test_py_sifen_test_readiness_service
 from . import test_py_sifen_transmission_persistence_service
 from . import test_py_signing_pipeline_service
 from . import test_py_signed_xml_preparation_service
