@@ -14,6 +14,7 @@ from . import py_sifen_sandbox_transport
 from . import py_sifen_rde_assembler
 from . import py_sifen_soap_envelope_builder
 from . import py_sifen_soap_client
+from . import py_sifen_recep_de_response_parser
 from . import py_sifen_submission_pipeline_service
 from . import py_sifen_test_submission_service
 from . import py_sifen_test_readiness_service
@@ -56,6 +57,12 @@ from .py_sifen_soap_envelope_builder import (
 from .py_sifen_soap_client import (
     PySifenSoapClient,
     PySifenSoapClientResult,
+)
+from .py_sifen_recep_de_response_parser import (
+    PySifenRecepDeClassification,
+    PySifenRecepDeOfficialResult,
+    PySifenRecepDeResponseParser,
+    PySifenRecepDeResponseResult,
 )
 from .py_qr_generation_service import (
     PyQrGenerationService,
