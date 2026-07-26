@@ -78,6 +78,7 @@ class TestPySifenCredentialProvider(TransactionCase):
             "amount_total": 100,
             "idempotency_key": self.id(),
             "py_issuer_ruc": self.RUC,
+            "py_issuer_ruc_dv": "6",
             "py_csc_id": self.csc.id,
         })
         self.signing_credential = self._credential("Signing", "pem_pair")
@@ -217,6 +218,21 @@ class TestPySifenCredentialProvider(TransactionCase):
 
         self.adapter.environment = "test"
         self.signing_credential.extracted_ruc = "99999999"
+        with self.assertRaisesRegex(PySifenCredentialScopeError, "RUC"):
+            self._resolve()
+
+    def test_canonical_inspected_ruc_matches_document_base_and_dv(self):
+        self.signing_credential.extracted_ruc = f"RUC{self.RUC}-6"
+        self.mtls_credential.extracted_ruc = f"RUC{self.RUC}-6"
+
+        result, _registry = self._resolve()
+
+        self.assertEqual(result.xml_signing_credential, self.signing_credential)
+        self.assertEqual(result.mutual_tls_credential, self.mtls_credential)
+
+    def test_canonical_inspected_ruc_with_wrong_dv_is_rejected(self):
+        self.signing_credential.extracted_ruc = f"RUC{self.RUC}-7"
+
         with self.assertRaisesRegex(PySifenCredentialScopeError, "RUC"):
             self._resolve()
 

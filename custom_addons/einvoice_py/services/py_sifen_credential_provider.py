@@ -1,3 +1,4 @@
+import re
 from urllib.parse import urlparse
 
 from cryptography.hazmat.primitives import serialization
@@ -82,6 +83,7 @@ class PySifenCredentialProvider:
     """Resolve tenant-safe Paraguay configuration into transient credentials."""
 
     SUPPORTED_MATERIAL_FORMATS = {"pem_pair", "pkcs12"}
+    RUC_PATTERN = re.compile(r"^(?:RUC)?(\d+)(?:-(\d))?$", re.IGNORECASE)
 
     def __init__(self, env, provider_registry=None):
         self.env = env
@@ -179,10 +181,26 @@ class PySifenCredentialProvider:
             )
         extracted_ruc = (credential.extracted_ruc or "").strip()
         issuer_ruc = (document.py_issuer_ruc or "").strip()
-        if extracted_ruc and extracted_ruc != issuer_ruc:
+        issuer_ruc_dv = (document.py_issuer_ruc_dv or "").strip()
+        if extracted_ruc and not self._ruc_matches(
+            extracted_ruc,
+            issuer_ruc,
+            issuer_ruc_dv,
+        ):
             raise PySifenCredentialScopeError(
                 "Paraguay SIFEN credential RUC must match the document issuer RUC."
             )
+
+    def _ruc_matches(self, extracted_ruc, issuer_ruc, issuer_ruc_dv):
+        extracted = self.RUC_PATTERN.fullmatch(extracted_ruc)
+        issuer = self.RUC_PATTERN.fullmatch(issuer_ruc)
+        if not extracted or not issuer:
+            return False
+        if extracted.group(1) != issuer.group(1):
+            return False
+        extracted_dv = extracted.group(2)
+        document_dv = issuer.group(2) or issuer_ruc_dv or None
+        return not extracted_dv or not document_dv or extracted_dv == document_dv
 
     def _signing_material(self, credential):
         if credential.material_format not in self.SUPPORTED_MATERIAL_FORMATS:
