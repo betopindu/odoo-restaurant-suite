@@ -1,8 +1,9 @@
+import base64
 from datetime import datetime, timedelta
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.x509.oid import NameOID
 from lxml import etree
 import xmlsec
@@ -80,6 +81,7 @@ class TestPyXmlSignatureService(BaseCase):
             "prepared_xml_bytes": xml_content or self._prepared_xml(),
             "certificate_bytes": self._certificate_bytes(),
             "private_key_bytes": self._private_key_bytes(),
+            "cdc": self.CDC,
         }
         values.update(overrides)
         return self.service.sign(**values)
@@ -184,16 +186,98 @@ class TestPyXmlSignatureService(BaseCase):
             transforms,
             [
                 "http://www.w3.org/2000/09/xmldsig#enveloped-signature",
-                "http://www.w3.org/2001/10/xml-exc-c14n#",
             ],
         )
 
     def test_x509_certificate_is_embedded(self):
-        root = self._signed_root()
+        result = self._sign()
+        root = etree.fromstring(result["signed_xml_bytes"])
         embedded_certificate = root.find(f".//{{{self.XMLDSIG_NS}}}X509Certificate")
+        certificate_text = "".join(
+            (embedded_certificate.text or "").split()
+        )
 
         self.assertIsNotNone(embedded_certificate)
-        self.assertTrue((embedded_certificate.text or "").strip())
+        self.assertEqual(
+            certificate_text,
+            base64.b64encode(
+                self.certificate.public_bytes(serialization.Encoding.DER)
+            ).decode("ascii"),
+        )
+        self.assertEqual(
+            result.certificate_der_base64,
+            certificate_text,
+        )
+        self.assertNotIn("BEGIN CERTIFICATE", certificate_text)
+        self.assertNotIn("PRIVATE KEY", certificate_text)
+
+    def test_result_is_structured_and_immutable(self):
+        result = self._sign()
+
+        self.assertEqual(result.reference_uri, f"#{self.CDC}")
+        self.assertTrue(result.digest_value)
+        self.assertTrue(result.signature_value)
+        with self.assertRaises((AttributeError, TypeError)):
+            result.digest_value = "changed"
+
+    def test_digest_changes_when_signed_content_changes(self):
+        first = self._sign()
+        root = etree.fromstring(self._prepared_xml())
+        root.find(
+            f".//{{{PyUnsignedXmlBuilder.SIFEN_NS}}}dSisFact"
+        ).text = "2"
+
+        second = self._sign(etree.tostring(root))
+
+        self.assertNotEqual(first.digest_value, second.digest_value)
+
+    def test_supplied_cdc_must_match_de_id(self):
+        with self.assertRaisesRegex(ValidationError, "supplied CDC"):
+            self._sign(cdc="0" * 44)
+
+    def test_non_rsa_identity_is_rejected(self):
+        private_key = ec.generate_private_key(ec.SECP256R1())
+        certificate = self._certificate(private_key)
+
+        with self.assertRaisesRegex(ValidationError, "RSA identity"):
+            self._sign(
+                certificate_bytes=certificate.public_bytes(
+                    serialization.Encoding.PEM
+                ),
+                private_key_bytes=private_key.private_bytes(
+                    serialization.Encoding.PEM,
+                    serialization.PrivateFormat.PKCS8,
+                    serialization.NoEncryption(),
+                ),
+            )
+
+    def test_certificate_must_match_private_key(self):
+        other_private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+        )
+
+        with self.assertRaisesRegex(ValidationError, "do not match"):
+            self._sign(
+                private_key_bytes=other_private_key.private_bytes(
+                    serialization.Encoding.PEM,
+                    serialization.PrivateFormat.PKCS8,
+                    serialization.NoEncryption(),
+                ),
+            )
+
+    def test_no_xades_content_is_generated(self):
+        root = self._signed_root()
+        result_xml = etree.tostring(root).decode()
+
+        self.assertFalse(
+            root.xpath(
+                ".//*[local-name()='QualifyingProperties' "
+                "or local-name()='SignedProperties']"
+            )
+        )
+        self.assertNotIn("xades", result_xml)
+        self.assertNotIn("etsi.org", result_xml)
 
     def test_malformed_xml_is_rejected(self):
         with self.assertRaisesRegex(ValidationError, "Malformed prepared Paraguay XML"):
@@ -217,6 +301,15 @@ class TestPyXmlSignatureService(BaseCase):
     def test_missing_cdc_is_rejected(self):
         with self.assertRaisesRegex(ValidationError, "DE is missing Id"):
             self._sign(self._prepared_xml(cdc=""))
+
+    def test_missing_de_id_attribute_is_rejected(self):
+        root = etree.fromstring(self._prepared_xml())
+        del root.find(
+            f"{{{PyUnsignedXmlBuilder.SIFEN_NS}}}DE"
+        ).attrib["Id"]
+
+        with self.assertRaisesRegex(ValidationError, "DE is missing Id"):
+            self._sign(etree.tostring(root))
 
     def test_duplicate_signature_is_rejected(self):
         root = etree.fromstring(self._prepared_xml())

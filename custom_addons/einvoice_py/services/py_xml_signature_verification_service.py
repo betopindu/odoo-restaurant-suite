@@ -30,7 +30,6 @@ class PyXmlSignatureVerificationService:
     EXPECTED_DIGEST_METHOD = "http://www.w3.org/2001/04/xmlenc#sha256"
     EXPECTED_TRANSFORMS = [
         "http://www.w3.org/2000/09/xmldsig#enveloped-signature",
-        "http://www.w3.org/2001/10/xml-exc-c14n#",
     ]
 
     def verify(

@@ -77,6 +77,7 @@ class TestPyXmlSignatureVerificationService(BaseCase):
             prepared_xml_bytes=self._prepared_xml(),
             certificate_bytes=self._certificate_bytes(),
             private_key_bytes=self._private_key_bytes(),
+            cdc=self.CDC,
         )["signed_xml_bytes"]
 
     def _verify(self, xml_content=None, **overrides):
@@ -193,7 +194,6 @@ class TestPyXmlSignatureVerificationService(BaseCase):
             report["transforms"],
             [
                 "http://www.w3.org/2000/09/xmldsig#enveloped-signature",
-                "http://www.w3.org/2001/10/xml-exc-c14n#",
             ],
         )
 

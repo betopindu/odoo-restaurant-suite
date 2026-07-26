@@ -41,6 +41,10 @@ from .py_sifen_test_submission_service import (
     PySifenTestSubmissionService,
 )
 from .py_sifen_test_readiness_service import PySifenTestReadinessService
+from .py_xml_signature_service import (
+    PyXmlSignatureResult,
+    PyXmlSignatureService,
+)
 from .py_qualified_certificate_installation_service import (
     PyQualifiedCertificateInstallationValidationService,
 )

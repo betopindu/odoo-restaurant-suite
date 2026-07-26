@@ -954,7 +954,24 @@ Configure the profile in this order:
 
 The readiness status is one of `fiscal_configuration_invalid`, `fiscal_configuration_ready`, `csc_missing`, `certificate_reference_missing`, `certificate_password_missing`, `certificate_configuration_invalid`, or `ready`. The result never returns the CSC secret, PKCS#12 path, password reference, password, certificate bytes, or provider exception text. A missing certificate or password reference produces a normal not-ready report; it does not crash normal Odoo operations. The check does not create a certificate, open a network connection, or submit a DE.
 
-The `einvoice_py` suite currently reports 422 counted tests across 376 test methods. Production service composition, configuration-driven sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission reconciliation, and local homologation readiness are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
+## SIFEN v150 XMLDSig
+
+Stage 8.26 uses the existing Paraguay signing pipeline. `PySignedXmlPreparationService` first prepares the unsigned `rDE/DE`; `PyXmlSignatureService` then signs exactly that `DE`, and local verification runs before any later QR or final-document stage.
+
+The signed node is the single `DE` in the official SIFEN namespace. Its `Id` is the complete CDC, and the reference is exactly `URI="#{CDC}"`. The XMLDSig `Signature` is a direct child of `rDE`, immediately after `DE`. No XAdES `QualifyingProperties`, `SignedProperties`, namespaces, or profile are generated.
+
+The fixed algorithm URIs are:
+
+* CanonicalizationMethod: `http://www.w3.org/TR/2001/REC-xml-c14n-20010315`
+* Transform: `http://www.w3.org/2000/09/xmldsig#enveloped-signature`
+* SignatureMethod: `http://www.w3.org/2001/04/xmldsig-more#rsa-sha256`
+* DigestMethod: `http://www.w3.org/2001/04/xmlenc#sha256`
+
+`X509Certificate` contains only the DER certificate encoded as Base64. Certificate PEM headers, private keys, passwords, and unrelated text are never inserted into the signed XML. Do not pretty-print, re-indent, reorder, or mutate signed XML after signature generation: any modification to signed content invalidates the digest or signature.
+
+The credential provider normalizes supported PKCS#12 material into the certificate and private-key inputs consumed by the signer; the signer does not read secret references or PKCS#12 files. XML signing proves document integrity and signer possession of the private key. Mutual TLS authenticates the HTTPS client connection. They are separate logical credential bindings even when both use the same qualified certificate.
+
+The `einvoice_py` suite currently reports 429 counted tests across 383 test methods. Production service composition, configuration-driven sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission reconciliation, local homologation readiness, and XMLDSig signing are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
 
 Still pending:
 

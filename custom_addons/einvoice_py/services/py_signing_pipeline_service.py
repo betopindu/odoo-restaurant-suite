@@ -46,6 +46,7 @@ class PySigningPipelineService:
             certificate_bytes=certificate_bytes,
             private_key_bytes=private_key_bytes,
             private_key_password=private_key_password,
+            cdc=preparation_result["cdc"],
         )
         verification_result = PyXmlSignatureVerificationService().verify(
             signed_xml_bytes=signature_result["signed_xml_bytes"],
