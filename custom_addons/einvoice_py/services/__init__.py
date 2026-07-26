@@ -41,6 +41,7 @@ from .py_sifen_ambiguous_reconciliation_service import (
 )
 from .py_sifen_consulta_de_service import PySifenConsultaDeService
 from .py_sifen_test_submission_service import (
+    PySifenSubmissionFailureResult,
     PySifenSubmissionService,
     PySifenTestSubmissionService,
 )

@@ -1,5 +1,6 @@
 import hashlib
 import time
+from dataclasses import dataclass
 from urllib import error, request
 from urllib.parse import urlparse
 
@@ -42,6 +43,17 @@ class PySifenTlsError(PySifenTransportError):
     """SIFEN transport failed during TLS or mutual TLS negotiation."""
 
 
+@dataclass(frozen=True, slots=True)
+class PySifenSubmissionFailureResult:
+    stage: str
+    category: str
+    message: str
+
+    @property
+    def ok(self):
+        return False
+
+
 class PySifenSubmissionService:
     """Submit final Paraguay XML to a configured SIFEN environment.
 
@@ -73,7 +85,19 @@ class PySifenSubmissionService:
         xsd_validation_service=None,
         transport=None,
         soap_envelope_builder=None,
+        *,
+        env=None,
+        credential_provider=None,
+        unsigned_xml_builder=None,
+        signed_xml_preparation_service=None,
+        xml_signature_service=None,
+        qr_builder=None,
+        rde_assembler=None,
+        soap_client=None,
+        response_parser=None,
+        debug_logger=None,
     ):
+        self.env = env
         self.xsd_validation_service = xsd_validation_service or PyXsdValidationService()
         self.transport = transport
         self.soap_envelope_builder = (
@@ -82,6 +106,286 @@ class PySifenSubmissionService:
             else PySifenSoapEnvelopeBuilder(
                 xsd_validation_service=self.xsd_validation_service
             )
+        )
+        self.credential_provider = credential_provider
+        self.unsigned_xml_builder = unsigned_xml_builder
+        self.signed_xml_preparation_service = signed_xml_preparation_service
+        self.xml_signature_service = xml_signature_service
+        self.qr_builder = qr_builder
+        self.rde_assembler = rde_assembler
+        self.soap_client = soap_client
+        self.response_parser = response_parser
+        self.debug_logger = debug_logger
+
+    def submit(
+        self,
+        *,
+        document,
+        payload,
+        signing_timestamp,
+        credentials=None,
+    ):
+        """Build and submit one DE to SIFEN TEST without persistence or retry."""
+
+        document.ensure_one()
+        if (document.country_code or "").upper() != "PY":
+            return self._end_to_end_failure(
+                "configuration",
+                "invalid_document",
+                "SIFEN TEST submission requires a Paraguay document.",
+            )
+        if document.environment != "test":
+            return self._end_to_end_failure(
+                "configuration",
+                "unsupported_environment",
+                "SIFEN end-to-end submission requires a TEST document.",
+            )
+        if self.env is None:
+            return self._end_to_end_failure(
+                "configuration",
+                "missing_environment",
+                "SIFEN TEST submission requires an Odoo environment.",
+            )
+
+        if credentials is None:
+            try:
+                credentials = self._end_to_end_credential_provider().resolve(
+                    document=document
+                )
+            except ValidationError:
+                return self._end_to_end_failure(
+                    "configuration",
+                    "credential_resolution_failure",
+                    "SIFEN TEST runtime credentials could not be resolved.",
+                )
+        else:
+            from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
+                PySifenRuntimeCredentials,
+            )
+
+            if not isinstance(credentials, PySifenRuntimeCredentials):
+                return self._end_to_end_failure(
+                    "configuration",
+                    "invalid_runtime_credentials",
+                    "SIFEN TEST runtime credentials are invalid.",
+                )
+
+        try:
+            unsigned_xml_bytes = self._end_to_end_unsigned_builder().build_from_payload(
+                payload
+            )
+            prepared = self._end_to_end_preparation_service().prepare(
+                document,
+                unsigned_xml_bytes,
+                signing_timestamp,
+            )
+        except ValidationError:
+            return self._end_to_end_failure(
+                "build",
+                "build_failure",
+                "SIFEN TEST unsigned DE construction failed.",
+            )
+        self._debug("build_complete")
+
+        try:
+            signature = self._end_to_end_signature_service().sign(
+                prepared_xml_bytes=prepared["prepared_xml_bytes"],
+                certificate_bytes=credentials.signing_certificate_bytes,
+                private_key_bytes=credentials.signing_private_key_bytes,
+                private_key_password=credentials.signing_private_key_password,
+                cdc=prepared["cdc"],
+            )
+        except ValidationError:
+            return self._end_to_end_failure(
+                "signing",
+                "signature_failure",
+                "SIFEN TEST XMLDSig generation failed.",
+            )
+        self._debug("signing_complete", cdc=signature.cdc)
+
+        try:
+            qr = self._end_to_end_qr_builder().build(
+                signed_xml_bytes=signature.signed_xml_bytes,
+                cdc=signature.cdc,
+                digest_value=signature.digest_value,
+                csc_id=credentials.csc_id,
+                csc_secret=credentials.csc_value,
+                environment=document.environment,
+            )
+        except ValidationError:
+            return self._end_to_end_failure(
+                "qr",
+                "qr_failure",
+                "SIFEN TEST QR construction failed.",
+            )
+        self._debug("qr_complete", cdc=signature.cdc)
+
+        try:
+            assembled = self._end_to_end_rde_assembler().assemble(
+                signed_xml_bytes=signature.signed_xml_bytes,
+                gcamfufd_xml_bytes=qr.gcamfufd_xml_bytes,
+                cdc=signature.cdc,
+                qr_url=qr.qr_string,
+            )
+        except ValidationError:
+            return self._end_to_end_failure(
+                "xsd_validation",
+                "rde_assembly_failure",
+                "SIFEN TEST final rDE assembly failed.",
+            )
+        if not assembled.xsd_valid:
+            return self._end_to_end_failure(
+                "xsd_validation",
+                "xsd_validation_failure",
+                "SIFEN TEST final rDE failed local XSD validation.",
+            )
+        self._debug(
+            "xsd_validation_complete",
+            cdc=signature.cdc,
+            final_xml_sha256=hashlib.sha256(
+                assembled.final_xml_bytes
+            ).hexdigest(),
+        )
+
+        try:
+            envelope = self.soap_envelope_builder.build(
+                validated_rde_bytes=assembled.final_xml_bytes,
+                submission_id=self._next_submission_id(document),
+            )
+        except ValidationError:
+            return self._end_to_end_failure(
+                "soap",
+                "soap_generation_failure",
+                "SIFEN TEST SOAP envelope generation failed.",
+            )
+        self._debug(
+            "soap_complete",
+            cdc=signature.cdc,
+            request_sha256=hashlib.sha256(envelope.soap_xml_bytes).hexdigest(),
+        )
+
+        try:
+            client_result = self._end_to_end_soap_client().submit(
+                soap_xml_bytes=envelope.soap_xml_bytes,
+                endpoint_url=credentials.endpoint_url,
+                mutual_tls_credential=credentials.mutual_tls_credential,
+                timeout_seconds=credentials.timeout_seconds,
+            )
+        except ValidationError:
+            return self._end_to_end_failure(
+                "soap",
+                "soap_validation_failure",
+                "SIFEN TEST SOAP request validation failed.",
+            )
+        if client_result.http_status == 0:
+            self._debug("transport_failure", category=client_result.category)
+            return self._end_to_end_failure(
+                "transport",
+                client_result.category or "transport_failure",
+                client_result.error_message
+                or "SIFEN TEST transport failed before receiving a response.",
+            )
+
+        parsed_response = self._end_to_end_response_parser().parse(client_result)
+        self._debug(
+            "response_parsed",
+            classification=parsed_response.classification.value,
+            http_status=parsed_response.http_status,
+        )
+        return parsed_response
+
+    def _end_to_end_failure(self, stage, category, message):
+        self._debug("submission_failure", stage=stage, category=category)
+        return PySifenSubmissionFailureResult(
+            stage=stage,
+            category=category,
+            message=message,
+        )
+
+    def _end_to_end_credential_provider(self):
+        if self.credential_provider is None:
+            from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
+                PySifenCredentialProvider,
+            )
+
+            self.credential_provider = PySifenCredentialProvider(self.env)
+        return self.credential_provider
+
+    def _end_to_end_unsigned_builder(self):
+        if self.unsigned_xml_builder is None:
+            self.unsigned_xml_builder = PyUnsignedXmlBuilder(self.env)
+        return self.unsigned_xml_builder
+
+    def _end_to_end_preparation_service(self):
+        if self.signed_xml_preparation_service is None:
+            from odoo.addons.einvoice_py.services.py_signed_xml_preparation_service import (
+                PySignedXmlPreparationService,
+            )
+
+            self.signed_xml_preparation_service = PySignedXmlPreparationService()
+        return self.signed_xml_preparation_service
+
+    def _end_to_end_signature_service(self):
+        if self.xml_signature_service is None:
+            from odoo.addons.einvoice_py.services.py_xml_signature_service import (
+                PyXmlSignatureService,
+            )
+
+            self.xml_signature_service = PyXmlSignatureService()
+        return self.xml_signature_service
+
+    def _end_to_end_qr_builder(self):
+        if self.qr_builder is None:
+            from odoo.addons.einvoice_py.services.py_qr_generation_service import (
+                PySifenQrBuilder,
+            )
+
+            self.qr_builder = PySifenQrBuilder()
+        return self.qr_builder
+
+    def _end_to_end_rde_assembler(self):
+        if self.rde_assembler is None:
+            from odoo.addons.einvoice_py.services.py_sifen_rde_assembler import (
+                PySifenRdeAssembler,
+            )
+
+            self.rde_assembler = PySifenRdeAssembler(
+                xsd_validation_service=self.xsd_validation_service
+            )
+        return self.rde_assembler
+
+    def _end_to_end_soap_client(self):
+        if self.soap_client is None:
+            from odoo.addons.einvoice_py.services.py_sifen_soap_client import (
+                PySifenSoapClient,
+            )
+
+            self.soap_client = PySifenSoapClient(
+                self.env,
+                xsd_validation_service=self.xsd_validation_service,
+            )
+        return self.soap_client
+
+    def _end_to_end_response_parser(self):
+        if self.response_parser is None:
+            from odoo.addons.einvoice_py.services.py_sifen_recep_de_response_parser import (
+                PySifenRecepDeResponseParser,
+            )
+
+            self.response_parser = PySifenRecepDeResponseParser()
+        return self.response_parser
+
+    def _debug(self, event, **safe_values):
+        if self.debug_logger is None:
+            return
+        values = " ".join(
+            f"{key}={value}"
+            for key, value in sorted(safe_values.items())
+        )
+        self.debug_logger.debug(
+            "SIFEN TEST submission %s%s",
+            event,
+            f" {values}" if values else "",
         )
 
     def submit_final_xml(

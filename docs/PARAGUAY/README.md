@@ -1058,7 +1058,72 @@ The Manual defines the authority states `Aprobado`, `Aprobado con observación`,
 
 SOAP Fault parsing extracts SOAP 1.2 Code, optional Subcode, Reason, and Detail without treating the fault as a SIFEN business result. Namespace comparison uses namespace URIs, not lexical prefixes. Empty bodies, non-XML, missing SOAP Body, wrong namespaces, missing `rRetEnviDe/rProtDe`, invalid cardinality, missing mandatory `dFecProc`, and conflicting accepted/rejected fields are classified as malformed. The immutable result preserves raw bytes for its caller, but `repr` and `str` redact raw and parsed content. The parser emits no logs and performs no persistence, retry, Consulta DE, submission, or network call.
 
-The `einvoice_py` suite currently reports 486 counted tests across 432 test methods. Production service composition, configuration-driven sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission reconciliation, local homologation readiness, XMLDSig signing, QR/gCamFuFD construction, final rDE assembly/XSD validation, deterministic SOAP wrapping, the mocked TEST SOAP client, and deterministic authority-response parsing are covered, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
+## End-to-end SIFEN TEST submission
+
+Stage 8.32 adds `PySifenSubmissionService.submit()` as the first non-persistent live TEST entry point. It resolves the document's runtime credentials and executes:
+
+```text
+Payload → unsigned rDE → signing preparation/CDC validation → XMLDSig
+→ QR/gCamFuFD → final rDE/XSD → SOAP 1.2 → mTLS HTTPS POST
+→ siRecepDE response parsing
+```
+
+No algorithm or transport is reimplemented. A normal authority response returns `PySifenRecepDeResponseResult`; SOAP Fault and business rejection remain parsed authority results. A failure before a response returns `PySifenSubmissionFailureResult` with a fixed safe stage/category. The operation does not create a `fiscal.transmission`, update the document, retry, call Consulta DE, or generate KuDE. Consequently, operators must use it only for the controlled first TEST submission and must not repeat it blindly after a timeout.
+
+### Official TEST contract revalidation
+
+The DNIT technical portal still identifies Manual Técnico v150 as current. Manual v150 sections 7.4, 7.9, 7.10, and 9.1 continue to define the synchronous `SiRecepDE` operation, SOAP 1.2 namespace `http://www.w3.org/2003/05/soap-envelope`, SIFEN namespace `http://ekuatia.set.gov.py/sifen/xsd`, UTF-8 XML, and the `rEnviDe/dId/xDE/rDE` body. The official TEST service is:
+
+```text
+https://sifen-test.set.gov.py/de/ws/sync/recibe.wsdl
+```
+
+Transport uses `application/soap+xml; charset=utf-8`, no SOAP 1.1 `SOAPAction` header, TLS 1.2 or newer, server-certificate verification, and the configured qualified client certificate for mTLS. A public WSDL download without the client-authenticated TEST session currently returns the SIFEN BIG-IP logout page; therefore the contract remains the v150 WSDL/XSD already audited in Stage 8.29A, with no evidence of a changed operation or namespace.
+
+### First live submission procedure
+
+Before running the operation, complete all of the following:
+
+1. Use one active Paraguay `fiscal.document` in environment `test`, with complete issuer, establishment, point of issue, TEST timbrado, document numbering, receiver, items, totals, CDC, and signing timestamp inputs.
+2. Assign one active matching `fiscal.adapter.config` with country `PY`, environment `test`, endpoint `https://sifen-test.set.gov.py/de/ws/sync/recibe.wsdl`, a numeric `sequence_id`, and a positive timeout.
+3. Configure the TEST CSC record with its four-digit `id_csc` and secret.
+4. Configure an active `external_secret` PKCS#12 credential with `file://` material and a `file://` or `env://` password reference. Never place either value in source control.
+5. Bind the credential as both `xml_signing` and `mutual_tls` (or use two valid credentials). Tenant, company, environment, RUC, validity, key usages, and certificate/private-key correspondence must match.
+6. Run qualified-certificate installation validation and `verify_document_connection()` successfully.
+7. Confirm manually that the selected CDC has not already been submitted or accepted. This non-persistent operation does not provide resend protection.
+
+From an Odoo shell connected to the configured database, run exactly one controlled request:
+
+```python
+from odoo import fields
+from odoo.addons.einvoice_py.services import PySifenSubmissionService
+from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder
+
+document = env["fiscal.document"].browse(DOCUMENT_ID).exists()
+payload = PyPayloadBuilder(env).build(document)
+result = PySifenSubmissionService(env=env).submit(
+    document=document,
+    payload=payload,
+    signing_timestamp=fields.Datetime.now(),
+)
+result
+```
+
+The request is UTF-8 SOAP 1.2 containing one signed, QR-bearing, XSD-valid `rDE` under `rEnviDe/dId/xDE`; the HTTPS layer presents the configured client certificate. A successful authority result has classification `accepted`, `dEstRes` equal to `Aprobado` or `Aprobado con observación`, and normally code `0260`; `dProtAut` is present only when SIFEN returns it.
+
+Interpret failures as follows:
+
+* `configuration`: inspect adapter scope, endpoint, sequence, bindings, CSC, and external-secret references.
+* `build`: correct missing or invalid fiscal payload fields and CDC consistency.
+* `signing`: validate PKCS#12 password, RSA identity, certificate/key match, and certificate validity/usages.
+* `qr`: validate CSC, receiver identity, totals, item count, CDC, and DigestValue.
+* `xsd_validation`: inspect the local XSD report before any network attempt.
+* `soap`: verify final `rDE`, sequence output, SOAP 1.2 structure, and local XSD status.
+* `transport`: use the safe category to distinguish DNS, connection, timeout, TLS, or certificate validation. After a timeout, do not resend; reconcile the CDC first.
+* `soap_fault`: inspect the safe Fault code/reason and retain the raw response securely.
+* `rejected`, `duplicate`, or `unrecognized_official_code`: retain the official code/message and do not infer acceptance from HTTP 200.
+
+The `einvoice_py` suite currently reports 493 counted tests across 437 test methods. Production service composition, configuration-driven sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission reconciliation, local homologation readiness, XMLDSig signing, QR/gCamFuFD construction, final rDE assembly/XSD validation, deterministic SOAP wrapping, the mocked TEST SOAP client, deterministic authority-response parsing, and the mocked end-to-end TEST composition are covered. Automated tests make no live SIFEN calls and do not establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
 
 Still pending:
 
