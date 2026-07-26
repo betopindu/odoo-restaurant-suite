@@ -1024,6 +1024,7 @@ Stage 8.29 adds `PySifenSoapEnvelopeBuilder` for the XML-only synchronous reques
 
 ```xml
 <Envelope xmlns="http://www.w3.org/2003/05/soap-envelope">
+  <Header/>
   <Body>
     <rEnviDe xmlns="http://ekuatia.set.gov.py/sifen/xsd">
       <dId>...</dId>
@@ -1035,7 +1036,11 @@ Stage 8.29 adds `PySifenSoapEnvelopeBuilder` for the XML-only synchronous reques
 </Envelope>
 ```
 
-The builder performs no HTTP, mutual TLS, response parsing, retry, or network operation. It parses and appends the complete `rDE` once without rebuilding signed nodes, normalization, indentation, or pretty-printing. The namespace boundary is chosen so SOAP namespace declarations do not alter the inclusive canonicalization context of the signed `DE`; local XMLDSig verification remains valid after wrapping. Its immutable result contains SOAP bytes, the parsed envelope, service/action metadata, CDC, and `dId`. The existing submission service retains persistent sequence allocation and delegates only envelope construction.
+Stage 8.29A audits this structure against Manual Técnico v150 sections 7.4, 7.9, 7.10, and 9.1 plus the official `WS_SiRecepDE_v150.xsd`. The TEST WSDL is published at `https://sifen-test.set.gov.py/de/ws/sync/recibe.wsdl?wsdl`; the POST endpoint is the same URL without `?wsdl`. The contract uses SOAP 1.2, UTF-8 XML, document/literal messages, the SOAP namespace `http://www.w3.org/2003/05/soap-envelope`, and the SIFEN namespace `http://ekuatia.set.gov.py/sifen/xsd`. The payload root is `rEnviDe`, in the exact `dId`, `xDE`, `rDE` order. Namespace prefixes are lexical aliases rather than element identity; the builder uses default namespace boundaries to comply with the SIFEN prohibition on prefixes in the data XML and to avoid changing inclusive XMLDSig canonicalization.
+
+The official Manual and XSD do not impose a SOAP action value. The builder therefore reports no action by default; the existing SOAP 1.2 transport can add a configured action parameter when explicitly supplied. HTTP transport uses `application/soap+xml; charset=utf-8`; no separate SOAP 1.1 `SOAPAction` header is generated.
+
+The builder performs no HTTP, mutual TLS, response parsing, retry, or network operation. It inserts the complete `rDE` root-element byte sequence once, removing only the standalone XML declaration because an XML declaration is not legal inside `xDE`. It does not rebuild signed nodes or apply normalization, indentation, or pretty-printing. The namespace boundary is chosen so SOAP namespace declarations do not alter the inclusive canonicalization context of the signed `DE`; local XMLDSig verification remains valid after wrapping. Its immutable result contains SOAP bytes, the parsed envelope, `SiRecepDE` service/action metadata, CDC, and `dId`. The existing submission service retains persistent sequence allocation and delegates only envelope construction.
 
 The `einvoice_py` suite currently reports 460 counted tests across 410 test methods. Production service composition, configuration-driven sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission reconciliation, local homologation readiness, XMLDSig signing, QR/gCamFuFD construction, final rDE assembly/XSD validation, and deterministic SOAP wrapping are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
 

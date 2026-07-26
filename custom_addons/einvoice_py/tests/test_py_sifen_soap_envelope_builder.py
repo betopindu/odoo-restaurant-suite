@@ -45,7 +45,7 @@ class TestPySifenSoapEnvelopeBuilder(BaseCase):
 
         result = self._build(validator=validator)
 
-        self.assertEqual(result.service_name, "siRecepDE")
+        self.assertEqual(result.service_name, "SiRecepDE")
         self.assertIsNone(result.soap_action)
         self.assertEqual(result.cdc, self.CDC)
         self.assertEqual(result.submission_id, "7")
@@ -53,6 +53,10 @@ class TestPySifenSoapEnvelopeBuilder(BaseCase):
         self.assertEqual(
             result.xml_document.tag,
             f"{{{self.SOAP_NS}}}Envelope",
+        )
+        self.assertEqual(
+            [etree.QName(child).localname for child in result.xml_document],
+            ["Header", "Body"],
         )
         request_node = result.xml_document.find(
             f"{{{self.SOAP_NS}}}Body/"
@@ -109,6 +113,15 @@ class TestPySifenSoapEnvelopeBuilder(BaseCase):
                 f"{{{self.SIFEN_NS}}}dCarQR"
             ),
             "https://example.test/qr?a=1&b=2",
+        )
+        original_fragment = PySifenSoapEnvelopeBuilder.XML_DECLARATION_RE.sub(
+            b"",
+            self._rde(),
+            count=1,
+        ).strip()
+        self.assertIn(
+            b"<xDE>" + original_fragment + b"</xDE>",
+            result.soap_xml_bytes,
         )
 
     def test_output_is_deterministic_and_not_pretty_printed(self):

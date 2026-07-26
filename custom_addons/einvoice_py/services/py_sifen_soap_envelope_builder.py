@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 
 from lxml import etree
@@ -28,8 +29,12 @@ class PySifenSoapEnvelopeBuilder:
     SOAP_ENV_NS = "http://www.w3.org/2003/05/soap-envelope"
     SIFEN_NS = PyUnsignedXmlBuilder.SIFEN_NS
     XMLDSIG_NS = "http://www.w3.org/2000/09/xmldsig#"
-    SERVICE_NAME = "siRecepDE"
+    SERVICE_NAME = "SiRecepDE"
     SOAP_ACTION = None
+    XML_DECLARATION_RE = re.compile(
+        br"^\s*<\?xml\s+[^?]*\?>\s*",
+        re.IGNORECASE,
+    )
 
     def __init__(self, xsd_validation_service=None):
         self.xsd_validation_service = (
@@ -52,35 +57,17 @@ class PySifenSoapEnvelopeBuilder:
                 "before SOAP assembly."
             )
 
-        envelope = etree.Element(
-            f"{{{self.SOAP_ENV_NS}}}Envelope",
-            nsmap={None: self.SOAP_ENV_NS},
+        rde_fragment = self._rde_fragment(validated_rde_bytes)
+        soap_xml_bytes = (
+            b'<?xml version="1.0" encoding="UTF-8"?>'
+            b'<Envelope xmlns="' + self.SOAP_ENV_NS.encode("ascii") + b'">'
+            b"<Header/><Body>"
+            b'<rEnviDe xmlns="' + self.SIFEN_NS.encode("ascii") + b'">'
+            b"<dId>" + submission_id.encode("ascii") + b"</dId><xDE>"
+            + rde_fragment
+            + b"</xDE></rEnviDe></Body></Envelope>"
         )
-        body = etree.SubElement(
-            envelope,
-            f"{{{self.SOAP_ENV_NS}}}Body",
-        )
-        request_node = etree.SubElement(
-            body,
-            f"{{{self.SIFEN_NS}}}rEnviDe",
-            nsmap={None: self.SIFEN_NS},
-        )
-        etree.SubElement(
-            request_node,
-            f"{{{self.SIFEN_NS}}}dId",
-        ).text = submission_id
-        document_node = etree.SubElement(
-            request_node,
-            f"{{{self.SIFEN_NS}}}xDE",
-        )
-        document_node.append(root)
-
-        soap_xml_bytes = etree.tostring(
-            envelope,
-            encoding="UTF-8",
-            xml_declaration=True,
-            pretty_print=False,
-        )
+        envelope = self._parse_envelope(soap_xml_bytes)
         return PySifenSoapEnvelopeResult(
             soap_xml_bytes=soap_xml_bytes,
             xml_document=envelope,
@@ -91,6 +78,21 @@ class PySifenSoapEnvelopeBuilder:
             cdc=cdc,
             submission_id=submission_id,
         )
+
+    def _rde_fragment(self, xml_content):
+        if isinstance(xml_content, str):
+            xml_content = xml_content.encode("utf-8")
+        fragment = self.XML_DECLARATION_RE.sub(b"", xml_content, count=1)
+        return fragment.strip()
+
+    def _parse_envelope(self, xml_content):
+        parser = etree.XMLParser(
+            resolve_entities=False,
+            load_dtd=False,
+            no_network=True,
+            remove_blank_text=False,
+        )
+        return etree.fromstring(xml_content, parser)
 
     def _parse(self, xml_content):
         try:

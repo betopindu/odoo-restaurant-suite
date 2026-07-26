@@ -78,6 +78,7 @@
 [x] Stage 8.27 SIFEN QR payload and gCamFuFD builder
 [x] Stage 8.28 Final rDE assembly and XSD validation
 [x] Stage 8.29 SIFEN SOAP envelope builder
+[x] Stage 8.29A Audit SOAP envelope against official SIFEN contract
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
