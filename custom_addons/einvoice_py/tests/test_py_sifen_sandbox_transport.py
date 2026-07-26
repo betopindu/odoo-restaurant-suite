@@ -208,6 +208,10 @@ class TestPySifenSandboxTransport(TransactionCase):
         self.assertNotIn("Soapaction", args[0].headers)
         self.assertEqual(kwargs["timeout"], 12)
         self.assertIsInstance(kwargs["context"], ssl.SSLContext)
+        self.assertEqual(
+            kwargs["context"].minimum_version,
+            ssl.TLSVersion.TLSv1_2,
+        )
 
     def test_endpoint_must_be_https_when_transport_called_directly(self):
         with self.assertRaisesRegex(ValidationError, "HTTPS URL"):

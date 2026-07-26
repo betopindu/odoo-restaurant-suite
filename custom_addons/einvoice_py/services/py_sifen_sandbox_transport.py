@@ -366,6 +366,7 @@ class PySifenSandboxTransport:
         returned, logged, or stored in Odoo records.
         """
         context = ssl.create_default_context()
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
         with tempfile.NamedTemporaryFile(mode="w+b") as cert_file, tempfile.NamedTemporaryFile(
             mode="w+b"
         ) as key_file:

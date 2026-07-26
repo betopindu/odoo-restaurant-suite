@@ -79,6 +79,7 @@
 [x] Stage 8.28 Final rDE assembly and XSD validation
 [x] Stage 8.29 SIFEN SOAP envelope builder
 [x] Stage 8.29A Audit SOAP envelope against official SIFEN contract
+[x] Stage 8.30 SIFEN TEST SOAP client
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation

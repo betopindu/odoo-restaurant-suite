@@ -10,6 +10,7 @@ from . import test_py_sifen_retry_scheduler_service
 from . import test_py_sifen_rde_assembler
 from . import test_py_sifen_sandbox_transport
 from . import test_py_sifen_soap_envelope_builder
+from . import test_py_sifen_soap_client
 from . import test_py_sifen_credential_provider
 from . import test_py_sifen_production_flow
 from . import test_py_sifen_submission_pipeline_service
