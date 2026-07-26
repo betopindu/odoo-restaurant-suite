@@ -11,6 +11,9 @@ from odoo.addons.einvoice_py.services.py_qr_generation_service import (
 from odoo.addons.einvoice_py.services.py_sifen_sandbox_transport import (
     PySifenSandboxTransport,
 )
+from odoo.addons.einvoice_py.services.py_sifen_rde_assembler import (
+    PySifenRdeAssembler,
+)
 from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
     PySifenRuntimeCredentials,
 )
@@ -40,6 +43,7 @@ class PySifenSubmissionPipelineService:
         signing_pipeline_service=None,
         qr_generation_service=None,
         xsd_validation_service=None,
+        rde_assembler=None,
         submission_service=None,
         transport=None,
     ):
@@ -47,6 +51,13 @@ class PySifenSubmissionPipelineService:
         self.signing_pipeline_service = signing_pipeline_service or PySigningPipelineService(env)
         self.qr_generation_service = qr_generation_service or PyQrGenerationService()
         self.xsd_validation_service = xsd_validation_service or PyXsdValidationService()
+        self.rde_assembler = (
+            rde_assembler
+            if rde_assembler is not None
+            else PySifenRdeAssembler(
+                xsd_validation_service=self.xsd_validation_service
+            )
+        )
         self.submission_service = submission_service or PySifenSubmissionService(
             xsd_validation_service=self.xsd_validation_service,
             transport=transport or PySifenSandboxTransport(env),
@@ -139,31 +150,40 @@ class PySifenSubmissionPipelineService:
         result["qr_hash"] = qr_result.get("qr_hash", "")
         result["qr_payload"] = qr_result.get("qr_string", "")
 
-        final_xml_bytes = self._run_stage(
+        assembly_result = self._run_stage(
             result,
             "final_xml_preparation",
-            lambda: self._final_xml_with_qr(
+            lambda: self.rde_assembler.assemble(
                 signed_xml_bytes=signed_xml_bytes,
-                qr_payload=result["qr_payload"],
-                qr_group_xml=qr_result.get("gcamfufd_xml_bytes"),
+                gcamfufd_xml_bytes=self._qr_group_xml(
+                    qr_result,
+                    result["qr_payload"],
+                ),
+                cdc=result["cdc"],
+                qr_url=result["qr_payload"],
             ),
         )
-        if final_xml_bytes is None:
+        if assembly_result is None:
             return result
+        final_xml_bytes = assembly_result.final_xml_bytes
 
-        xsd_report = self._run_stage(
-            result,
-            "final_xsd_validation",
-            lambda: self.xsd_validation_service.validate_final_signed_xml(final_xml_bytes),
-        )
-        if xsd_report is None:
-            return result
-        if not xsd_report.get("valid"):
+        if not assembly_result.xsd_valid:
             return self._fail(
                 result,
                 "final_xsd_validation",
                 "Final signed Paraguay XML failed local SIFEN XSD validation.",
-                xsd_report=xsd_report,
+                xsd_report={
+                    "errors": [
+                        {
+                            "failing_element": error.element,
+                            "path": error.path,
+                            "line": error.line,
+                            "column": error.column,
+                            "message": error.message,
+                        }
+                        for error in assembly_result.validation_errors
+                    ],
+                },
             )
 
         submission_result = self._run_stage(
@@ -279,6 +299,7 @@ class PySifenSubmissionPipelineService:
             result["xsd_errors"] = [
                 {
                     "failing_element": error.get("failing_element"),
+                    "path": error.get("path"),
                     "line": error.get("line"),
                     "column": error.get("column"),
                     "message": error.get("message", ""),
@@ -337,32 +358,13 @@ class PySifenSubmissionPipelineService:
             raise ValidationError("Signed Paraguay XML attachment is missing.")
         return base64.b64decode(attachment.ir_attachment_id.datas or b"")
 
-    def _final_xml_with_qr(
-        self,
-        *,
-        signed_xml_bytes,
-        qr_payload,
-        qr_group_xml=None,
-    ):
-        parser = etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True)
-        root = etree.fromstring(signed_xml_bytes, parser)
-        existing = root.findall(f"{{{self.SIFEN_NS}}}gCamFuFD")
-        if existing:
-            raise ValidationError("Final signed Paraguay XML already contains QR content.")
+    def _qr_group_xml(self, qr_result, qr_payload):
+        qr_group_xml = qr_result.get("gcamfufd_xml_bytes")
         if qr_group_xml:
-            qr_group = etree.fromstring(qr_group_xml, parser)
-            if qr_group.tag != f"{{{self.SIFEN_NS}}}gCamFuFD":
-                raise ValidationError(
-                    "Paraguay QR group is invalid."
-                )
-            root.append(qr_group)
-        else:
-            qr_group = etree.SubElement(
-                root,
-                f"{{{self.SIFEN_NS}}}gCamFuFD",
-            )
-            etree.SubElement(
-                qr_group,
-                f"{{{self.SIFEN_NS}}}dCarQR",
-            ).text = qr_payload
-        return etree.tostring(root, encoding="UTF-8", xml_declaration=True)
+            return qr_group_xml
+        qr_group = etree.Element(f"{{{self.SIFEN_NS}}}gCamFuFD")
+        etree.SubElement(
+            qr_group,
+            f"{{{self.SIFEN_NS}}}dCarQR",
+        ).text = qr_payload
+        return etree.tostring(qr_group, encoding="UTF-8")

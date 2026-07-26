@@ -7,6 +7,7 @@ from . import test_py_qualified_certificate_installation_service
 from . import test_py_sifen_retry_execution_service
 from . import test_py_sifen_retry_runner
 from . import test_py_sifen_retry_scheduler_service
+from . import test_py_sifen_rde_assembler
 from . import test_py_sifen_sandbox_transport
 from . import test_py_sifen_credential_provider
 from . import test_py_sifen_production_flow

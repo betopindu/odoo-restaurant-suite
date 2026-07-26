@@ -11,6 +11,7 @@ from . import py_sifen_retry_scheduler_service
 from . import py_sifen_credential_provider
 from . import py_signing_pipeline_service
 from . import py_sifen_sandbox_transport
+from . import py_sifen_rde_assembler
 from . import py_sifen_submission_pipeline_service
 from . import py_sifen_test_submission_service
 from . import py_sifen_test_readiness_service
@@ -41,6 +42,11 @@ from .py_sifen_test_submission_service import (
     PySifenTestSubmissionService,
 )
 from .py_sifen_test_readiness_service import PySifenTestReadinessService
+from .py_sifen_rde_assembler import (
+    PySifenRdeAssembler,
+    PySifenRdeAssemblyResult,
+    PySifenXsdValidationError,
+)
 from .py_qr_generation_service import (
     PyQrGenerationService,
     PySifenQrBuilder,
