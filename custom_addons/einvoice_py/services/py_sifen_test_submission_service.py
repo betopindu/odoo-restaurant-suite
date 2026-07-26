@@ -10,6 +10,9 @@ from odoo.exceptions import ValidationError
 from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import (
     PyUnsignedXmlBuilder,
 )
+from odoo.addons.einvoice_py.services.py_sifen_soap_envelope_builder import (
+    PySifenSoapEnvelopeBuilder,
+)
 from odoo.addons.einvoice_py.services.py_xsd_validation_service import (
     PyXsdValidationService,
 )
@@ -65,9 +68,21 @@ class PySifenSubmissionService:
         "sifen": SIFEN_NS,
     }
 
-    def __init__(self, xsd_validation_service=None, transport=None):
+    def __init__(
+        self,
+        xsd_validation_service=None,
+        transport=None,
+        soap_envelope_builder=None,
+    ):
         self.xsd_validation_service = xsd_validation_service or PyXsdValidationService()
         self.transport = transport
+        self.soap_envelope_builder = (
+            soap_envelope_builder
+            if soap_envelope_builder is not None
+            else PySifenSoapEnvelopeBuilder(
+                xsd_validation_service=self.xsd_validation_service
+            )
+        )
 
     def submit_final_xml(
         self,
@@ -123,24 +138,10 @@ class PySifenSubmissionService:
         )
 
     def build_soap_envelope(self, final_xml_bytes, *, document):
-        try:
-            de_node = self._parse_xml(final_xml_bytes)
-        except etree.XMLSyntaxError as error:
-            raise ValidationError(f"Malformed final Paraguay XML: {error}") from error
-
-        envelope = etree.Element(f"{{{self.SOAP_ENV_NS}}}Envelope", nsmap={
-            "soapenv": self.SOAP_ENV_NS,
-            "sifen": self.SIFEN_NS,
-        })
-        body = etree.SubElement(envelope, f"{{{self.SOAP_ENV_NS}}}Body")
-        request_node = etree.SubElement(body, f"{{{self.SIFEN_NS}}}rEnviDe")
-        etree.SubElement(request_node, f"{{{self.SIFEN_NS}}}dId").text = (
-            self._next_submission_id(document)
-        )
-        document_node = etree.SubElement(request_node, f"{{{self.SIFEN_NS}}}xDE")
-        document_node.append(de_node)
-        etree.indent(envelope, space="  ")
-        return etree.tostring(envelope, encoding="UTF-8", xml_declaration=True)
+        return self.soap_envelope_builder.build(
+            validated_rde_bytes=final_xml_bytes,
+            submission_id=self._next_submission_id(document),
+        ).soap_xml_bytes
 
     def _next_submission_id(self, document):
         adapter = document.adapter_config_id

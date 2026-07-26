@@ -12,6 +12,7 @@ from . import py_sifen_credential_provider
 from . import py_signing_pipeline_service
 from . import py_sifen_sandbox_transport
 from . import py_sifen_rde_assembler
+from . import py_sifen_soap_envelope_builder
 from . import py_sifen_submission_pipeline_service
 from . import py_sifen_test_submission_service
 from . import py_sifen_test_readiness_service
@@ -46,6 +47,10 @@ from .py_sifen_rde_assembler import (
     PySifenRdeAssembler,
     PySifenRdeAssemblyResult,
     PySifenXsdValidationError,
+)
+from .py_sifen_soap_envelope_builder import (
+    PySifenSoapEnvelopeBuilder,
+    PySifenSoapEnvelopeResult,
 )
 from .py_qr_generation_service import (
     PyQrGenerationService,

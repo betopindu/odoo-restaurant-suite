@@ -1018,7 +1018,26 @@ Stage 8.28 adds `PySifenRdeAssembler` as the single final-document assembly boun
 
 Assembly is append-only: it does not rebuild, reorder, re-indent, or pretty-print the signed content. The resulting XMLDSig therefore remains locally verifiable. The assembler delegates final validation to the existing `PyXsdValidationService` and its vendored official SIFEN v150 XSD set. Its immutable result includes the final XML, parsed XML document, CDC, QR URL, validation status, and structured XSD errors with message, line, column, element, and path when available. It performs no SOAP construction, transport, mutual TLS, or network communication.
 
-The `einvoice_py` suite currently reports 450 counted tests across 402 test methods. Production service composition, configuration-driven sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission reconciliation, local homologation readiness, XMLDSig signing, QR/gCamFuFD construction, and final rDE assembly/XSD validation are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
+## SOAP 1.2 envelope assembly
+
+Stage 8.29 adds `PySifenSoapEnvelopeBuilder` for the XML-only synchronous request boundary. It accepts an XSD-valid final `rDE` and a numeric `dId` of 1–15 digits, then produces:
+
+```xml
+<Envelope xmlns="http://www.w3.org/2003/05/soap-envelope">
+  <Body>
+    <rEnviDe xmlns="http://ekuatia.set.gov.py/sifen/xsd">
+      <dId>...</dId>
+      <xDE>
+        <rDE>...</rDE>
+      </xDE>
+    </rEnviDe>
+  </Body>
+</Envelope>
+```
+
+The builder performs no HTTP, mutual TLS, response parsing, retry, or network operation. It parses and appends the complete `rDE` once without rebuilding signed nodes, normalization, indentation, or pretty-printing. The namespace boundary is chosen so SOAP namespace declarations do not alter the inclusive canonicalization context of the signed `DE`; local XMLDSig verification remains valid after wrapping. Its immutable result contains SOAP bytes, the parsed envelope, service/action metadata, CDC, and `dId`. The existing submission service retains persistent sequence allocation and delegates only envelope construction.
+
+The `einvoice_py` suite currently reports 460 counted tests across 410 test methods. Production service composition, configuration-driven sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission reconciliation, local homologation readiness, XMLDSig signing, QR/gCamFuFD construction, final rDE assembly/XSD validation, and deterministic SOAP wrapping are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
 
 Still pending:
 
