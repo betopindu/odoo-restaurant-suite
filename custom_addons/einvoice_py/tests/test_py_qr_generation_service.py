@@ -1,5 +1,6 @@
 import hashlib
-from urllib.parse import parse_qsl, urlencode, urlsplit
+import re
+from urllib.parse import parse_qsl, urlsplit
 
 from lxml import etree
 
@@ -8,6 +9,7 @@ from odoo.tests.common import TransactionCase
 
 from odoo.addons.einvoice_py.services.py_qr_generation_service import (
     PyQrGenerationService,
+    PySifenQrBuilder,
 )
 from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import (
     PyUnsignedXmlBuilder,
@@ -67,6 +69,10 @@ class TestPyQrGenerationService(TransactionCase):
         receiver_ruc="1234567",
         receiver_dv="8",
         receiver_document=None,
+        emission_datetime="2026-06-18T12:00:00",
+        total_operation="100.00000000",
+        total_vat="9.09000000",
+        item_count=1,
     ):
         namespace = PyUnsignedXmlBuilder.SIFEN_NS
         root = etree.Element(f"{{{namespace}}}rDE", nsmap={None: namespace})
@@ -76,7 +82,11 @@ class TestPyQrGenerationService(TransactionCase):
         etree.SubElement(de, f"{{{namespace}}}dFecFirma").text = "2026-06-18T12:34:56"
         etree.SubElement(de, f"{{{namespace}}}dSisFact").text = "1"
         general = etree.SubElement(de, f"{{{namespace}}}gDatGralOpe")
-        etree.SubElement(general, f"{{{namespace}}}dFeEmiDE").text = "2026-06-18T12:00:00"
+        if emission_datetime is not None:
+            etree.SubElement(
+                general,
+                f"{{{namespace}}}dFeEmiDE",
+            ).text = emission_datetime
         receiver = etree.SubElement(general, f"{{{namespace}}}gDatRec")
         if receiver_ruc is not None:
             etree.SubElement(receiver, f"{{{namespace}}}dRucRec").text = receiver_ruc
@@ -85,10 +95,19 @@ class TestPyQrGenerationService(TransactionCase):
         if receiver_document is not None:
             etree.SubElement(receiver, f"{{{namespace}}}dNumIDRec").text = receiver_document
         detail = etree.SubElement(de, f"{{{namespace}}}gDtipDE")
-        etree.SubElement(detail, f"{{{namespace}}}gCamItem")
+        for _index in range(item_count):
+            etree.SubElement(detail, f"{{{namespace}}}gCamItem")
         totals = etree.SubElement(de, f"{{{namespace}}}gTotSub")
-        etree.SubElement(totals, f"{{{namespace}}}dTotGralOpe").text = "100.00000000"
-        etree.SubElement(totals, f"{{{namespace}}}dTotIVA").text = "9.09000000"
+        if total_operation is not None:
+            etree.SubElement(
+                totals,
+                f"{{{namespace}}}dTotGralOpe",
+            ).text = total_operation
+        if total_vat is not None:
+            etree.SubElement(
+                totals,
+                f"{{{namespace}}}dTotIVA",
+            ).text = total_vat
         if include_signature:
             ds_namespace = PyQrGenerationService.XMLDSIG_NS
             for _index in range(signature_count):
@@ -170,12 +189,12 @@ class TestPyQrGenerationService(TransactionCase):
             {
                 "nVersion": "150",
                 "Id": self.CDC,
-                "dFeEmiDE": "2026-06-18T12:00:00",
+                "dFeEmiDE": "2026-06-18T12:00:00".encode().hex(),
                 "dRucRec": "1234567",
                 "dTotGralOpe": "100.00000000",
                 "dTotIVA": "9.09000000",
                 "cItems": "1",
-                "DigestValue": self.DIGEST_VALUE,
+                "DigestValue": self.DIGEST_VALUE.encode().hex(),
                 "IdCSC": "0001",
                 "cHashQR": result["qr_hash"],
             },
@@ -190,18 +209,18 @@ class TestPyQrGenerationService(TransactionCase):
     def test_project_locked_hash_vector(self):
         result = self._generate()
         fields = [
-            ("nVersion", "150"),
-            ("Id", self.CDC),
-            ("dFeEmiDE", "2026-06-18T12:00:00"),
-            ("dRucRec", "1234567"),
-            ("dTotGralOpe", "100.00000000"),
-            ("dTotIVA", "9.09000000"),
-            ("cItems", "1"),
-            ("DigestValue", self.DIGEST_VALUE),
-            ("IdCSC", "0001"),
+            "nVersion=150",
+            f"Id={self.CDC}",
+            f"dFeEmiDE={'2026-06-18T12:00:00'.encode().hex()}",
+            "dRucRec=1234567",
+            "dTotGralOpe=100.00000000",
+            "dTotIVA=9.09000000",
+            "cItems=1",
+            f"DigestValue={self.DIGEST_VALUE.encode().hex()}",
+            "IdCSC=0001",
         ]
         expected_hash = hashlib.sha256(
-            (urlencode(fields) + self.CSC_VALUE).encode("utf-8")
+            ("&".join(fields) + self.CSC_VALUE).encode("utf-8")
         ).hexdigest()
 
         self.assertEqual(result["qr_hash"], expected_hash)
@@ -242,12 +261,207 @@ class TestPyQrGenerationService(TransactionCase):
         self.assertIn(("dRucRec", "1234567"), self._query_pairs(result["qr_string"]))
         self.assertNotIn(("dRucRec", "1234567-8"), self._query_pairs(result["qr_string"]))
 
-    def test_receiver_document_does_not_replace_missing_druc_field(self):
+    def test_receiver_document_uses_dnumidrec(self):
         signed_xml = self._signed_xml(
             receiver_ruc=None,
             receiver_dv=None,
             receiver_document="4444444",
         )
 
-        with self.assertRaisesRegex(ValidationError, "receiver RUC is required"):
+        result = self._generate(signed_xml_bytes=signed_xml)
+
+        self.assertIn(
+            ("dNumIDRec", "4444444"),
+            self._query_pairs(result.qr_string),
+        )
+        self.assertNotIn(
+            "dRucRec",
+            dict(self._query_pairs(result.qr_string)),
+        )
+
+    def test_ambiguous_receiver_is_rejected(self):
+        signed_xml = self._signed_xml(receiver_document="4444444")
+
+        with self.assertRaisesRegex(ValidationError, "exactly one"):
             self._generate(signed_xml_bytes=signed_xml)
+
+    def test_datetime_and_digest_are_lowercase_utf8_hex(self):
+        result = self._generate()
+        values = dict(self._query_pairs(result.qr_string))
+
+        self.assertEqual(
+            values["dFeEmiDE"],
+            "2026-06-18T12:00:00".encode("utf-8").hex(),
+        )
+        self.assertEqual(
+            values["DigestValue"],
+            self.DIGEST_VALUE.encode("utf-8").hex(),
+        )
+        self.assertNotEqual(
+            values["DigestValue"],
+            self.DIGEST_VALUE,
+        )
+
+    def test_environment_selects_test_and_production_urls(self):
+        builder = PySifenQrBuilder()
+        values = {
+            "signed_xml_bytes": self._signed_xml(),
+            "cdc": self.CDC,
+            "digest_value": self.DIGEST_VALUE,
+            "csc_id": "0001",
+            "csc_secret": self.CSC_VALUE,
+        }
+
+        test_result = builder.build(environment="test", **values)
+        production_result = builder.build(
+            environment="production",
+            **values,
+        )
+
+        self.assertTrue(
+            test_result.qr_string.startswith(
+                "https://ekuatia.set.gov.py/consultas-test/qr?"
+            )
+        )
+        self.assertTrue(
+            production_result.qr_string.startswith(
+                "https://ekuatia.set.gov.py/consultas/qr?"
+            )
+        )
+        self.assertEqual(test_result.environment, "test")
+        self.assertEqual(production_result.environment, "production")
+
+    def test_gcamfufd_uses_xml_escaping(self):
+        result = self._generate()
+        group = etree.fromstring(result.gcamfufd_xml_bytes)
+        qr_node = group.find(
+            f"{{{PyUnsignedXmlBuilder.SIFEN_NS}}}dCarQR"
+        )
+
+        self.assertEqual(
+            group.tag,
+            f"{{{PyUnsignedXmlBuilder.SIFEN_NS}}}gCamFuFD",
+        )
+        self.assertEqual(qr_node.text, result.qr_string)
+        self.assertIn(b"&amp;", result.gcamfufd_xml_bytes)
+        self.assertNotIn(b"&amp;amp;", result.gcamfufd_xml_bytes)
+
+    def test_csc_secret_is_not_exposed(self):
+        result = self._generate()
+
+        self.assertNotIn(self.CSC_VALUE, repr(result))
+        self.assertNotIn(self.CSC_VALUE, result.qr_string)
+        self.assertNotIn(self.CSC_VALUE, result.parameters_string)
+        self.assertNotIn(
+            self.CSC_VALUE.encode(),
+            result.gcamfufd_xml_bytes,
+        )
+
+    def test_hash_changes_with_any_parameter_and_is_lowercase_sha256(self):
+        first = self._generate()
+        changed = self._generate(
+            signed_xml_bytes=self._signed_xml(
+                total_operation="101.00000000",
+            )
+        )
+
+        self.assertNotEqual(first.qr_hash, changed.qr_hash)
+        self.assertRegex(first.qr_hash, re.compile(r"^[0-9a-f]{64}$"))
+        self.assertRegex(changed.qr_hash, re.compile(r"^[0-9a-f]{64}$"))
+
+    def test_each_variable_parameter_changes_hash(self):
+        builder = PySifenQrBuilder()
+
+        def build(xml=None, cdc=None, digest=None, csc_id="0001"):
+            return builder.build(
+                signed_xml_bytes=xml or self._signed_xml(),
+                cdc=cdc or self.CDC,
+                digest_value=digest or self.DIGEST_VALUE,
+                csc_id=csc_id,
+                csc_secret=self.CSC_VALUE,
+                environment="test",
+            )
+
+        baseline = build().qr_hash
+        other_cdc = "0" * 44
+        variants = [
+            build(
+                xml=self._signed_xml(cdc=other_cdc),
+                cdc=other_cdc,
+            ),
+            build(
+                xml=self._signed_xml(
+                    emission_datetime="2026-06-18T12:00:01",
+                )
+            ),
+            build(xml=self._signed_xml(receiver_ruc="7654321")),
+            build(
+                xml=self._signed_xml(
+                    total_operation="101.00000000",
+                )
+            ),
+            build(xml=self._signed_xml(total_vat="10.00000000")),
+            build(xml=self._signed_xml(item_count=2)),
+            build(
+                xml=self._signed_xml(digest_value="other-digest"),
+                digest="other-digest",
+            ),
+            build(csc_id="0002"),
+        ]
+
+        for variant in variants:
+            self.assertNotEqual(variant.qr_hash, baseline)
+
+    def test_item_count_uses_xml_groups(self):
+        result = self._generate(
+            signed_xml_bytes=self._signed_xml(item_count=3)
+        )
+
+        self.assertEqual(
+            dict(self._query_pairs(result.qr_string))["cItems"],
+            "3",
+        )
+
+    def test_invalid_csc_and_environment_are_rejected_safely(self):
+        builder = PySifenQrBuilder()
+        values = {
+            "signed_xml_bytes": self._signed_xml(),
+            "cdc": self.CDC,
+            "digest_value": self.DIGEST_VALUE,
+            "csc_secret": self.CSC_VALUE,
+        }
+        with self.assertRaisesRegex(ValidationError, "four digits"):
+            builder.build(
+                csc_id="1",
+                environment="test",
+                **values,
+            )
+        with self.assertRaisesRegex(ValidationError, "TEST or PRODUCTION"):
+            builder.build(
+                csc_id="0001",
+                environment="staging",
+                **values,
+            )
+        with self.assertRaisesRegex(ValidationError, "CSC secret"):
+            builder.build(
+                signed_xml_bytes=self._signed_xml(),
+                cdc=self.CDC,
+                digest_value=self.DIGEST_VALUE,
+                csc_id="0001",
+                csc_secret="",
+                environment="test",
+            )
+
+    def test_missing_emission_datetime_or_totals_is_rejected(self):
+        with self.assertRaisesRegex(ValidationError, "dFeEmiDE"):
+            self._generate(
+                signed_xml_bytes=self._signed_xml(
+                    emission_datetime=None,
+                )
+            )
+        with self.assertRaisesRegex(ValidationError, "dTotGralOpe"):
+            self._generate(
+                signed_xml_bytes=self._signed_xml(
+                    total_operation=None,
+                )
+            )

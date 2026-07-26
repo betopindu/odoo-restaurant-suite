@@ -145,6 +145,7 @@ class PySifenSubmissionPipelineService:
             lambda: self._final_xml_with_qr(
                 signed_xml_bytes=signed_xml_bytes,
                 qr_payload=result["qr_payload"],
+                qr_group_xml=qr_result.get("gcamfufd_xml_bytes"),
             ),
         )
         if final_xml_bytes is None:
@@ -336,13 +337,32 @@ class PySifenSubmissionPipelineService:
             raise ValidationError("Signed Paraguay XML attachment is missing.")
         return base64.b64decode(attachment.ir_attachment_id.datas or b"")
 
-    def _final_xml_with_qr(self, *, signed_xml_bytes, qr_payload):
+    def _final_xml_with_qr(
+        self,
+        *,
+        signed_xml_bytes,
+        qr_payload,
+        qr_group_xml=None,
+    ):
         parser = etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True)
         root = etree.fromstring(signed_xml_bytes, parser)
         existing = root.findall(f"{{{self.SIFEN_NS}}}gCamFuFD")
         if existing:
             raise ValidationError("Final signed Paraguay XML already contains QR content.")
-        qr_group = etree.SubElement(root, f"{{{self.SIFEN_NS}}}gCamFuFD")
-        etree.SubElement(qr_group, f"{{{self.SIFEN_NS}}}dCarQR").text = qr_payload
-        etree.indent(root, space="  ")
+        if qr_group_xml:
+            qr_group = etree.fromstring(qr_group_xml, parser)
+            if qr_group.tag != f"{{{self.SIFEN_NS}}}gCamFuFD":
+                raise ValidationError(
+                    "Paraguay QR group is invalid."
+                )
+            root.append(qr_group)
+        else:
+            qr_group = etree.SubElement(
+                root,
+                f"{{{self.SIFEN_NS}}}gCamFuFD",
+            )
+            etree.SubElement(
+                qr_group,
+                f"{{{self.SIFEN_NS}}}dCarQR",
+            ).text = qr_payload
         return etree.tostring(root, encoding="UTF-8", xml_declaration=True)

@@ -971,7 +971,37 @@ The fixed algorithm URIs are:
 
 The credential provider normalizes supported PKCS#12 material into the certificate and private-key inputs consumed by the signer; the signer does not read secret references or PKCS#12 files. XML signing proves document integrity and signer possession of the private key. Mutual TLS authenticates the HTTPS client connection. They are separate logical credential bindings even when both use the same qualified certificate.
 
-The `einvoice_py` suite currently reports 429 counted tests across 383 test methods. Production service composition, configuration-driven sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission reconciliation, local homologation readiness, and XMLDSig signing are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
+## SIFEN v150 QR payload and gCamFuFD
+
+Stage 8.27 uses `PySifenQrBuilder` after XMLDSig and before final XSD/submission processing. It produces URL text and the XML fragment only; it does not render PNG/SVG, call SIFEN, or use SOAP.
+
+The parameter order is fixed:
+
+1. `nVersion`
+2. `Id`
+3. `dFeEmiDE`
+4. exactly one of `dRucRec` or `dNumIDRec`
+5. `dTotGralOpe`
+6. `dTotIVA`
+7. `cItems`
+8. `DigestValue`
+9. `IdCSC`
+
+`nVersion` is `150`, and `Id` is the complete CDC matching `DE@Id`. `dFeEmiDE` is the lowercase hexadecimal representation of its UTF-8 XML text. `DigestValue` is likewise the lowercase hexadecimal representation of the UTF-8 Base64 text already present in XMLDSig; it is not Base64-decoded and is not hashed again. Totals are copied exactly from the signed XML without floating-point conversion, and `cItems` is the count of `gCamItem` groups rather than a quantity sum. `IdCSC` preserves leading zeroes.
+
+The ordered parameter text, excluding the URL, is concatenated directly with the transient CSC secret and hashed with SHA-256 to obtain the 64-character lowercase `cHashQR`. The CSC secret is never returned or placed in XML. TEST uses `https://ekuatia.set.gov.py/consultas-test/qr`; PRODUCTION uses `https://ekuatia.set.gov.py/consultas/qr`. Both environments share the same builder logic.
+
+The generated fragment is:
+
+```xml
+<gCamFuFD xmlns="http://ekuatia.set.gov.py/sifen/xsd">
+  <dCarQR>...</dCarQR>
+</gCamFuFD>
+```
+
+The XML library escapes ampersands when serializing `dCarQR`; callers must not insert `&amp;` manually. The pipeline appends this fragment without pretty-printing or re-indenting the already signed XML.
+
+The `einvoice_py` suite currently reports 439 counted tests across 393 test methods. Production service composition, configuration-driven sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission reconciliation, local homologation readiness, XMLDSig signing, and QR/gCamFuFD construction are covered with deterministic fixtures, but the tests do not make live SIFEN calls or establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
 
 Still pending:
 

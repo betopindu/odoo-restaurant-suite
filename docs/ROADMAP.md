@@ -75,6 +75,7 @@
 [x] Stage 8.24A SIFEN Consulta DE and ambiguous submission reconciliation
 [x] Stage 8.25 SIFEN TEST homologation profile and readiness status
 [x] Stage 8.26 SIFEN XMLDSig signing engine
+[x] Stage 8.27 SIFEN QR payload and gCamFuFD builder
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
