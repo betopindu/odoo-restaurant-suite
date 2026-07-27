@@ -1,0 +1,14 @@
+flowchart TD
+    A[SOAP client result] --> B{Transport completed?}
+    B -->|No| C[Transport failure]
+    B -->|Yes| D{HTTP success?}
+    D -->|No| E[HTTP error]
+    D -->|Yes| F{SOAP Fault?}
+    F -->|Yes| G[SOAP Fault]
+    F -->|No| H{Valid rRetEnviDe?}
+    H -->|No| I[Malformed response]
+    H -->|Yes| J{Authority outcome}
+    J --> K[Accepted]
+    J --> L[Rejected]
+    J --> M[Duplicate]
+    J --> N[Unknown authority code]

@@ -1,24 +1,18 @@
-flowchart TD
-
-A[Fiscal Document] --> B[Issuer / Establishment / Point Of Issue]
-B --> C[Numbering / CDC]
-C --> D[Payload JSON]
-D --> E[Unsigned XML]
-E --> F[XMLDSig]
-F --> G[QR Payload]
-G --> H[Official XSD Validation]
-H --> I[SOAP 1.2 rEnviDe]
-
-J[CredentialProvider] --> K[PKCS#12 Material]
-K --> L[xml_signing Binding]
-K --> M[mutual_tls Binding]
-L --> F
-M --> N[mTLS]
-
-I --> N
-N --> O[SIFEN]
-O --> P[Transmission Persistence]
-P --> Q{Retryable?}
-Q -->|Yes| R[Retry Scheduling / Execution]
-R --> D
-Q -->|No| S[Accepted / Rejected / Failed Final]
+sequenceDiagram
+    participant O as Odoo payload
+    participant P as Paraguay services
+    participant T as mTLS transport
+    participant S as SIFEN
+    O->>P: Normalized payload
+    P->>P: Unsigned DE
+    P->>P: CDC and DE@Id
+    P->>P: XMLDSig
+    P->>P: QR and gCamFuFD
+    P->>P: Final rDE
+    P->>P: Official XSD validation
+    P->>P: SOAP 1.2 rEnviDe
+    P->>T: Original SOAP bytes
+    T->>S: HTTPS POST with client certificate
+    S-->>T: HTTP / SOAP response
+    T-->>P: Immutable transport result
+    P-->>O: Structured parsed result

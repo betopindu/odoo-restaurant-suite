@@ -97,7 +97,7 @@ Private keys must not be stored in ordinary plaintext model fields. Credential r
 * Certificate rotation and transport authentication can evolve independently from XML signing.
 * Signing implementation requires a maintained XML security dependency and compatible runtime packaging.
 * Tenant isolation must cover certificate metadata, credential references, private-key access, and signed attachments.
-* Full official XSD validation remains deferred until signature and QR stages are complete.
+* Full official XSD validation runs only after signature and QR stages are complete.
 
 ## Alternatives Considered
 

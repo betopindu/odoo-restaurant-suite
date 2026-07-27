@@ -82,22 +82,36 @@
 [x] Stage 8.30 SIFEN TEST SOAP client
 [x] Stage 8.31 Parse and classify SIFEN siRecepDE responses
 [x] Stage 8.32 End-to-end SIFEN TEST submission
+[x] Stage 8.33 Homologation readiness audit
+[x] Documentation closeout for TEST-ready baseline at `cd07a73`
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
 
-## In Progress
+## Current Baseline
 
-[ ] Project documentation
+The repository is **TEST-ready in code**. The complete network-free pipeline,
+offline certificate validation, readiness check, TEST mTLS transport, response
+parser, and controlled isolated submission entry point are implemented and
+tested. This status does not claim a successful live SIFEN submission.
+
+The current operational blocker is installation of the taxpayer's qualified
+PKCS#12 certificate. Live mTLS trust, CSC behavior, and authority acceptance
+remain unverified until that credential is available.
 
 ## Current Validation Status
 
-The `einvoice_py` suite covers production credential resolution, submission dispatch, fiscal transmission persistence, and eligible retry scheduling/execution. Stage 8.13 adds one tests-only composition scenario across those existing services. Stage 8.15 makes `PySifenTransmissionPersistenceService` resolve runtime credentials automatically when callers supply neither a runtime credential object nor legacy explicit credential arguments. Stage 8.16 lets retry execution reconstruct omitted inputs from fiscal attachments. Stage 8.17 adds `verify_document_connection()` as a configuration-driven, Paraguay TEST-only sandbox preflight that resolves endpoint, timeout, and mutual-TLS credentials from the document and delegates exclusively to the existing connection verifier. Stage 8.18 makes synchronous DE submission use SOAP 1.2 with `application/soap+xml` and the official `rEnviDe/dId/xDE/rDE` structure. The numeric, 15-digit-maximum `dId` comes from the taxpayer-controlled persistent `fiscal.adapter.config.sequence_id`. Stage fixtures configure `no_gap`, but gapless allocation is not treated as a DNIT protocol requirement. Stage 8.19 records that live SIFEN TEST acceptance requires the taxpayer's Qualified Certificate issued by a Prestador Cualificado de Servicios de Confianza (PCSC) habilitado, while the credential architecture remains provider-neutral. Stage 8.24A adds TEST-only Consulta DE reconciliation by CDC before retrying an ambiguous synchronous submission. Stage 8.28 centralizes append-only final `rDE` assembly and validation against the vendored official v150 XSD set. Stage 8.29 centralizes deterministic SOAP 1.2 `rEnviDe/dId/xDE/rDE` assembly without HTTP, mTLS, or network access. Stage 8.31 parses the official synchronous `rRetEnviDe/rProtDe` response independently from transport and persistence, preserving every returned processing result and separating HTTP errors, SOAP Faults, authority outcomes, malformed content, and unmapped future codes. Stage 8.32 composes those existing boundaries in the TEST-only `PySifenSubmissionService.submit()` operation and returns the immutable authority response without persistence, retry, Consulta DE, or workflow transitions. Automated coverage remains network-free; the documented operator procedure is the only live execution path.
+At baseline commit `cd07a73`, the full `einvoice_py` suite reports **495
+counted tests across 439 test methods**. Automated coverage is network-free.
+It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
+1.2 wrapping, mocked mTLS transport, response classification, readiness, and
+end-to-end composition. It does not prove live SIFEN trust or acceptance.
 
 ## Next
 
 [ ] Stage 8.23 First Live Synchronous TEST DE
-[ ] Stage 8.24B Authority-Driven Corrections, only if required by authority evidence
+[ ] Authority-driven interoperability corrections, only when supported by live evidence
+[ ] Stage 8.24B durable pre-POST persistence, explicitly postponed until homologation evidence justifies it
 [ ] Real CSC validation against SIFEN behavior
 [ ] Production connection preflight
 [ ] Paraguay adapter integration

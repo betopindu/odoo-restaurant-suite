@@ -96,7 +96,8 @@ It is scoped by tenant, company, environment, and document type, and can be asso
 
 `fiscal.py.csc` stores IdCSC and CSC configuration for Paraguay.
 
-CSC is not used for CDC generation. It is reserved for future QR/hash generation.
+CSC is not used for CDC generation. It is used only for the implemented
+QR/`cHashQR` generation after XMLDSig.
 
 The CSC value is sensitive and should not be exposed in APIs or public payloads.
 
@@ -1082,6 +1083,11 @@ Transport uses `application/soap+xml; charset=utf-8`, no SOAP 1.1 `SOAPAction` h
 
 ### First live submission procedure
 
+The authoritative field checklist is
+[SIFEN TEST Configuration](CONFIGURATION.md). Operational safeguards and
+response handling are consolidated in the
+[Homologation Runbook](HOMOLOGATION_RUNBOOK.md).
+
 Before running the operation, complete all of the following:
 
 1. Use one active Paraguay `fiscal.document` in environment `test`, with complete issuer, establishment, point of issue, TEST timbrado, document numbering, receiver, items, totals, CDC, and signing timestamp inputs.
@@ -1123,13 +1129,22 @@ Interpret failures as follows:
 * `soap_fault`: inspect the safe Fault code/reason and retain the raw response securely.
 * `rejected`, `duplicate`, or `unrecognized_official_code`: retain the official code/message and do not infer acceptance from HTTP 200.
 
-The `einvoice_py` suite currently reports 493 counted tests across 437 test methods. Production service composition, configuration-driven sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission reconciliation, local homologation readiness, XMLDSig signing, QR/gCamFuFD construction, final rDE assembly/XSD validation, deterministic SOAP wrapping, the mocked TEST SOAP client, deterministic authority-response parsing, and the mocked end-to-end TEST composition are covered. Automated tests make no live SIFEN calls and do not establish authority trust for a real qualified certificate, mutual TLS, or CSC behavior.
+At baseline commit `cd07a73`, the `einvoice_py` suite reports 495 counted tests
+across 439 test methods. Production service composition, configuration-driven
+sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission
+reconciliation, local homologation readiness, XMLDSig signing, QR/`gCamFuFD`,
+final `rDE` assembly/XSD validation, deterministic SOAP wrapping, the mocked
+TEST SOAP client, deterministic authority-response parsing, and mocked
+end-to-end TEST composition are covered. Automated tests make no live SIFEN
+calls and do not establish authority trust for a real qualified certificate,
+mutual TLS, or CSC behavior.
 
 Still pending:
 
 * live SIFEN sandbox validation
 * first live synchronous TEST DE
 * authority and real CSC validation
+* Stage 8.24B durable pre-POST persistence, postponed until authority evidence justifies it
 * production connection preflight
 * retry cron activation
 * operational monitoring and production go-live

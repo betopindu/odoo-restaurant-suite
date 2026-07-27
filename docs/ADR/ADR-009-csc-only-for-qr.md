@@ -22,19 +22,22 @@ Accepted
 
 Paraguay configuration includes CSC and IdCSC. CDC research confirmed that CSC is not part of CDC generation. CDC uses a separate 9-digit security code (`dCodSeg`) and a modulo-11 check digit.
 
-CSC and IdCSC are relevant for future QR/hash generation, not for CDC composition.
+CSC and IdCSC are relevant for QR/hash generation, not for CDC composition.
 
 ## Decision
 
 Do not use CSC for CDC generation.
 
-CSC remains configured in `einvoice_py` and available for future QR generation. CDC generation uses issuer data, establishment, point of issue, document number, taxpayer type, emission date, emission type, security code, and modulo-11 check digit.
+CSC remains configured in `einvoice_py` and is consumed transiently by the
+implemented QR builder. CDC generation uses issuer data, establishment, point
+of issue, document number, taxpayer type, emission date, emission type,
+security code, and modulo-11 check digit.
 
 ## Consequences
 
 * CDC generation follows the Paraguay structure without mixing QR-specific secrets.
 * CSC remains sensitive configuration and should not be exposed in payloads or API responses.
-* Future QR generation must use IdCSC and CSC hash rules separately from CDC generation.
+* QR generation uses IdCSC and CSC hash rules separately from CDC generation.
 * Tests should ensure CDC can be generated without reading CSC secret value.
 
 ## Alternatives Considered

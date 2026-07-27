@@ -8,7 +8,8 @@ This page is the visual navigation hub for the e-Invoice Platform.
 
 **Purpose:** Show the high-level platform flow.
 
-**Short description:** The architecture diagram shows how the Fiscal API creates fiscal documents, how the orchestrator delegates to country adapters, and where payload, schema-oriented unsigned XML, future signature, and future tax authority integration fit.
+**Short description:** The architecture diagram shows the neutral core,
+Paraguay localization, credential boundary, external secret source, and SIFEN.
 
 **Diagram:** [architecture.mmd](architecture.mmd)
 
@@ -49,7 +50,8 @@ This page is the visual navigation hub for the e-Invoice Platform.
 
 **Purpose:** Show the implemented Paraguay-specific processing order.
 
-**Short description:** The Paraguay processing diagram shows how a fiscal document uses issuer, establishment, point of issue, sequence, CDC, payload JSON, and schema-oriented unsigned XML before the current fake adapter outcome.
+**Short description:** The Paraguay processing diagram shows the complete
+TEST-ready sequence from payload through parsed authority result.
 
 **Diagram:** [paraguay-processing.mmd](paraguay-processing.mmd)
 
@@ -58,6 +60,26 @@ This page is the visual navigation hub for the e-Invoice Platform.
 * [Paraguay Documentation](../PARAGUAY/README.md)
 * [ADR-008 Paraguay Numbering Before CDC](../ADR/ADR-008-paraguay-numbering-before-cdc.md)
 * [ADR-009 CSC Only For QR](../ADR/ADR-009-csc-only-for-qr.md)
+
+## Credential Flow
+
+**Diagram:** [credential-flow.mmd](credential-flow.mmd)
+
+Shows transient external-secret PKCS#12 loading, offline validation, XML
+signing, and mTLS use without persisting or logging secret material.
+
+## Response Classification
+
+**Diagram:** [response-classification.mmd](response-classification.mmd)
+
+Shows transport, HTTP, SOAP, malformed, and authority-result classifications.
+
+## Homologation State
+
+**Diagram:** [homologation-state.mmd](homologation-state.mmd)
+
+Shows the path from TEST-ready source code to live evidence and production
+enablement without claiming that a live submission has succeeded.
 
 ## Related Documents
 

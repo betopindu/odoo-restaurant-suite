@@ -14,7 +14,8 @@ It is organized around a country-neutral fiscal core, country-specific addons, A
 
 Current country implementation:
 
-* Paraguay, in progress through `einvoice_py`
+* Paraguay, TEST-ready through `einvoice_py`; live authority interoperability is
+  still pending the qualified PKCS#12 certificate and a controlled submission.
 
 ## Documentation Map
 
@@ -23,6 +24,8 @@ Current country implementation:
 * [Roadmap](ROADMAP.md): completed, in-progress, next, and future work
 * [ADRs](ADR/ADR-001-country-addons.md): architectural decision records
 * [Paraguay Documentation](PARAGUAY/README.md): Paraguay-specific configuration and processing
+* [SIFEN TEST Configuration](PARAGUAY/CONFIGURATION.md): authoritative field and secret-reference checklist
+* [Homologation Runbook](PARAGUAY/HOMOLOGATION_RUNBOOK.md): controlled first-live-submission procedure
 * [Diagrams](diagrams/README.md): Mermaid diagrams for architecture and workflows
 
 ## How To Read This Documentation
@@ -67,6 +70,9 @@ Current country implementation:
 * [Architecture](ARCHITECTURE.md)
 * [Roadmap](ROADMAP.md)
 * [Architecture Diagram](diagrams/architecture.mmd)
+* [Credential Flow](diagrams/credential-flow.mmd)
+* [Response Classification](diagrams/response-classification.mmd)
+* [Homologation State](diagrams/homologation-state.mmd)
 * [Workflow Diagram](diagrams/workflow.mmd)
 * [Fiscal State Machine](diagrams/fiscal-state-machine.mmd)
 
@@ -83,10 +89,15 @@ Current country implementation:
 * [ADR-009 CSC Only For QR](ADR/ADR-009-csc-only-for-qr.md)
 * [ADR-010 SIFEN XSD Validation Strategy](ADR/ADR-010-sifen-xsd-validation-strategy.md)
 * [ADR-011 Paraguay Digital Signature Strategy](ADR/ADR-011-paraguay-digital-signature-strategy.md)
+* [ADR-012 Paraguay Qualified Certificate Lifecycle](ADR/ADR-012-paraguay-qualified-certificate-lifecycle.md)
+* [ADR-013 SIFEN Submission Boundaries](ADR/ADR-013-sifen-submission-boundaries.md)
+* [ADR-014 Paraguay TEST Timbrado Profile](ADR/ADR-014-paraguay-test-timbrado-profile.md)
 
 ### Paraguay
 
 * [Paraguay Documentation](PARAGUAY/README.md)
+* [SIFEN TEST Configuration](PARAGUAY/CONFIGURATION.md)
+* [Homologation Runbook](PARAGUAY/HOMOLOGATION_RUNBOOK.md)
 * [Paraguay Processing Diagram](diagrams/paraguay-processing.mmd)
 
 ## Current Implementation Status
@@ -112,13 +123,22 @@ Implemented:
 * Paraguay numbering
 * Paraguay CDC generation
 * Paraguay normalized payload builder
+* SIFEN v150 unsigned XML, CDC-backed `DE@Id`, and XMLDSig
+* QR payload and `gCamFuFD`
+* final `rDE` assembly and local official XSD validation
+* SOAP 1.2 envelope and TEST mTLS client
+* `SiRecepDE` response parsing
+* TEST-only Consulta DE reconciliation
+* isolated TEST end-to-end submission composition
+* offline qualified-certificate installation and readiness validation
 
-Not implemented yet:
+Operationally pending:
 
-* Paraguay XML generation
-* Paraguay digital signature
-* Paraguay QR generation
-* Paraguay SIFEN integration
+* installation of the qualified taxpayer PKCS#12 credential
+* live TEST mTLS and first controlled `SiRecepDE` submission
+* authority confirmation of real CSC and interoperability behavior
+* Stage 8.24B durable pre-POST persistence, postponed until homologation evidence requires it
+* production enablement and electronic timbrado workflow
 * Paraguay KuDE/PDF
 * Delivery by email or WhatsApp
 

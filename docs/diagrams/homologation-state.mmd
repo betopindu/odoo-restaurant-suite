@@ -1,0 +1,10 @@
+stateDiagram-v2
+    [*] --> TestReady: repository baseline
+    TestReady --> CertificateInstalled: install qualified PKCS12
+    CertificateInstalled --> ReadinessValidated
+    ReadinessValidated --> ControlledSubmission
+    ControlledSubmission --> AuthorityAnalysis
+    AuthorityAnalysis --> InteroperabilityCorrection: evidence requires correction
+    InteroperabilityCorrection --> ControlledSubmission
+    AuthorityAnalysis --> HomologationCases: accepted baseline
+    HomologationCases --> ProductionEnablement

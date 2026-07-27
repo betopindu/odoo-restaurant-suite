@@ -8,6 +8,8 @@ Start here if you are new to the project or trying to understand what has alread
 
 * [Documentation Home](README.md): project overview, reading paths, quick links, and implementation status.
 * [Roadmap](ROADMAP.md): completed work, active documentation/product areas, next work, and future milestones.
+* [SIFEN TEST Configuration](PARAGUAY/CONFIGURATION.md): authoritative configuration and secret-reference checklist.
+* [Homologation Runbook](PARAGUAY/HOMOLOGATION_RUNBOOK.md): controlled live TEST procedure.
 
 ## Recommended Reading Paths
 
@@ -66,16 +68,20 @@ Use ADRs to understand why the platform is shaped the way it is.
 * [ADR-006 API Processing Modes](ADR/ADR-006-api-processing-modes.md): support async and sync API processing.
 * [ADR-007 Fiscal Attachments](ADR/ADR-007-fiscal-attachments.md): persist fiscal artifacts as attachments.
 * [ADR-008 Paraguay Numbering Before CDC](ADR/ADR-008-paraguay-numbering-before-cdc.md): assign Paraguay number before CDC.
-* [ADR-009 CSC Only For QR](ADR/ADR-009-csc-only-for-qr.md): reserve CSC for future QR, not CDC.
+* [ADR-009 CSC Only For QR](ADR/ADR-009-csc-only-for-qr.md): use CSC for QR hashing, not CDC.
 * [ADR-010 SIFEN XSD Validation Strategy](ADR/ADR-010-sifen-xsd-validation-strategy.md): distinguish pre-signature schema readiness from full official XSD validation.
 * [ADR-011 Paraguay Digital Signature Strategy](ADR/ADR-011-paraguay-digital-signature-strategy.md): define SIFEN XMLDSig placement, credential boundaries, artifact handling, and signature-before-QR ordering.
 * [ADR-012 Paraguay Qualified Certificate Lifecycle](ADR/ADR-012-paraguay-qualified-certificate-lifecycle.md): define qualified-certificate requirements, logical credential roles, provider-neutral PKCS#12 resolution, trust boundaries, and rotation.
+* [ADR-013 SIFEN Submission Boundaries](ADR/ADR-013-sifen-submission-boundaries.md): separate local validation, transport, authority parsing, and isolated submission side effects.
+* [ADR-014 Paraguay TEST Timbrado Profile](ADR/ADR-014-paraguay-test-timbrado-profile.md): separate TEST homologation configuration from production electronic timbrado.
 
 ## Country Implementations
 
 Use this section when working on country-specific fiscal logic.
 
-* [Paraguay Documentation](PARAGUAY/README.md): issuer, establishment, point of issue, timbrado, CSC, sequence, numbering, CDC, payload, and future SIFEN work.
+* [Paraguay Documentation](PARAGUAY/README.md): complete implemented TEST pipeline and country rules.
+* [SIFEN TEST Configuration](PARAGUAY/CONFIGURATION.md)
+* [Homologation Runbook](PARAGUAY/HOMOLOGATION_RUNBOOK.md)
 
 ## Diagrams
 
@@ -86,6 +92,9 @@ Use this section when you need a visual map before reading code or ADRs.
 * [Workflow Diagram](diagrams/workflow.mmd)
 * [Fiscal State Machine](diagrams/fiscal-state-machine.mmd)
 * [Paraguay Processing Diagram](diagrams/paraguay-processing.mmd)
+* [Credential Flow](diagrams/credential-flow.mmd)
+* [Response Classification](diagrams/response-classification.mmd)
+* [Homologation State](diagrams/homologation-state.mmd)
 
 ## Related Documents
 
