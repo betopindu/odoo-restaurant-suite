@@ -85,7 +85,11 @@ class PyUnsignedXmlBuilder:
         group = self._sub(parent, "gTimb")
         self._text(group, "iTiDE", self._normalize_int_code(document_type_code))
         self._text(group, "dDesTiDE", self.DOCUMENT_TYPE_DESCRIPTIONS[document_type_code])
-        self._text(group, "dNumTim", issuer["timbrado_number"])
+        self._text(
+            group,
+            "dNumTim",
+            str(issuer["timbrado_number"]).zfill(8),
+        )
         self._text(group, "dEst", issuer["establishment_code"])
         self._text(group, "dPunExp", issuer["point_of_issue_code"])
         self._text(group, "dNumDoc", document["py_document_number"])

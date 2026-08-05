@@ -9,6 +9,9 @@ from odoo.exceptions import ValidationError
 from odoo.addons.einvoice_py.services.py_sifen_retry_scheduler_service import (
     PySifenRetrySchedulerService,
 )
+from odoo.addons.einvoice_py.services.py_signed_xml_attachment_service import (
+    PySignedXmlAttachmentService,
+)
 from odoo.addons.einvoice_py.services.py_sifen_transmission_persistence_service import (
     PySifenTransmissionPersistenceService,
 )
@@ -156,6 +159,10 @@ class PySifenRetryExecutionService:
         return signing_time
 
     def _attachment(self, document, attachment_type):
+        if attachment_type == "paraguay_xml_signed":
+            return PySignedXmlAttachmentService(self.env).current(
+                document=document
+            )
         return self.env["fiscal.attachment"].sudo().search(
             [
                 ("document_id", "=", document.id),

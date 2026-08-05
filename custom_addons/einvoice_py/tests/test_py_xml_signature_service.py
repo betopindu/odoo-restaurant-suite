@@ -119,6 +119,21 @@ class TestPyXmlSignatureService(BaseCase):
         context.key = key
         context.verify(signature)
 
+    def test_encrypted_pem_accepts_provider_password_bytes(self):
+        password = b"provider-password"
+        encrypted_private_key = self.private_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.BestAvailableEncryption(password),
+        )
+
+        result = self._sign(
+            private_key_bytes=encrypted_private_key,
+            private_key_password=password,
+        )
+
+        self.assertTrue(result["signature_value"])
+
     def test_signature_inserted_after_de(self):
         root = self._signed_root()
 

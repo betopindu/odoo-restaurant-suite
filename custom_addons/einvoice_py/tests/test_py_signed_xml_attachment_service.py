@@ -114,6 +114,7 @@ class TestPySignedXmlAttachmentService(TransactionCase):
         metadata = json.loads(attachment.metadata_json)
 
         self.assertEqual(metadata, {
+            "artifact_status": "current",
             "cdc": self.CDC,
             "certificate_fingerprint_sha256": "a" * 64,
             "digest_value": "digest-fixture",
@@ -130,6 +131,57 @@ class TestPySignedXmlAttachmentService(TransactionCase):
 
         self.assertEqual(first, second)
         self.assertEqual(len(attachments), 1)
+
+    def test_changed_signed_xml_supersedes_previous_attachment(self):
+        first = self._persist_signed_xml()
+        changed_xml = self.SIGNED_XML.replace(b"fixture", b"corrected-fixture")
+
+        second = self.service.persist(
+            document=self.document,
+            signed_xml_bytes=changed_xml,
+            filename=f"{self.document.uuid}-paraguay-signed-corrected.xml",
+            metadata={**self._metadata(), "signing_time": "2026-06-18T12:35:56"},
+        )
+
+        self.assertNotEqual(first, second)
+        self.assertEqual(
+            json.loads(first.metadata_json),
+            {
+                "artifact_status": "superseded",
+                "cdc": self.CDC,
+                "certificate_fingerprint_sha256": "a" * 64,
+                "digest_value": "digest-fixture",
+                "signing_time": "2026-06-18T12:34:56",
+                "superseded_by_attachment_id": second.id,
+            },
+        )
+        self.assertEqual(
+            json.loads(second.metadata_json)["supersedes_attachment_id"],
+            first.id,
+        )
+        self.assertEqual(self.service.current(document=self.document), second)
+        self.assertEqual(base64.b64decode(first.ir_attachment_id.datas), self.SIGNED_XML)
+        self.assertEqual(base64.b64decode(second.ir_attachment_id.datas), changed_xml)
+
+    def test_rejected_document_can_persist_corrected_signed_artifact(self):
+        first = self._persist_signed_xml()
+        self.document.write({"state": "rejected"})
+        corrected_xml = self.SIGNED_XML.replace(b"fixture", b"rejected-correction")
+
+        corrected = self.service.persist(
+            document=self.document,
+            signed_xml_bytes=corrected_xml,
+            filename=f"{self.document.uuid}-paraguay-signed-corrected.xml",
+            metadata=self._metadata(),
+        )
+
+        self.assertNotEqual(corrected, first)
+        self.assertTrue(first.exists())
+        self.assertEqual(
+            json.loads(first.metadata_json)["artifact_status"],
+            "superseded",
+        )
+        self.assertEqual(self.service.current(document=self.document), corrected)
 
     def test_unsigned_and_payload_attachments_remain_separate(self):
         payload_attachment = self._create_payload_attachment()

@@ -907,7 +907,10 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertIsNone(self._xml_find(root, "DE/gDatGralOpe/dCodSeg"))
         self.assertEqual(self._xml_findtext(root, "DE/gTimb/iTiDE"), "1")
         self.assertEqual(self._xml_findtext(root, "DE/gTimb/dDesTiDE"), "Factura electrónica")
-        self.assertEqual(self._xml_findtext(root, "DE/gTimb/dNumTim"), document.py_timbrado_id.number)
+        self.assertEqual(
+            self._xml_findtext(root, "DE/gTimb/dNumTim"),
+            document.py_timbrado_id.number.zfill(8),
+        )
         self.assertEqual(self._xml_findtext(root, "DE/gTimb/dEst"), "001")
         self.assertEqual(self._xml_findtext(root, "DE/gTimb/dPunExp"), "001")
         self.assertEqual(self._xml_findtext(root, "DE/gTimb/dNumDoc"), "0000015")

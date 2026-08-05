@@ -163,11 +163,14 @@ class PyXmlSignatureService:
         private_key_password,
     ):
         try:
+            xmlsec_password = private_key_password
+            if isinstance(xmlsec_password, bytes):
+                xmlsec_password = xmlsec_password.decode("utf-8")
             xmlsec.tree.add_ids(root, ["Id"])
             key = xmlsec.Key.from_memory(
                 private_key_bytes,
                 xmlsec.constants.KeyDataFormatPem,
-                private_key_password,
+                xmlsec_password,
             )
             key.load_cert_from_memory(
                 certificate_bytes,

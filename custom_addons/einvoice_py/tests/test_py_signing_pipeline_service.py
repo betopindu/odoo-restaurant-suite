@@ -15,6 +15,9 @@ from odoo.tests.common import TransactionCase
 from odoo.addons.einvoice_py.services.py_signing_pipeline_service import (
     PySigningPipelineService,
 )
+from odoo.addons.einvoice_py.services.py_xml_signature_verification_service import (
+    PyXmlSignatureVerificationService,
+)
 
 
 class TestPySigningPipelineService(TransactionCase):
@@ -290,6 +293,38 @@ class TestPySigningPipelineService(TransactionCase):
         self._run_pipeline()
 
         self.assertEqual(len(self._signed_attachment()), 1)
+
+    def test_changed_signing_time_never_returns_stale_signed_xml(self):
+        first_report = self._run_pipeline()
+        first_attachment = self.env["fiscal.attachment"].browse(
+            first_report["signed_attachment_id"]
+        )
+
+        second_report = self._run_pipeline(
+            signing_timestamp=datetime(2026, 6, 18, 12, 35, 56)
+        )
+        second_attachment = self.env["fiscal.attachment"].browse(
+            second_report["signed_attachment_id"]
+        )
+        verification = PyXmlSignatureVerificationService().verify(
+            signed_xml_bytes=base64.b64decode(
+                second_attachment.ir_attachment_id.datas
+            ),
+            expected_cdc=self.CDC,
+        )
+
+        self.assertNotEqual(first_attachment, second_attachment)
+        self.assertEqual(
+            verification["digest_value"], second_report["digest_value"]
+        )
+        self.assertEqual(
+            json.loads(first_attachment.metadata_json)["artifact_status"],
+            "superseded",
+        )
+        self.assertEqual(
+            json.loads(second_attachment.metadata_json)["artifact_status"],
+            "current",
+        )
 
     def test_unsigned_attachment_remains_unchanged(self):
         unsigned_attachment = self._create_unsigned_attachment()
