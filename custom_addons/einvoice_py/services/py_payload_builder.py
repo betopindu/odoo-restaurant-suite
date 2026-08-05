@@ -2,6 +2,9 @@ from odoo.exceptions import ValidationError
 
 from odoo.addons.einvoice_py.services.cdc_service import PyCdcService
 from odoo.addons.einvoice_py.services.numbering_service import PyNumberingService
+from odoo.addons.einvoice_py.services.py_sifen_datetime_service import (
+    PySifenDatetimeService,
+)
 
 
 class PyPayloadBuilder:
@@ -99,7 +102,10 @@ class PyPayloadBuilder:
             "py_cdc_base": document.py_cdc_base,
             "py_cdc_dv": document.py_cdc_dv,
             "issue_datetime": (
-                document.issue_datetime.isoformat()
+                PySifenDatetimeService.format_fiscal_datetime(
+                    document.issue_datetime,
+                    field_label="Paraguay emission timestamp",
+                )
                 if document.issue_datetime
                 else None
             ),

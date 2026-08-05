@@ -245,7 +245,7 @@ class TestPySigningPipelineService(TransactionCase):
             metadata["certificate_fingerprint_sha256"],
             report["certificate_fingerprint_sha256"],
         )
-        self.assertEqual(metadata["signing_time"], "2026-06-18T12:34:56")
+        self.assertEqual(metadata["signing_time"], "2026-06-18T09:34:56")
 
     def test_preparation_failure_aborts_pipeline(self):
         with self.assertRaises(ValidationError):

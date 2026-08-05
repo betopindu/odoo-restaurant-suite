@@ -1,10 +1,10 @@
-from datetime import datetime
-
 from lxml import etree
 
-from odoo import fields
 from odoo.exceptions import ValidationError
 
+from odoo.addons.einvoice_py.services.py_sifen_datetime_service import (
+    PySifenDatetimeService,
+)
 from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import (
     PyUnsignedXmlBuilder,
 )
@@ -124,20 +124,12 @@ class PySignedXmlPreparationService:
             raise ValidationError("Malformed Paraguay unsigned XML.") from error
 
     def _format_signing_timestamp(self, signing_timestamp):
-        if isinstance(signing_timestamp, datetime):
-            value = signing_timestamp
-            if value.tzinfo is not None:
-                raise ValidationError(
-                    "Paraguay signing timestamp must be a naive datetime."
-                )
-            return value.replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
-        try:
-            value = fields.Datetime.to_datetime(signing_timestamp)
-        except (TypeError, ValueError) as error:
-            raise ValidationError("Paraguay signing timestamp is invalid.") from error
-        if value is None:
+        if signing_timestamp in (None, False, ""):
             raise ValidationError("Paraguay signing timestamp is required.")
-        return value.replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
+        return PySifenDatetimeService.format_fiscal_datetime(
+            signing_timestamp,
+            field_label="Paraguay signing timestamp",
+        )
 
     def _tag(self, name):
         return f"{{{self.SIFEN_NS}}}{name}"

@@ -89,7 +89,7 @@ class TestPySignedXmlPreparationService(TransactionCase):
         signing_time = root.find(
             f".//{{{PyUnsignedXmlBuilder.SIFEN_NS}}}dFecFirma"
         )
-        self.assertEqual(signing_time.text, "2026-06-18T12:34:56")
+        self.assertEqual(signing_time.text, "2026-06-18T09:34:56")
 
     def test_prepared_output_contains_no_signature(self):
         result = self._prepare()
@@ -214,21 +214,22 @@ class TestPySignedXmlPreparationService(TransactionCase):
             second["prepared_xml_bytes"],
         )
         self.assertEqual(first["cdc"], self.CDC)
-        self.assertEqual(first["signing_time"], "2026-06-18T12:34:56")
+        self.assertEqual(first["signing_time"], "2026-06-18T09:34:56")
 
-    def test_timezone_aware_timestamp_is_rejected(self):
-        with self.assertRaisesRegex(ValidationError, "must be a naive datetime"):
-            self._prepare(
-                timestamp=datetime(
-                    2026,
-                    6,
-                    18,
-                    13,
-                    34,
-                    56,
-                    tzinfo=timezone.utc,
-                )
+    def test_timezone_aware_timestamp_is_converted_to_paraguay(self):
+        result = self._prepare(
+            timestamp=datetime(
+                2026,
+                6,
+                18,
+                13,
+                34,
+                56,
+                tzinfo=timezone.utc,
             )
+        )
+
+        self.assertEqual(result["signing_time"], "2026-06-18T10:34:56")
 
     def test_signature_present_is_rejected(self):
         root = etree.fromstring(self._unsigned_xml())

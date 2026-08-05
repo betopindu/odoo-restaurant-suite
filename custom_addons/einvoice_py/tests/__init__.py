@@ -13,6 +13,7 @@ from . import test_py_sifen_soap_envelope_builder
 from . import test_py_sifen_soap_client
 from . import test_py_sifen_recep_de_response_parser
 from . import test_py_sifen_credential_provider
+from . import test_py_sifen_datetime_service
 from . import test_py_sifen_production_flow
 from . import test_py_sifen_submission_pipeline_service
 from . import test_py_sifen_end_to_end_submission_service
