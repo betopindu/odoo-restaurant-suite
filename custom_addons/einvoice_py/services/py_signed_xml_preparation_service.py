@@ -126,10 +126,7 @@ class PySignedXmlPreparationService:
     def _format_signing_timestamp(self, signing_timestamp):
         if signing_timestamp in (None, False, ""):
             raise ValidationError("Paraguay signing timestamp is required.")
-        return PySifenDatetimeService.format_fiscal_datetime(
-            signing_timestamp,
-            field_label="Paraguay signing timestamp",
-        )
+        return PySifenDatetimeService.format_signing_datetime(signing_timestamp)
 
     def _tag(self, name):
         return f"{{{self.SIFEN_NS}}}{name}"

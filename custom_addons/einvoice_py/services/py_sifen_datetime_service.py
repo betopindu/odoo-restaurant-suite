@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from odoo import fields
@@ -10,6 +10,7 @@ class PySifenDatetimeService:
 
     PARAGUAY_TIMEZONE = ZoneInfo("America/Asuncion")
     SIFEN_FORMAT = "%Y-%m-%dT%H:%M:%S"
+    SIGNING_SAFETY_MARGIN_SECONDS = 60
 
     @classmethod
     def format_fiscal_datetime(cls, value, *, field_label="Paraguay fiscal timestamp"):
@@ -22,6 +23,32 @@ class PySifenDatetimeService:
         return instant.astimezone(cls.PARAGUAY_TIMEZONE).strftime(
             cls.SIFEN_FORMAT
         )
+
+    @classmethod
+    def format_signing_datetime(cls, value, *, safety_margin_seconds=None):
+        """Serialize a signing instant safely before SIFEN reception time.
+
+        SIFEN publishes no clock tolerance. The explicit default margin avoids
+        producing dFecFirma in the same second as transmission while remaining
+        negligible relative to the documented transmission window.
+        """
+        if isinstance(value, str) and cls._is_serialized_fiscal_time(value):
+            return value
+        margin = (
+            cls.SIGNING_SAFETY_MARGIN_SECONDS
+            if safety_margin_seconds is None
+            else safety_margin_seconds
+        )
+        if not isinstance(margin, int) or margin < 0:
+            raise ValidationError(
+                "Paraguay signing safety margin is invalid."
+            )
+        instant = cls._instant(value, field_label="Paraguay signing timestamp")
+        if instant.tzinfo is None:
+            instant = instant.replace(tzinfo=timezone.utc)
+        return (
+            instant - timedelta(seconds=margin)
+        ).astimezone(cls.PARAGUAY_TIMEZONE).strftime(cls.SIFEN_FORMAT)
 
     @classmethod
     def _instant(cls, value, *, field_label):

@@ -808,7 +808,14 @@ The service:
 * emits deterministic UTF-8 XML
 * returns the prepared XML bytes, CDC, and normalized signing timestamp
 
-The signing timestamp uses `YYYY-MM-DDTHH:MM:SS` and must be supplied as a naive datetime. Timezone-aware datetimes are rejected so the service does not silently remove or reinterpret timezone information. This stage does not generate `Signature`, invoke `xmlsec`, load credential material, generate QR content, or submit to SIFEN.
+The signing timestamp uses `YYYY-MM-DDTHH:MM:SS`. Odoo naive datetimes are
+interpreted explicitly as UTC and converted with the IANA zone
+`America/Asuncion`; timezone-aware values are converted from their represented
+instant. Because SIFEN validation 1004 requires `dFecFirma` not to be later than
+the SIFEN reception clock and publishes no tolerance, newly generated signing
+times use an explicit 60-second safety margin. Already serialized retry metadata
+is preserved so the margin is not applied twice. SIFEN documents the NTP hosts
+`aravo1.set.gov.py` and `aravo2.set.gov.py` for operational clock synchronization.
 
 ## Future QR Image
 
