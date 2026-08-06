@@ -59,6 +59,7 @@ class PyPayloadBuilder:
         items = self._items_section(document, warnings)
         payload = {
             "version": self.VERSION,
+            "environment": document.environment,
             "cdc": document.py_cdc,
             "document": self._document_section(document),
             "operation": self._operation_section(document, warnings),

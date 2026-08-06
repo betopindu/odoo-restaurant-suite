@@ -427,6 +427,7 @@ class TestPyFakeAdapter(TransactionCase):
             set(payload),
             {
                 "version",
+                "environment",
                 "cdc",
                 "document",
                 "operation",

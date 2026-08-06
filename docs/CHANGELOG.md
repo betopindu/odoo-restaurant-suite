@@ -11,7 +11,9 @@
   renderer, font and CSS variability.
 * Recorded Manual Técnico SIFEN v150 chapter 13 content, pagination,
   consultation and QR requirements, plus the invoice-only initial scope.
-* Updated the validation baseline to 523 counted tests across 463 methods.
+* Updated the validation baseline to 524 counted tests across 464 methods.
+* Added explicit TEST/PRODUCTION projection and width-aware item-description
+  wrapping after the first offline visual KuDE validation.
 
 ## 2026-08-06 — B2B TEST authority-data evidence
 

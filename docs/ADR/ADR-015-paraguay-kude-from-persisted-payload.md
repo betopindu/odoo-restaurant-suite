@@ -44,6 +44,11 @@ artifact selection and creation: identical bytes reuse the current attachment;
 changed payload or QR creates a new current version and preserves the previous
 version as superseded audit evidence.
 
+The persisted payload carries the document environment so the representation
+identifies `AMBIENTE: TEST` or `AMBIENTE: PRODUCTION` without consulting live
+configuration. Item descriptions wrap within the official item table; they are
+not silently truncated.
+
 The initial supported representation is the Factura Electrónica. Other DTE
 types require their own official KuDE field matrix and are rejected explicitly
 instead of being rendered as an invoice.

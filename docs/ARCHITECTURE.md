@@ -24,7 +24,7 @@ both logical credential bindings, XMLDSig, QR/CSC, final XSD validation, SOAP
 1.2, mTLS, response classification, and transmission/document persistence.
 This is evidence of interoperability for the tested invoice profile, not
 production certification or coverage of every authority scenario. The suite at
-current KuDE baseline reports 523 counted tests across 463 test methods.
+current KuDE baseline reports 524 counted tests across 464 test methods.
 
 Stage 8.24B durable pre-POST persistence, production preflight, cron activation,
 monitoring, and production go-live remain pending.

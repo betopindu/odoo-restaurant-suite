@@ -1186,7 +1186,7 @@ Interpret failures as follows:
 * `soap_fault`: inspect the safe Fault code/reason and retain the raw response securely.
 * `rejected`, `duplicate`, or `unrecognized_official_code`: retain the official code/message and do not infer acceptance from HTTP 200.
 
-The current KuDE baseline reports 523 counted tests across 463 test methods.
+The current KuDE baseline reports 524 counted tests across 464 test methods.
 Production service composition, configuration-driven
 sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission
 reconciliation, local homologation readiness, XMLDSig signing, QR/`gCamFuFD`,
@@ -1246,8 +1246,9 @@ engine, CSS, host font and external-process differences. The KuDE includes the
 official invoice header, issuer/timbrado information, receiver and operation
 data, item/tax columns, totals on the last page, page numbering, consultation
 information, grouped CDC and the QR on the first page. The QR is rendered at
-28 mm, above the Manual's 25 mm minimum. XML values are represented; no new
-business calculation is performed.
+28 mm, above the Manual's 25 mm minimum. The persisted environment is shown
+explicitly and item descriptions wrap without truncation. XML values are
+represented; no new business calculation is performed.
 
 Generate or regenerate locally from Odoo shell:
 

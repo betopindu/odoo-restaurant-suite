@@ -106,8 +106,8 @@ does not authorize production operation.
 
 ## Current Validation Status
 
-After KuDE implementation, the full `einvoice_py` suite reports **523 counted
-tests across 463 test methods**. Automated coverage is network-free.
+After offline KuDE validation, the full `einvoice_py` suite reports **524
+counted tests across 464 test methods**. Automated coverage is network-free.
 It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
 1.2 wrapping, mocked mTLS transport, response classification, readiness, and
 end-to-end composition. Live acceptance is recorded separately above and is

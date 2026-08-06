@@ -2,7 +2,6 @@ import base64
 import hashlib
 import io
 import json
-import math
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlsplit
@@ -12,6 +11,7 @@ from reportlab.graphics.barcode.qr import QrCodeWidget
 from reportlab.graphics.shapes import Drawing
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
 from odoo.exceptions import ValidationError
@@ -139,6 +139,10 @@ class PyKudeService:
             if section != "items"
         ) or not isinstance(payload.get("items"), list):
             raise ValidationError("Persisted Paraguay payload is incomplete for KuDE.")
+        if payload.get("environment") not in ("test", "production"):
+            raise ValidationError(
+                "Persisted Paraguay payload environment is invalid for KuDE."
+            )
         cdc = payload.get("cdc")
         if (
             not isinstance(cdc, str)
@@ -161,8 +165,8 @@ class PyKudeService:
             raise ValidationError("Persisted Paraguay payload is incomplete for KuDE.")
 
     def _render(self, payload, qr_payload):
-        items = payload["items"]
-        page_count = max(1, math.ceil(len(items) / self.ITEMS_PER_PAGE))
+        pages = self._paginate_items(payload["items"])
+        page_count = len(pages)
         output = io.BytesIO()
         pdf = canvas.Canvas(
             output,
@@ -172,11 +176,7 @@ class PyKudeService:
         )
         pdf.setTitle("KuDE de Factura Electronica")
         pdf.setAuthor("Fiscal e-Invoice Platform")
-        for page_index in range(page_count):
-            page_items = items[
-                page_index * self.ITEMS_PER_PAGE:
-                (page_index + 1) * self.ITEMS_PER_PAGE
-            ]
+        for page_index, page_items in enumerate(pages):
             y = self._draw_header(pdf, payload, page_index, page_count)
             y = self._draw_items(pdf, page_items, y)
             if page_index == page_count - 1:
@@ -197,9 +197,15 @@ class PyKudeService:
         top = height - self.MARGIN
         pdf.setFont("Helvetica-Bold", 12)
         pdf.drawString(self.MARGIN, top, "KuDE DE FACTURA ELECTRONICA")
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawCentredString(
+            width / 2,
+            top - 14,
+            f"AMBIENTE: {payload['environment'].upper()}",
+        )
         pdf.setFont("Helvetica", 7)
         pdf.drawRightString(width - self.MARGIN, top, f"Pagina {page_index + 1}/{page_count}")
-        y = top - 14
+        y = top - 25
         pdf.setFont("Helvetica-Bold", 9)
         pdf.drawString(self.MARGIN, y, self._safe(issuer.get("name")))
         y -= 10
@@ -273,12 +279,18 @@ class PyKudeService:
         y -= 9
         pdf.setFont("Helvetica", 6)
         for item in items:
+            description_lines = self._wrap_text(
+                item.get("description"),
+                50 * mm,
+                "Helvetica",
+                6,
+            )
             rate = self._decimal(item.get("tax_rate"))
             affectation = item.get("tax_affectation")
             total = item.get("total")
             values = (
                 item.get("code"),
-                self._truncate(item.get("description"), 38),
+                description_lines[0],
                 item.get("unit_measure_description"),
                 self._number(item.get("quantity")),
                 self._number(item.get("price_unit")),
@@ -291,8 +303,36 @@ class PyKudeService:
             for value, (_label, column_width) in zip(values, columns):
                 pdf.drawString(x, y, self._safe(value))
                 x += column_width
+            for continuation in description_lines[1:]:
+                y -= 9
+                pdf.drawString(self.MARGIN + columns[0][1], y, continuation)
             y -= 9
         return y - 4
+
+    def _paginate_items(self, items):
+        pages = []
+        current = []
+        used_rows = 0
+        for item in items:
+            rows = max(
+                1,
+                len(
+                    self._wrap_text(
+                        item.get("description"),
+                        50 * mm,
+                        "Helvetica",
+                        6,
+                    )
+                ),
+            )
+            if current and used_rows + rows > self.ITEMS_PER_PAGE:
+                pages.append(current)
+                current = []
+                used_rows = 0
+            current.append(item)
+            used_rows += rows
+        pages.append(current)
+        return pages
 
     def _draw_totals(self, pdf, payload, y):
         totals = payload["totals"]
@@ -485,6 +525,18 @@ class PyKudeService:
     def _safe(self, value):
         return "" if value in (None, False) else str(value)
 
-    def _truncate(self, value, length):
-        value = self._safe(value)
-        return value if len(value) <= length else value[:length - 3] + "..."
+    def _wrap_text(self, value, width, font_name, font_size):
+        words = self._safe(value).split()
+        if not words:
+            return [""]
+        lines = []
+        current = words[0]
+        for word in words[1:]:
+            candidate = f"{current} {word}"
+            if stringWidth(candidate, font_name, font_size) <= width:
+                current = candidate
+            else:
+                lines.append(current)
+                current = word
+        lines.append(current)
+        return lines

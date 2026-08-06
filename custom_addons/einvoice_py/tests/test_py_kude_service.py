@@ -1,6 +1,9 @@
 import base64
 import hashlib
+import io
 import json
+
+from PyPDF2 import PdfFileReader
 
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
@@ -55,6 +58,7 @@ class TestPyKudeService(TransactionCase):
     def _payload(self, **overrides):
         payload = {
             "version": "150",
+            "environment": "test",
             "cdc": self.CDC,
             "document": {
                 "document_type": "invoice",
@@ -262,3 +266,19 @@ class TestPyKudeService(TransactionCase):
 
         self.assertNotIn("%PDF", repr(result))
         self.assertNotIn(self.QR_URL, repr(result))
+
+    def test_pdf_projects_environment_and_wraps_long_item_description(self):
+        payload = self._payload()
+        payload["items"][0]["description"] = (
+            "Servicio complementario con una descripcion deliberadamente "
+            "extensa para validar la presentacion del KuDE"
+        )
+        self._persist_payload(payload)
+        self._persist_qr()
+
+        result = self.service.generate(document=self.document)
+        reader = PdfFileReader(io.BytesIO(result.pdf_bytes))
+        text = reader.getPage(0).extractText()
+
+        self.assertIn("AMBIENTE: TEST", text)
+        self.assertIn("presentacion del KuDE", text)
