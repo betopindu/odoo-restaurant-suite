@@ -66,3 +66,26 @@ into production configuration.
 4. Continue only when certificate installation, readiness, and preflight pass.
 
 See the [Homologation Runbook](HOMOLOGATION_RUNBOOK.md).
+
+## Local Docker secret integration
+
+The repository compose file passes only the secret reference inputs required by
+the Odoo runtime:
+
+```yaml
+environment:
+  SIFEN_P12_PASSWORD: ${SIFEN_P12_PASSWORD}
+volumes:
+  - ${HOME}/.secrets/sifen:/run/secrets/sifen:ro
+```
+
+Set `SIFEN_P12_PASSWORD` in the host process environment using an approved
+secret-loading mechanism before starting Odoo. Do not put its value in the
+compose file, `.env` files under version control, shell scripts, or Odoo fields.
+Place the PKCS#12 beneath `${HOME}/.secrets/sifen` outside the repository and
+reference its container path with `file:///run/secrets/sifen/<name>.p12`.
+
+The mount is read-only and is exposed only to the Odoo service. PostgreSQL does
+not receive the password or certificate mount. Deployments may replace this
+local pattern with their platform secret mechanism as long as the existing
+`file://` and `env://` provider contract remains unchanged.

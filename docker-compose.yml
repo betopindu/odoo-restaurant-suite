@@ -20,10 +20,13 @@ services:
       - "8069:8069"
     env_file:
       - .env
+    environment:
+      SIFEN_P12_PASSWORD: ${SIFEN_P12_PASSWORD}
     volumes:
       - odoo_data:/var/lib/odoo
       - ./config/odoo.conf:/etc/odoo/odoo.conf
       - ./custom_addons:/mnt/extra-addons
+      - ${HOME}/.secrets/sifen:/run/secrets/sifen:ro
     command: odoo -c /etc/odoo/odoo.conf
     restart: always
 

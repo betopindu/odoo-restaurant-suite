@@ -16,6 +16,7 @@ sessions/
 # Backups
 backups/*
 !backups/.gitkeep
+*.bak
 
 # Docker local volumes
 postgres_data/
