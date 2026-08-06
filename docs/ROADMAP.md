@@ -84,35 +84,37 @@
 [x] Stage 8.32 End-to-end SIFEN TEST submission
 [x] Stage 8.33 Homologation readiness audit
 [x] Documentation closeout for TEST-ready baseline at `cd07a73`
+[x] First controlled synchronous SIFEN TEST DE accepted (`0260`)
+[x] Homologation-driven timezone, artifact-versioning, VAT, catalog, and CSC corrections
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
 
 ## Current Baseline
 
-The repository is **TEST-ready in code**. The complete network-free pipeline,
-offline certificate validation, readiness check, TEST mTLS transport, response
-parser, and controlled isolated submission entry point are implemented and
-tested. This status does not claim a successful live SIFEN submission.
+The repository has completed its first accepted live TEST submission. SIFEN
+accepted document 16106 through transmission 17896 with code `0260`
+(`Autorización del DE satisfactoria`). This validates the complete synchronous
+path for that invoice profile: qualified credential resolution, XMLDSig, QR,
+official XSD validation, SOAP 1.2, mTLS, response parsing, and persistence.
 
-The current operational blocker is installation of the taxpayer's qualified
-PKCS#12 certificate. Live mTLS trust, CSC behavior, and authority acceptance
-remain unverified until that credential is available.
+The result does not certify every SIFEN document type or business scenario and
+does not authorize production operation.
 
 ## Current Validation Status
 
-At baseline commit `cd07a73`, the full `einvoice_py` suite reports **495
-counted tests across 439 test methods**. Automated coverage is network-free.
+At the first-acceptance closeout, the full `einvoice_py` suite reports **511
+counted tests across 453 test methods**. Automated coverage is network-free.
 It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
 1.2 wrapping, mocked mTLS transport, response classification, readiness, and
-end-to-end composition. It does not prove live SIFEN trust or acceptance.
+end-to-end composition. Live acceptance is recorded separately above and is
+limited to the exercised invoice profile.
 
 ## Next
 
-[ ] Stage 8.23 First Live Synchronous TEST DE
-[ ] Authority-driven interoperability corrections, only when supported by live evidence
+[ ] Complete the authority-defined TEST homologation case matrix
+[ ] Apply further interoperability corrections only when supported by authority evidence
 [ ] Stage 8.24B durable pre-POST persistence, explicitly postponed until homologation evidence justifies it
-[ ] Real CSC validation against SIFEN behavior
 [ ] Production connection preflight
 [ ] Paraguay adapter integration
 [ ] Retry cron activation after operational approval

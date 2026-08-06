@@ -4,9 +4,11 @@ sequenceDiagram
     participant T as mTLS transport
     participant S as SIFEN
     O->>P: Normalized payload
+    P->>P: UTC instant to America/Asuncion
     P->>P: Unsigned DE
     P->>P: CDC and DE@Id
     P->>P: XMLDSig
+    P->>P: Persist current signed artifact; preserve superseded versions
     P->>P: QR and gCamFuFD
     P->>P: Final rDE
     P->>P: Official XSD validation

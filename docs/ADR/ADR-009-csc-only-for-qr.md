@@ -39,6 +39,11 @@ security code, and modulo-11 check digit.
 * CSC remains sensitive configuration and should not be exposed in payloads or API responses.
 * QR generation uses IdCSC and CSC hash rules separately from CDC generation.
 * Tests should ensure CDC can be generated without reading CSC secret value.
+* Live TEST interoperability confirmed that `IdCSC` and CSC form one
+  environment-specific authority-issued pair. A locally reproducible hash made
+  with the wrong CSC is still rejected by the authority (`2501`).
+* The CSC is appended only to the transient hash preimage. It is absent from
+  `dCarQR`, normalized results, logs, and attachment metadata.
 
 ## Alternatives Considered
 

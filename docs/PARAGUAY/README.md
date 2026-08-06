@@ -33,6 +33,21 @@ Current implemented Paraguay stages:
 * pre-signature XML validation harness
 * fiscal data enrichment for receiver, operation, payment, and tax details
 * administrative UI stabilization for validation/support workflows
+* accepted synchronous SIFEN TEST interoperability baseline
+
+## Homologation status
+
+The first controlled real TEST transmission was accepted on 2026-08-06:
+
+* fiscal document: `16106`
+* transmission: `17896`
+* authority code: `0260`
+* authority result: `Autorización del DE satisfactoria`
+
+This is an auditable interoperability milestone for one invoice profile. It is
+not production authorization and does not replace the remaining official TEST
+cases. No operational identifier above is embedded in production services or
+test fixtures.
 
 ## Configuration
 
@@ -179,7 +194,8 @@ The payload is persisted as a sensitive fiscal attachment of type `paraguay_payl
 
 Stage 6.5.2B-3 extends `paraguay_payload_json` with pre-signature schema-readiness data. The issuer section now includes establishment SIFEN location fields and ordered active economic activities. The receiver section now includes taxpayer/non-taxpayer identity, country description, geography fields, and customer code.
 
-Missing schema-readiness data is reported as payload warnings but does not block payload generation yet.
+Missing schema-readiness data is reported as payload warnings. Final unsigned
+XML construction rejects mandatory omissions before signing.
 
 See [ADR-003 Payload Before XML](../ADR/ADR-003-payload-before-xml.md).
 
@@ -262,13 +278,10 @@ It intentionally rejects unsigned XML containing:
 
 The fake adapter does not call this validation automatically yet.
 
-Out of scope for Stage 6:
+Historical Stage 6 scope exclusions (now implemented by later stages):
 
-* digital signature
-* `dFecFirma`
-* `ds:Signature`
-* QR generation
-* CSC QR/hash logic
+* digital signature, `dFecFirma`, and `ds:Signature`
+* QR generation and CSC QR/hash logic
 * SIFEN submission
 * KuDE/PDF
 * XSD validation
@@ -335,7 +348,33 @@ Stage 6.5.2B-4 completed XML schema-readiness emission. The unsigned XML draft n
 
 `PyUnsignedXmlBuilder` remains payload-first and does not read Odoo document/configuration models directly for these fields.
 
-Full official XSD validation remains out of scope until later signature and QR stages. The unsigned draft still does not include `dFecFirma`, `ds:Signature`, QR/CSC QR data, SIFEN submission, KuDE, or PDF generation.
+Full official XSD validation is performed after signature and QR assembly. The
+unsigned artifact intentionally contains no `dFecFirma`, `ds:Signature`, or QR;
+KuDE/PDF remains pending.
+
+## Homologation-driven service behavior
+
+The following behavior is production-oriented and configuration-independent:
+
+* `PySifenDatetimeService` treats naive Odoo datetimes as UTC, converts fiscal
+  values with `America/Asuncion`, and applies the centralized 60-second margin
+  only when producing a fresh `dFecFirma`.
+* `PySignedXmlAttachmentService` keeps one current signed artifact per document,
+  reuses identical bytes, and preserves changed versions as superseded audit
+  evidence. Retry selection uses the current version.
+* `PyPayloadBuilder` derives VAT-inclusive item bases, VAT, subtotals, and grand
+  totals from one Decimal calculation path. `PyUnsignedXmlBuilder` serializes
+  the resulting lexical values consistently.
+* `PySifenQrBuilder` uses the exact `DigestValue` from the selected signed XML,
+  explicit parameter ordering, UTF-8 lowercase hexadecimal conversion, and a
+  transient CSC hash preimage. The CSC is absent from QR output and results.
+* `PySifenTransmissionPersistenceService` locks the document, blocks accepted
+  and ambiguous resubmissions, creates the pending transmission before calling
+  the pipeline, and persists authority code, receipt, timestamps, and safe
+  hashes after the response.
+
+These rules contain no dependency on a specific RUC, document ID,
+establishment, point of issue, receiver type, or homologation fixture.
 
 Stage 6.5.3 completed the pre-signature XML validation harness with `PyXmlValidationService`. The service validates project-owned readiness rules for unsigned XML, including structure, receiver identity, required unsigned groups, and absence of signing/QR elements. It does not perform official XSD validation and is not automatically called by the fake adapter yet.
 
@@ -1088,7 +1127,7 @@ https://sifen-test.set.gov.py/de/ws/sync/recibe.wsdl
 
 Transport uses `application/soap+xml; charset=utf-8`, no SOAP 1.1 `SOAPAction` header, TLS 1.2 or newer, server-certificate verification, and the configured qualified client certificate for mTLS. A public WSDL download without the client-authenticated TEST session currently returns the SIFEN BIG-IP logout page; therefore the contract remains the v150 WSDL/XSD already audited in Stage 8.29A, with no evidence of a changed operation or namespace.
 
-### First live submission procedure
+### Controlled submission procedure
 
 The authoritative field checklist is
 [SIFEN TEST Configuration](CONFIGURATION.md). Operational safeguards and
@@ -1103,23 +1142,27 @@ Before running the operation, complete all of the following:
 4. Configure an active `external_secret` PKCS#12 credential with `file://` material and a `file://` or `env://` password reference. Never place either value in source control.
 5. Bind the credential as both `xml_signing` and `mutual_tls` (or use two valid credentials). Tenant, company, environment, RUC, validity, key usages, and certificate/private-key correspondence must match.
 6. Run qualified-certificate installation validation and `verify_document_connection()` successfully.
-7. Confirm manually that the selected CDC has not already been submitted or accepted. This non-persistent operation does not provide resend protection.
+7. Confirm that the selected CDC is not accepted or ambiguous. The persistence
+   service also enforces this under a document row lock.
 
 From an Odoo shell connected to the configured database, run exactly one controlled request:
 
 ```python
 from odoo import fields
-from odoo.addons.einvoice_py.services import PySifenSubmissionService
 from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder
+from odoo.addons.einvoice_py.services.py_sifen_transmission_persistence_service import (
+    PySifenTransmissionPersistenceService,
+)
 
 document = env["fiscal.document"].browse(DOCUMENT_ID).exists()
 payload = PyPayloadBuilder(env).build(document)
-result = PySifenSubmissionService(env=env).submit(
+persisted = PySifenTransmissionPersistenceService(env).submit_and_persist(
     document=document,
     payload=payload,
     signing_timestamp=fields.Datetime.now(),
 )
-result
+env.cr.commit()
+persisted
 ```
 
 The request is UTF-8 SOAP 1.2 containing one signed, QR-bearing, XSD-valid `rDE` under `rEnviDe/dId/xDE`; the HTTPS layer presents the configured client certificate. A successful authority result has classification `accepted`, `dEstRes` equal to `Aprobado` or `Aprobado con observación`, and normally code `0260`; `dProtAut` is present only when SIFEN returns it.
@@ -1136,21 +1179,19 @@ Interpret failures as follows:
 * `soap_fault`: inspect the safe Fault code/reason and retain the raw response securely.
 * `rejected`, `duplicate`, or `unrecognized_official_code`: retain the official code/message and do not infer acceptance from HTTP 200.
 
-At baseline commit `cd07a73`, the `einvoice_py` suite reports 495 counted tests
-across 439 test methods. Production service composition, configuration-driven
+At first-acceptance closeout, the `einvoice_py` suite reports 511 counted tests
+across 453 test methods. Production service composition, configuration-driven
 sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission
 reconciliation, local homologation readiness, XMLDSig signing, QR/`gCamFuFD`,
 final `rDE` assembly/XSD validation, deterministic SOAP wrapping, the mocked
 TEST SOAP client, deterministic authority-response parsing, and mocked
 end-to-end TEST composition are covered. Automated tests make no live SIFEN
-calls and do not establish authority trust for a real qualified certificate,
-mutual TLS, or CSC behavior.
+calls. The accepted live baseline separately proves authority interoperability
+for the tested certificate, CSC, fiscal configuration, and invoice profile.
 
 Still pending:
 
-* live SIFEN sandbox validation
-* first live synchronous TEST DE
-* authority and real CSC validation
+* remaining official SIFEN TEST homologation cases
 * Stage 8.24B durable pre-POST persistence, postponed until authority evidence justifies it
 * production connection preflight
 * retry cron activation

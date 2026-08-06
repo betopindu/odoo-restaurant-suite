@@ -14,8 +14,10 @@ It is organized around a country-neutral fiscal core, country-specific addons, A
 
 Current country implementation:
 
-* Paraguay, TEST-ready through `einvoice_py`; live authority interoperability is
-  still pending the qualified PKCS#12 certificate and a controlled submission.
+* Paraguay through `einvoice_py`. The first controlled synchronous DE was
+  accepted by SIFEN TEST with authority code `0260` on 2026-08-06. This proves
+  TEST interoperability for the validated invoice profile; it is not production
+  authorization or completion of the full homologation matrix.
 
 ## Documentation Map
 
@@ -131,12 +133,12 @@ Implemented:
 * TEST-only Consulta DE reconciliation
 * isolated TEST end-to-end submission composition
 * offline qualified-certificate installation and readiness validation
+* first accepted real SIFEN TEST synchronous DE (`0260`)
 
 Operationally pending:
 
-* installation of the qualified taxpayer PKCS#12 credential
-* live TEST mTLS and first controlled `SiRecepDE` submission
-* authority confirmation of real CSC and interoperability behavior
+* completion of the official TEST homologation case matrix
+* production credential, CSC, timbrado, endpoint, and operational approval
 * Stage 8.24B durable pre-POST persistence, postponed until homologation evidence requires it
 * production enablement and electronic timbrado workflow
 * Paraguay KuDE/PDF

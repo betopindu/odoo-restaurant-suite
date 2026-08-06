@@ -8,6 +8,7 @@ Start here if you are new to the project or trying to understand what has alread
 
 * [Documentation Home](README.md): project overview, reading paths, quick links, and implementation status.
 * [Roadmap](ROADMAP.md): completed work, active documentation/product areas, next work, and future milestones.
+* [Documentation Changelog](CHANGELOG.md): dated documentation baseline changes.
 * [SIFEN TEST Configuration](PARAGUAY/CONFIGURATION.md): authoritative configuration and secret-reference checklist.
 * [Homologation Runbook](PARAGUAY/HOMOLOGATION_RUNBOOK.md): controlled live TEST procedure.
 

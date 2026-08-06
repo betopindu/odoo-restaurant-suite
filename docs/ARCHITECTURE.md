@@ -18,13 +18,27 @@ Paraguay includes an unsigned SIFEN-oriented XML builder, pinned local SIFEN v15
 
 Stages 8.9 through 8.18 complete the current production-capable service composition, non-live sandbox preflight, and synchronous SOAP protocol framing. `PySifenCredentialProvider` resolves a document's adapter, scoped signing and mutual-TLS credentials, signing material, CSC, endpoint, and timeout into a fully redacted runtime object. `PySifenSubmissionService` and `PySifenSubmissionPipelineService` are environment-independent, while `PySifenTestSubmissionService` remains a compatibility wrapper for TEST callers. The pipeline dispatches TEST and PRODUCTION documents through the same signing, QR, final XML, XSD, and normalized submission implementation. Synchronous submission uses SOAP 1.2, `application/soap+xml`, and the official `rEnviDe/dId/xDE/rDE` request structure. Its taxpayer-controlled, sequential `dId` is allocated from the existing persistent `fiscal.adapter.config.sequence_id` and validated as numeric with a maximum of 15 digits. Stage test configuration uses `no_gap`; DNIT does not explicitly require gapless or rollback-safe allocation, so `no_gap` is not a protocol requirement. `PySifenTransmissionPersistenceService` stores secret-free transmission results for either environment and resolves runtime credentials automatically when neither runtime credentials nor legacy explicit credential arguments are supplied. Retry execution reconstructs omitted payload and signing timestamp inputs from `paraguay_payload_json` and `paraguay_xml_signed` metadata respectively. Stage 8.17 adds `PySifenSandboxTransport.verify_document_connection()` for Paraguay TEST documents. It resolves the runtime endpoint, timeout, and mutual-TLS credential and delegates exclusively to `verify_connection()` without generating payloads, XML, or submissions. Supplied credential providers always take precedence, including falsey instances. Fixed `ValidationError` boundaries suppress provider, PKCS#12, SSL, password, certificate, and parser details. The retry runner and cron entry remain unchanged, and the cron remains disabled by default.
 
-At baseline commit `cd07a73`, the repository is TEST-ready in code and the
-`einvoice_py` suite reports 495 counted tests across 439 test methods. This
-coverage is network-free and is not live SIFEN certification. Installation of
-the qualified taxpayer PKCS#12, live TEST mutual TLS, authority and CSC
-validation, production preflight, cron activation, monitoring, and production
-go-live remain pending. Stage 8.24B durable pre-POST persistence is explicitly
-postponed until homologation evidence justifies changing the durability model.
+The first controlled synchronous DE was accepted by SIFEN TEST on 2026-08-06
+with authority code `0260`. The accepted path exercised the qualified PKCS#12,
+both logical credential bindings, XMLDSig, QR/CSC, final XSD validation, SOAP
+1.2, mTLS, response classification, and transmission/document persistence.
+This is evidence of interoperability for the tested invoice profile, not
+production certification or coverage of every authority scenario. The suite at
+closeout reports 511 counted tests across 453 test methods.
+
+Stage 8.24B durable pre-POST persistence, production preflight, cron activation,
+monitoring, and production go-live remain pending.
+
+Homologation corrections remain Paraguay-local. `PySifenDatetimeService`
+interprets naive Odoo datetimes as UTC instants, converts them through the IANA
+zone `America/Asuncion`, and applies an explicit 60-second safety margin only to
+new signing instants. `PySignedXmlAttachmentService` serializes signed-artifact
+replacement under a document row lock, reuses byte-identical content, and
+retains superseded signatures for audit. QR generation reads the final selected
+signed XML and verifies its `DigestValue`; CSC is appended transiently only to
+the hash preimage. VAT-inclusive item and document totals are derived from one
+Decimal calculation path before XML serialization. None of these rules depends
+on the homologated document, taxpayer, establishment, receiver, or CDC.
 
 Live SIFEN TEST acceptance requires the taxpayer's Qualified Certificate issued by a Prestador Cualificado de Servicios de Confianza (PCSC) habilitado. The supported operational input format is PKCS#12 (`.p12`). One certificate may be used for both XML signing and mutual TLS, but the adapter keeps the `xml_signing` and `mutual_tls` bindings logically separate; both bindings may point to the same `fiscal.credential`. This separation preserves explicit role validation and allows rotation without changing signing, submission, persistence, or retry consumers.
 
@@ -192,7 +206,9 @@ Fiscal Document
 -> Full Official XSD Validation
 -> SIFEN Sandbox mTLS Verification
 -> Environment-Aware SIFEN Submission Pipeline
--> Fiscal Transmission Persistence
+-> Pending Fiscal Transmission / Payload Persistence
+-> HTTPS POST and Authority Response
+-> Final Fiscal Transmission / Document Persistence
 -> Retry Scheduling
 -> Callable Retry Execution
 -> Automatic Retry Runner

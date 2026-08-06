@@ -34,12 +34,20 @@ Durable pre-POST persistence proposed for Stage 8.24B is postponed until live
 homologation evidence shows it is required. Ambiguous outcomes must not be
 blindly retried; operators reconcile by CDC first.
 
+The first accepted TEST submission confirms these boundaries in a live
+authority exchange. Homologation corrections remained inside their owning
+boundaries: fiscal time in the Paraguay datetime/preparation services, signed
+artifact selection in attachment persistence, fiscal arithmetic in the payload
+builder, QR preimage construction in the QR service, and authority outcomes in
+the parser/persistence services. No transport or neutral-core special case was
+introduced.
+
 ## Consequences
 
 * Local XSD failures cannot reach the network.
 * HTTP success is not confused with authority acceptance.
 * SOAP Faults are not treated as business rejections.
-* The first live request remains explicitly controlled.
+* Live requests remain explicitly controlled until operational approval.
 * Crash durability across an external POST is not claimed.
 
 ## Alternatives Considered
@@ -49,7 +57,9 @@ blindly retried; operators reconcile by CDC first.
 * Persist and retry inside the isolated submission service.
   * Rejected because that would duplicate existing workflow services.
 * Implement Stage 8.24B before homologation.
-  * Postponed because no live evidence yet justifies changing transaction durability.
+  * Still postponed after first acceptance: the controlled flow and mandatory
+    Consulta DE handling cover known ambiguous outcomes, while a durability
+    redesign requires a separate operational decision.
 
 ## Related Documents
 

@@ -6,5 +6,6 @@ stateDiagram-v2
     ControlledSubmission --> AuthorityAnalysis
     AuthorityAnalysis --> InteroperabilityCorrection: evidence requires correction
     InteroperabilityCorrection --> ControlledSubmission
-    AuthorityAnalysis --> HomologationCases: accepted baseline
+    AuthorityAnalysis --> AcceptedBaseline: 0260 accepted
+    AcceptedBaseline --> HomologationCases: continue official cases
     HomologationCases --> ProductionEnablement
