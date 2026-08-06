@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
 from odoo.exceptions import ValidationError
 
 from odoo.addons.einvoice_py.services.cdc_service import PyCdcService
@@ -54,6 +56,7 @@ class PyPayloadBuilder:
         warnings = []
         self._validate_required(document)
 
+        items = self._items_section(document, warnings)
         payload = {
             "version": self.VERSION,
             "cdc": document.py_cdc,
@@ -62,8 +65,8 @@ class PyPayloadBuilder:
             "issuer": self._issuer_section(document, warnings),
             "receiver": self._receiver_section(document, warnings),
             "condition": self._condition_section(document, warnings),
-            "items": self._items_section(document, warnings),
-            "totals": self._totals_section(document, warnings),
+            "items": items,
+            "totals": self._totals_section(document, warnings, items),
             "paraguay": self._paraguay_section(document),
             "warnings": warnings,
         }
@@ -250,8 +253,18 @@ class PyPayloadBuilder:
         items = []
         for line in document.line_ids:
             tax_rate = line.py_tax_rate if line.py_tax_rate is not False else line.tax_rate
-            tax_base = line.py_tax_base or line.tax_base_amount
-            tax_amount = line.py_tax_amount or line.tax_amount
+            quantity = self._decimal(line.quantity)
+            price_unit = self._decimal(line.price_unit)
+            discount = self._decimal(line.py_discount_amount or line.discount or 0)
+            gross_total = price_unit * quantity
+            total = (price_unit - discount) * quantity
+            tax_proportion = self._decimal(line.py_tax_proportion or 0)
+            tax_base, tax_amount, exempt_base = self._item_tax_values(
+                total=total,
+                affectation=line.py_tax_affectation,
+                rate=self._decimal(tax_rate or 0),
+                proportion=tax_proportion,
+            )
             if not line.py_tax_affectation:
                 warnings.append(
                     f"Line {line.sequence or line.id}: tax affectation is missing."
@@ -263,68 +276,104 @@ class PyPayloadBuilder:
             items.append({
                 "code": line.py_internal_code or line.product_code or line.fiscal_product_code,
                 "description": line.description or line.product_name,
-                "quantity": line.quantity,
+                "quantity": self._number(quantity),
                 "unit_measure_code": line.py_unit_measure_code or "77",
                 "unit_measure_description": line.py_unit_measure_description or "UNI",
-                "price_unit": line.price_unit,
-                "discount": line.py_discount_amount or line.discount,
-                "discount_percent": 0,
+                "price_unit": self._number(price_unit),
+                "discount": self._number(discount),
+                "discount_percent": self._number(
+                    discount * Decimal("100") / price_unit if price_unit else 0
+                ),
                 "global_discount": 0,
                 "unit_advance": 0,
                 "global_advance": 0,
-                "total": line.total,
+                "gross_total": self._number(gross_total),
+                "total": self._number(total),
                 "tax_affectation": line.py_tax_affectation,
                 "tax_affectation_description": self.VAT_AFFECTATIONS.get(line.py_tax_affectation),
                 "tax_rate": tax_rate,
-                "tax_proportion": line.py_tax_proportion,
-                "tax_base": tax_base,
-                "tax_amount": tax_amount,
-                "exempt_base": line.py_exempt_base,
+                "tax_proportion": self._number(tax_proportion),
+                "tax_base": self._number(tax_base),
+                "tax_amount": self._number(tax_amount),
+                "exempt_base": self._number(exempt_base),
             })
         return items
 
-    def _totals_section(self, document, warnings):
-        subtotal_exempt = subtotal_5 = subtotal_10 = 0.0
-        total_vat_5 = total_vat_10 = 0.0
-        for line in document.line_ids:
-            rate = line.py_tax_rate
-            tax_amount = line.py_tax_amount or 0.0
-            if line.py_tax_affectation == "3":
-                subtotal_exempt += line.py_exempt_base or line.total
-            elif rate == 5:
-                subtotal_5 += line.py_tax_base or line.total
-                total_vat_5 += tax_amount
-            elif rate == 10:
-                subtotal_10 += line.py_tax_base or line.total
-                total_vat_10 += tax_amount
-            elif line.py_tax_affectation == "4":
-                subtotal_exempt += line.py_exempt_base or 0.0
+    def _totals_section(self, document, warnings, items):
+        subtotal_exempt = subtotal_5 = subtotal_10 = Decimal("0")
+        base_5 = base_10 = Decimal("0")
+        total_vat_5 = total_vat_10 = Decimal("0")
+        total_discount = Decimal("0")
+        for item in items:
+            rate = self._decimal(item.get("tax_rate") or 0)
+            item_total = self._decimal(item["total"])
+            tax_base = self._decimal(item.get("tax_base") or 0)
+            tax_amount = self._decimal(item.get("tax_amount") or 0)
+            total_discount += self._decimal(item.get("discount") or 0) * self._decimal(
+                item["quantity"]
+            )
+            if item["tax_affectation"] == "3":
+                subtotal_exempt += item_total
+            elif item["tax_affectation"] == "4":
+                subtotal_exempt += self._decimal(item.get("exempt_base") or 0)
+                taxable_subtotal = tax_base + tax_amount
                 if rate == 5:
-                    subtotal_5 += line.py_tax_base or 0.0
+                    subtotal_5 += taxable_subtotal
+                    base_5 += tax_base
                     total_vat_5 += tax_amount
                 elif rate == 10:
-                    subtotal_10 += line.py_tax_base or 0.0
+                    subtotal_10 += taxable_subtotal
+                    base_10 += tax_base
                     total_vat_10 += tax_amount
                 else:
-                    warnings.append(
-                        f"Line {line.sequence or line.id}: partial tax rate is missing."
-                    )
+                    warnings.append("Partial tax rate is missing.")
+            elif rate == 5:
+                subtotal_5 += item_total
+                base_5 += tax_base
+                total_vat_5 += tax_amount
+            elif rate == 10:
+                subtotal_10 += item_total
+                base_10 += tax_base
+                total_vat_10 += tax_amount
             else:
-                warnings.append(
-                    f"Line {line.sequence or line.id}: tax bucket could not be determined."
-                )
+                warnings.append("Tax bucket could not be determined.")
+        total_operation = subtotal_exempt + subtotal_5 + subtotal_10
         return {
-            "subtotal_exempt": subtotal_exempt,
-            "subtotal_5": subtotal_5,
-            "subtotal_10": subtotal_10,
-            "total_operation": document.amount_total,
-            "total_discount": document.amount_discount
-            or sum(line.py_discount_amount or 0.0 for line in document.line_ids),
-            "total_vat_5": total_vat_5,
-            "total_vat_10": total_vat_10,
-            "total_vat": total_vat_5 + total_vat_10,
-            "total_general": document.amount_total,
+            "subtotal_exempt": self._number(subtotal_exempt),
+            "subtotal_5": self._number(subtotal_5),
+            "subtotal_10": self._number(subtotal_10),
+            "base_5": self._number(base_5),
+            "base_10": self._number(base_10),
+            "total_operation": self._number(total_operation),
+            "total_discount": self._number(total_discount),
+            "total_vat_5": self._number(total_vat_5),
+            "total_vat_10": self._number(total_vat_10),
+            "total_vat": self._number(total_vat_5 + total_vat_10),
+            "total_general": self._number(total_operation),
         }
+
+    def _item_tax_values(self, *, total, affectation, rate, proportion):
+        if affectation not in ("1", "4") or not rate:
+            exempt = total if affectation == "3" else Decimal("0")
+            return Decimal("0"), Decimal("0"), exempt
+        taxable_gross = total * proportion / Decimal("100")
+        divisor = Decimal("1") + (rate / Decimal("100"))
+        base = self._money(taxable_gross / divisor)
+        tax = self._money(base * rate / Decimal("100"))
+        exempt = self._money(total - taxable_gross) if affectation == "4" else Decimal("0")
+        return base, tax, exempt
+
+    def _decimal(self, value):
+        try:
+            return Decimal(str(value or 0))
+        except (InvalidOperation, ValueError):
+            raise ValidationError("Invalid Paraguay monetary value.") from None
+
+    def _money(self, value):
+        return value.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
+
+    def _number(self, value):
+        return float(self._money(self._decimal(value)))
 
     def _paraguay_section(self, document):
         sequence = PyNumberingService(self.env).find_sequence(document)

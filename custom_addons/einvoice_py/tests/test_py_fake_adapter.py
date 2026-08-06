@@ -781,8 +781,8 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertEqual(item["tax_affectation"], "1")
         self.assertEqual(item["tax_affectation_description"], "Gravado IVA")
         self.assertEqual(item["tax_rate"], 10)
-        self.assertEqual(item["tax_base"], 90.91)
-        self.assertEqual(item["tax_amount"], 9.09)
+        self.assertEqual(item["tax_base"], 90.90909091)
+        self.assertEqual(item["tax_amount"], 9.09090909)
         self.assertEqual(item["discount_percent"], 0)
         self.assertEqual(item["global_discount"], 0)
         self.assertEqual(item["unit_advance"], 0)
@@ -822,9 +822,10 @@ class TestPyFakeAdapter(TransactionCase):
 
         totals = PyPayloadBuilder(self.env).build(document)["totals"]
 
-        self.assertEqual(totals["subtotal_5"], 95.24)
-        self.assertEqual(totals["total_vat_5"], 4.76)
-        self.assertEqual(totals["total_vat"], 4.76)
+        self.assertEqual(totals["subtotal_5"], 100)
+        self.assertEqual(totals["base_5"], 95.23809524)
+        self.assertEqual(totals["total_vat_5"], 4.76190476)
+        self.assertEqual(totals["total_vat"], 4.76190476)
 
     def test_tax_buckets_for_iva_10_line(self):
         self._create_config()
@@ -834,9 +835,10 @@ class TestPyFakeAdapter(TransactionCase):
 
         totals = PyPayloadBuilder(self.env).build(document)["totals"]
 
-        self.assertEqual(totals["subtotal_10"], 90.91)
-        self.assertEqual(totals["total_vat_10"], 9.09)
-        self.assertEqual(totals["total_vat"], 9.09)
+        self.assertEqual(totals["subtotal_10"], 100)
+        self.assertEqual(totals["base_10"], 90.90909091)
+        self.assertEqual(totals["total_vat_10"], 9.09090909)
+        self.assertEqual(totals["total_vat"], 9.09090909)
 
     def test_standard_cash_taxpayer_invoice_generates_clean_payload(self):
         self._create_config()
@@ -859,8 +861,9 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertEqual(payload["condition"]["payment_type_code"], "1")
         self.assertEqual(payload["receiver"]["nature_code"], "1")
         self.assertEqual(payload["receiver"]["type_code"], "1")
-        self.assertEqual(payload["totals"]["subtotal_10"], 90.91)
-        self.assertEqual(payload["totals"]["total_vat_10"], 9.09)
+        self.assertEqual(payload["totals"]["subtotal_10"], 100)
+        self.assertEqual(payload["totals"]["base_10"], 90.90909091)
+        self.assertEqual(payload["totals"]["total_vat_10"], 9.09090909)
 
     def test_unsigned_xml_can_be_parsed_and_has_key_groups(self):
         self._create_config()
@@ -979,11 +982,71 @@ class TestPyFakeAdapter(TransactionCase):
             self._xml_findtext(root, "DE/gDtipDE/gCamItem/gCamIVA/dDesAfecIVA"),
             "Gravado IVA",
         )
-        self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dIVA10"), "9.09000000")
+        self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dIVA10"), "9.09090909")
         self.assertIsNone(self._xml_find(root, "DE/gTotSub/dTotIVA10"))
         self.assertIsNone(self._xml_find(root, "DE/gTotSub/dTotIVA5"))
-        self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dBaseGrav10"), "90.91000000")
-        self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dTBasGraIVA"), "90.91000000")
+        self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dSub10"), "100.00000000")
+        self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dBaseGrav10"), "90.90909091")
+        self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dTBasGraIVA"), "90.90909091")
+
+    def test_sifen_v150_iva_inclusive_totals_use_item_total_not_tax_base(self):
+        self._create_config()
+        document = self._create_document(extra_vals={
+            "amount_untaxed": 100000,
+            "amount_tax": 10000,
+            "amount_total": 110000,
+        })
+        self._enrich_standard_cash_invoice(document)
+        document.write({"py_payment_amount": 110000})
+        document.line_ids.write({
+            "quantity": 1,
+            "price_unit": 110000,
+            "subtotal": 100000,
+            "total": 110000,
+            "py_tax_affectation": "1",
+            "py_tax_rate": 10,
+            "py_tax_proportion": 100,
+        })
+        self._process(document)
+
+        payload = PyPayloadBuilder(self.env).build(document)
+        xml = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        root = ET.fromstring(xml)
+
+        self.assertEqual(payload["items"][0]["gross_total"], 110000)
+        self.assertEqual(payload["items"][0]["tax_base"], 100000)
+        self.assertEqual(payload["items"][0]["tax_amount"], 10000)
+        self.assertEqual(payload["totals"]["subtotal_10"], 110000)
+        self.assertEqual(payload["totals"]["base_10"], 100000)
+        self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dSub10"), "110000.00000000")
+        self.assertEqual(self._xml_findtext(root, "DE/gTotSub/dBaseGrav10"), "100000.00000000")
+
+    def test_sifen_v150_decimal_quantity_discount_and_rounding_are_consistent(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        document.line_ids.write({
+            "quantity": 1.5,
+            "price_unit": 123.456789,
+            "py_discount_amount": 3.456789,
+            "py_tax_affectation": "1",
+            "py_tax_rate": 5,
+            "py_tax_proportion": 100,
+        })
+        self._process(document)
+
+        payload = PyPayloadBuilder(self.env).build(document)
+        item = payload["items"][0]
+        totals = payload["totals"]
+
+        self.assertEqual(item["gross_total"], 185.19)
+        self.assertEqual(item["total"], 180.0048165)
+        self.assertEqual(item["tax_base"], 171.43315857)
+        self.assertEqual(item["tax_amount"], 8.57165793)
+        self.assertEqual(totals["subtotal_5"], item["total"])
+        self.assertEqual(totals["base_5"], item["tax_base"])
+        self.assertEqual(totals["total_vat_5"], item["tax_amount"])
+        self.assertEqual(totals["total_operation"], totals["total_general"])
 
     def test_unsigned_xml_emits_repeated_economic_activities_in_payload_order(self):
         establishment, point_of_issue, timbrado, csc, sequence = self._create_config()

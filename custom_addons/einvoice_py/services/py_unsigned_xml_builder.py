@@ -201,7 +201,11 @@ class PyUnsignedXmlBuilder:
 
         values = self._sub(group, "gValorItem")
         self._text(values, "dPUniProSer", self._format_money(item["price_unit"]))
-        self._text(values, "dTotBruOpeItem", self._format_money(item["total"]))
+        self._text(
+            values,
+            "dTotBruOpeItem",
+            self._format_money(item.get("gross_total", item["total"])),
+        )
         remainder = self._sub(values, "gValorRestaItem")
         self._text(remainder, "dDescItem", self._format_money(item.get("discount") or 0))
         self._text(remainder, "dPorcDesIt", self._format_decimal(item.get("discount_percent") or 0))
@@ -224,6 +228,8 @@ class PyUnsignedXmlBuilder:
         totals = payload["totals"]
         subtotal_5 = totals.get("subtotal_5") or 0
         subtotal_10 = totals.get("subtotal_10") or 0
+        base_5 = totals.get("base_5", subtotal_5) or 0
+        base_10 = totals.get("base_10", subtotal_10) or 0
         group = self._sub(parent, "gTotSub")
         self._text(group, "dSubExe", self._format_money(totals.get("subtotal_exempt")))
         self._text(group, "dSub5", self._format_money(subtotal_5))
@@ -241,9 +247,9 @@ class PyUnsignedXmlBuilder:
         self._text(group, "dIVA5", self._format_money(totals.get("total_vat_5")))
         self._text(group, "dIVA10", self._format_money(totals.get("total_vat_10")))
         self._text(group, "dTotIVA", self._format_money(totals.get("total_vat")))
-        self._text(group, "dBaseGrav5", self._format_money(subtotal_5))
-        self._text(group, "dBaseGrav10", self._format_money(subtotal_10))
-        self._text(group, "dTBasGraIVA", self._format_money(self._decimal(subtotal_5) + self._decimal(subtotal_10)))
+        self._text(group, "dBaseGrav5", self._format_money(base_5))
+        self._text(group, "dBaseGrav10", self._format_money(base_10))
+        self._text(group, "dTBasGraIVA", self._format_money(self._decimal(base_5) + self._decimal(base_10)))
 
     def _validate_payload(self, payload):
         missing = []
