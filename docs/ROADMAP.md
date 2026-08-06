@@ -86,6 +86,7 @@
 [x] Documentation closeout for TEST-ready baseline at `cd07a73`
 [x] First controlled synchronous SIFEN TEST DE accepted (`0260`)
 [x] Homologation-driven timezone, artifact-versioning, VAT, catalog, and CSC corrections
+[x] Official February 2026 TEST scope and repository capability matrix
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
@@ -112,6 +113,9 @@ limited to the exercised invoice profile.
 
 ## Next
 
+[ ] Obtain authorized real B2B receiver data for the next two-item IVA 10% FE
+[ ] Prepare the selected B2B FE offline without network access
+[ ] Execute it live only under separate authorization
 [ ] Complete the authority-defined TEST homologation case matrix
 [ ] Apply further interoperability corrections only when supported by authority evidence
 [ ] Stage 8.24B durable pre-POST persistence, explicitly postponed until homologation evidence justifies it

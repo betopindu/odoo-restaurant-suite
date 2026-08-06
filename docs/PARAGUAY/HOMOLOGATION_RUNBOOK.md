@@ -2,6 +2,10 @@
 
 [Documentation Home](../README.md) -> [Paraguay](README.md) -> Homologation
 
+See the [capability and homologation matrix](HOMOLOGATION_MATRIX.md) before
+selecting the next case. A locally supported profile is not necessarily one of
+the authority's minimum test rows.
+
 The first controlled synchronous TEST DE has been accepted. This runbook now
 records that baseline and remains the procedure for subsequent homologation
 cases. Acceptance of one DE is not production authorization.
@@ -106,3 +110,12 @@ Potential cross-country candidates requiring evidence are exact-decimal payload
 serialization, a generic artifact-current/superseded lifecycle, secret-backed
 country parameters, and durable external-call orchestration. These are review
 candidates only, not approved abstractions or implementation work.
+
+## Next controlled scenario
+
+The next selected profile is a synchronous B2B cash FE with a real Paraguayan
+taxpayer receiver and at least two IVA 10% item groups. Preparation is blocked
+until an authorized current receiver RUC/DV, legal name, address and official
+geography are supplied. Do not reuse historical fiscal snapshots, the issuer's
+RUC, or generated identifiers as substitutes. No document number or CDC has
+been consumed for this pending scenario.

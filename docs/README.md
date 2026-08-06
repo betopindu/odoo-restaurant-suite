@@ -28,6 +28,7 @@ Current country implementation:
 * [Paraguay Documentation](PARAGUAY/README.md): Paraguay-specific configuration and processing
 * [SIFEN TEST Configuration](PARAGUAY/CONFIGURATION.md): authoritative field and secret-reference checklist
 * [Homologation Runbook](PARAGUAY/HOMOLOGATION_RUNBOOK.md): controlled first-live-submission procedure
+* [SIFEN TEST Homologation Matrix](PARAGUAY/HOMOLOGATION_MATRIX.md): official minimum scope and repository capability
 * [Diagrams](diagrams/README.md): Mermaid diagrams for architecture and workflows
 
 ## How To Read This Documentation

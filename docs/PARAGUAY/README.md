@@ -1223,6 +1223,7 @@ Future SIFEN work should build on:
 * [Roadmap](../ROADMAP.md)
 * [Paraguay Processing Diagram](../diagrams/paraguay-processing.mmd)
 * [Fiscal State Machine](../diagrams/fiscal-state-machine.mmd)
+* [SIFEN TEST Homologation Matrix](HOMOLOGATION_MATRIX.md)
 * [ADR-008 Paraguay Numbering Before CDC](../ADR/ADR-008-paraguay-numbering-before-cdc.md)
 * [ADR-009 CSC Only For QR](../ADR/ADR-009-csc-only-for-qr.md)
 * [ADR-010 SIFEN XSD Validation Strategy](../ADR/ADR-010-sifen-xsd-validation-strategy.md)

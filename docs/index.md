@@ -11,6 +11,7 @@ Start here if you are new to the project or trying to understand what has alread
 * [Documentation Changelog](CHANGELOG.md): dated documentation baseline changes.
 * [SIFEN TEST Configuration](PARAGUAY/CONFIGURATION.md): authoritative configuration and secret-reference checklist.
 * [Homologation Runbook](PARAGUAY/HOMOLOGATION_RUNBOOK.md): controlled live TEST procedure.
+* [SIFEN TEST Homologation Matrix](PARAGUAY/HOMOLOGATION_MATRIX.md): official minimum scope, repository capability, and authorization gates.
 
 ## Recommended Reading Paths
 
