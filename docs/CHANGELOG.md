@@ -1,5 +1,20 @@
 # Documentation Changelog
 
+## 2026-08-06 — B2B TEST authority-data evidence
+
+* Prepared and structurally validated the controlled B2B FE pipeline using
+  current official receiver evidence.
+* Preserved document `17886` and transmission `18534`, explicitly rejected by
+  SIFEN TEST with `1306` because masked receiver `380****-*` is absent from the
+  TEST Marangatu dataset.
+* Verified the signed XML RUC/DV split, taxpayer/B2B classification and official
+  geographic mappings; no code or local configuration defect was found.
+* Classified B2B coverage as `BLOCKED BY TEST AUTHORITY DATA` pending DNIT
+  provisioning or an authority-supplied TEST receiver. No universal public TEST
+  receiver RUC was identified.
+* Documented safe escalation, privacy controls and the rule that an explicit,
+  non-ambiguous `1306` requires no Consulta DE.
+
 ## 2026-08-06 — Homologation scope matrix
 
 * Compared the repository with DNIT's February 2026 testing guide.

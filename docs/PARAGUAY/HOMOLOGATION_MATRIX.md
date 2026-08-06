@@ -55,11 +55,14 @@ Status meanings:
   input is unavailable.
 * **REQUIRES LIVE TEST**: deterministic local coverage exists but authority
   behavior has not been exercised.
+* **BLOCKED BY TEST AUTHORITY DATA**: current official input is available and
+  structurally valid locally, but the authority has not provisioned the
+  required taxpayer data in its TEST dataset.
 
 | Scenario | Status | Repository evidence and exact gap |
 | --- | --- | --- |
 | B2C FE, innominado, cash, IVA 10% | READY | Complete payload-to-persistence path; first live acceptance `0260`. The accepted FE had one item, so it is not by itself the guide's two-item/five-FE minimum. |
-| B2B FE to Paraguayan taxpayer | REQUIRES OFFICIAL DATA | Model, payload, `gDatRec/dRucRec/dDVRec`, QR `dRucRec`, XSD, signing and submission support exist and have unit coverage. A real authorized customer RUC, DV, legal name and address are missing. |
+| B2B FE to Paraguayan taxpayer | BLOCKED BY TEST AUTHORITY DATA | Current receiver evidence was obtained from a Constancia de RUC and Cédula Tributaria. Document `17886` was locally validated and transmission `18534` proved that the B2B XML mapping is structurally correct, but SIFEN TEST rejected it with `1306` because masked receiver `380****-*` is absent from the TEST Marangatu dataset. No public universal TEST receiver RUC is documented. |
 | IVA 10% | READY | Item/base/VAT/subtotal calculations, XML and focused tests exist; live accepted baseline. |
 | IVA 5% | REQUIRES LIVE TEST | Decimal calculations and XML/tests exist; no live authority evidence. |
 | Exempt item | REQUIRES LIVE TEST | Exempt bucket and XML/tests exist; no live authority evidence. |
@@ -100,25 +103,26 @@ aligns with the guide's minimum two-item FE shape. It does not depend on credit
 schedules, associated documents, events, KuDE rendering or asynchronous batch
 services.
 
-### Blocking official receiver evidence
+### External TEST receiver-data gate
 
-No new document may be created until one of these is supplied and authorized
-for TEST use:
+Official receiver evidence is now available locally and the normalized B2B
+snapshot contains a valid RUC/DV split, taxpayer nature/type, legal name and
+official geography. The signed request was nevertheless rejected explicitly
+with `1306`, `RUC del receptor inexistente en la base de datos de Marangatu`.
+This establishes an external TEST-data prerequisite, not a local mapping or
+configuration defect.
 
-1. a real customer Constancia de RUC/current Marangatu record containing RUC,
-   DV, legal name, address and registered geography; or
-2. written DNIT guidance identifying an official TEST receiver dataset.
-
-The operational database currently contains no active `res.partner` with a tax
-identifier. Historical B2B fiscal snapshots are not proof that the receiver is
-current, authorized or appropriate for a new homologation transaction. The
-testing guide explicitly requires real customer data, so neither the issuer's
-own RUC nor a generated RUC may be substituted without authority evidence.
+The DNIT testing guide requires real customer data but does not state that all
+ordinary Marangatu taxpayers are automatically replicated into SIFEN TEST and
+does not publish a universal receiver RUC. Do not try generated, approximate or
+random taxpayer identifiers. Continue only after DNIT provisions the intended
+receiver in TEST or supplies an authorized TEST receiver dataset in writing.
 
 ## Live authorization gate
 
-Once receiver evidence is approved, prepare and validate the new document
-offline first. A later live command must use
-`PySifenTransmissionPersistenceService.submit_and_persist()` exactly once and
-must be separately authorized. No live command is published by this stage
-because the prerequisite receiver data is unresolved.
+After DNIT confirms provisioning, document `17886` may be regenerated with a
+fresh signing timestamp and submitted once through
+`PySifenTransmissionPersistenceService.submit_and_persist()`. Rejection `1306`
+was explicit and non-ambiguous, so Consulta DE is not required. Preserve
+transmission `18534` as authority evidence and do not replace its receiver with
+an unverified RUC.

@@ -49,6 +49,14 @@ not production authorization and does not replace the remaining official TEST
 cases. No operational identifier above is embedded in production services or
 test fixtures.
 
+The subsequent controlled B2B pipeline is locally complete and structurally
+validated. Its first live TEST attempt was explicitly rejected with `1306`
+because the masked real receiver `380****-*` was not present in the SIFEN TEST
+Marangatu dataset. This status is **BLOCKED BY TEST AUTHORITY DATA**, not a code
+or local receiver-mapping defect. See the
+[homologation matrix](HOMOLOGATION_MATRIX.md) and
+[runbook](HOMOLOGATION_RUNBOOK.md#handling-receiver-rejection-1306).
+
 ## Configuration
 
 ### Issuer

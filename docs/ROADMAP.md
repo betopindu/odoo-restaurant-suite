@@ -85,6 +85,7 @@
 [x] Stage 8.33 Homologation readiness audit
 [x] Documentation closeout for TEST-ready baseline at `cd07a73`
 [x] First controlled synchronous SIFEN TEST DE accepted (`0260`)
+[x] B2B TEST pipeline prepared and structurally validated with current official receiver evidence
 [x] Homologation-driven timezone, artifact-versioning, VAT, catalog, and CSC corrections
 [x] Official February 2026 TEST scope and repository capability matrix
 [x] Paraguay fiscal data enrichment
@@ -113,8 +114,9 @@ limited to the exercised invoice profile.
 
 ## Next
 
-[ ] Obtain authorized real B2B receiver data for the next two-item IVA 10% FE
-[ ] Prepare the selected B2B FE offline without network access
+[ ] B2B live TEST — **BLOCKED BY TEST AUTHORITY DATA** (`1306`); DNIT inquiry pending
+[x] Prepare and validate the selected B2B FE offline
+[ ] Retry the preserved B2B FE once after DNIT confirms TEST receiver provisioning
 [ ] Execute it live only under separate authorization
 [ ] Complete the authority-defined TEST homologation case matrix
 [ ] Apply further interoperability corrections only when supported by authority evidence

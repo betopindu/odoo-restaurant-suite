@@ -76,6 +76,7 @@ historical transmission or attachment was deleted.
 | `2359` | The payload mixed net-base and VAT-inclusive subtotal conventions. | One Decimal path now derives item base/VAT and document 5%/10% subtotals from VAT-inclusive operation values; focused 5%, 10%, decimal, discount and partial-tax tests. | Calculation is item-driven and independent of the homologated amount or document. |
 | `2501` | `IdCSC=0001` was paired with a non-official TEST CSC value. | Corrected operational TEST configuration; independently recalculated `cHashQR` from the exact final signed `DigestValue`. | QR algorithm and CSC lookup are environment/configuration driven. No secret or taxpayer literal was added to code. |
 | `0260` | Final request satisfied the authority contract. | Document `16106`, transmission `17896`, accepted with `Autorización del DE satisfactoria`. | Confirms composition of the generic Paraguay services for the tested profile. |
+| `1306` | A real receiver from a current Constancia de RUC and Cédula Tributaria was absent from the SIFEN TEST Marangatu dataset. | Document `17886` and transmission `18534` preserve the explicit, non-ambiguous rejection. The RUC/DV split, receiver type, name and official geography were verified in the exact signed XML. The case was escalated to DNIT for TEST provisioning or an authorized TEST receiver. | No code or local configuration correction was made: the authority dataset, rather than the B2B mapping, blocked the request. |
 
 ### Closeout conclusions
 
@@ -114,8 +115,48 @@ candidates only, not approved abstractions or implementation work.
 ## Next controlled scenario
 
 The next selected profile is a synchronous B2B cash FE with a real Paraguayan
-taxpayer receiver and at least two IVA 10% item groups. Preparation is blocked
-until an authorized current receiver RUC/DV, legal name, address and official
-geography are supplied. Do not reuse historical fiscal snapshots, the issuer's
-RUC, or generated identifiers as substitutes. No document number or CDC has
-been consumed for this pending scenario.
+taxpayer receiver. The receiver evidence and offline pipeline are complete,
+but the live case is **BLOCKED BY TEST AUTHORITY DATA**. SIFEN TEST returned
+`1306` for masked receiver `380****-*`. Continue only after DNIT confirms that
+receiver in the TEST Marangatu dataset or supplies an authorized TEST receiver.
+
+## Handling receiver rejection 1306
+
+Before classifying `1306` as external, inspect the exact signed request and
+verify all of the following against current official receiver evidence:
+
+1. `dRucRec` contains only the base RUC and `dDVRec` contains its one-digit DV.
+2. `dNomRec`, `iNatRec`, `iTiOpe` and `iTiContRec` match the taxpayer record and
+   B2B semantics.
+3. Receiver address, department, district and city use exact official catalog
+   code/description pairs.
+4. Request and response hashes exist and the authority result is explicit,
+   rejected and `ambiguous=false`.
+
+If those checks pass, do not try random RUCs, generated identifiers, the
+issuer's RUC or historical snapshots. Preserve the document and transmission,
+then escalate the TEST dataset prerequisite to DNIT. Once provisioning is
+confirmed, regenerate derived artifacts with a fresh signing timestamp and
+authorize one controlled resend. An explicit non-ambiguous `1306` does not
+require Consulta DE.
+
+### Safe DNIT support procedure
+
+The official Guía de Pruebas §5 identifies the DNIT e-Kuatia
+[`Contáctenos`](https://www.dnit.gov.py/web/e-kuatia/contactenos) channel and
+recommends its
+[`formulario de derivación`](https://servicios.set.gov.py/eset-publico/EnvioMailSetIService.do)
+for queries or verification files. The operational inquiry used the DNIT SIFEN
+support channel.
+
+Recommended subject: `Habilitación de receptor B2B en ambiente SIFEN TEST`.
+
+Safe information to include: issuer RUC, masked receiver RUC, environment,
+authority code/message, document/transmission identifiers, timestamps and safe
+request/response hashes. Ask DNIT either to provision the intended receiver in
+TEST or to identify an authorized TEST receiver dataset.
+
+Never attach or disclose the PKCS#12, certificate private key, password, CSC,
+secret references, complete signed XML, unmasked receiver address, credential
+paths or database dumps. Supply additional protected evidence only when DNIT
+explicitly requests it through an approved channel.
