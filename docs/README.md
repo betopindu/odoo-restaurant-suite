@@ -135,6 +135,7 @@ Implemented:
 * isolated TEST end-to-end submission composition
 * offline qualified-certificate installation and readiness validation
 * first accepted real SIFEN TEST synchronous DE (`0260`)
+* deterministic invoice KuDE/PDF from persisted payload and exact QR artifacts
 
 Operationally pending:
 
@@ -142,7 +143,7 @@ Operationally pending:
 * production credential, CSC, timbrado, endpoint, and operational approval
 * Stage 8.24B durable pre-POST persistence, postponed until homologation evidence requires it
 * production enablement and electronic timbrado workflow
-* Paraguay KuDE/PDF
+* KuDE delivery and representations for additional Paraguay DTE types
 * Delivery by email or WhatsApp
 
 ## Diagrams

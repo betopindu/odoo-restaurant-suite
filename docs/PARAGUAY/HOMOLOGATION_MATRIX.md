@@ -75,7 +75,7 @@ Status meanings:
 | Explicit rejection | READY | Parser/persistence tests plus preserved live rejection evidence demonstrate non-ambiguous rejection handling. |
 | Ambiguous POST and Consulta DE | REQUIRES LIVE TEST | Timeout normalization, CDC blocking, SOAP Consulta DE, `0422`/`0420` reconciliation and idempotency are tested without network. No live ambiguous outcome should be manufactured. |
 | QR generation/authority validation | READY | Deterministic QR uses the exact final XMLDSig digest and official TEST CSC pair; the accepted DE proves SIFEN validation for the baseline. Browser QR consultation counts remain pending. |
-| KuDE PDF and delivery | NOT IMPLEMENTED | QR URL exists, but no KuDE/PDF renderer, delivery or KuDE test matrix exists. |
+| KuDE PDF generation | READY | The invoice renderer consumes only persisted payload plus the exact persisted QR URL, produces deterministic/versioned PDF artifacts, and has unit/integration, regeneration, multipage and idempotency coverage. Live receiver delivery remains operational work. |
 | Cancellation and inutilization | NOT IMPLEMENTED | Core has a cancelled state, but Paraguay event SOAP/XML, authority response and persistence services do not exist. |
 | Receiver events | NOT IMPLEMENTED | No Paraguay receiver-event implementation. |
 | General DTE/event consultation | PARTIAL | TEST Consulta DE by CDC exists for ambiguous reconciliation; general consultation matrix and associated-event output are absent. |

@@ -357,8 +357,7 @@ Stage 6.5.2B-4 completed XML schema-readiness emission. The unsigned XML draft n
 `PyUnsignedXmlBuilder` remains payload-first and does not read Odoo document/configuration models directly for these fields.
 
 Full official XSD validation is performed after signature and QR assembly. The
-unsigned artifact intentionally contains no `dFecFirma`, `ds:Signature`, or QR;
-KuDE/PDF remains pending.
+unsigned artifact intentionally contains no `dFecFirma`, `ds:Signature`, or QR.
 
 ## Homologation-driven service behavior
 
@@ -1187,8 +1186,8 @@ Interpret failures as follows:
 * `soap_fault`: inspect the safe Fault code/reason and retain the raw response securely.
 * `rejected`, `duplicate`, or `unrecognized_official_code`: retain the official code/message and do not infer acceptance from HTTP 200.
 
-At first-acceptance closeout, the `einvoice_py` suite reports 511 counted tests
-across 453 test methods. Production service composition, configuration-driven
+The current KuDE baseline reports 523 counted tests across 463 test methods.
+Production service composition, configuration-driven
 sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission
 reconciliation, local homologation readiness, XMLDSig signing, QR/`gCamFuFD`,
 final `rDE` assembly/XSD validation, deterministic SOAP wrapping, the mocked
@@ -1223,6 +1222,60 @@ Future SIFEN work should build on:
 * authority response normalization
 * retry/error handling
 
+## KuDE PDF representation
+
+The invoice KuDE implementation follows Manual Técnico SIFEN v150 chapter 13.
+It is a simplified graphical representation of the DTE, not a replacement for
+the signed XML. `PyKudeService` accepts one persisted Paraguay
+`fiscal.document`, reads only its latest `paraguay_payload_json` and current
+`paraguay_qr_payload`, renders a deterministic PDF, and persists a
+`paraguay_kude_pdf` fiscal artifact. It never reads XML, SOAP requests,
+authority responses, credentials or CSC, and it performs no network operation.
+
+The submission pipeline persists the exact QR URL produced from the final
+signed artifact. KuDE generation embeds that persisted URL unchanged; it never
+recalculates `cHashQR`. Each PDF metadata record contains only safe attachment
+identifiers and SHA-256 hashes for its payload and QR inputs. The PDF and QR
+attachments use current/superseded metadata under a document row lock:
+byte-identical regeneration is idempotent, while changed input creates a new
+current version and keeps every prior version for audit.
+
+ReportLab is used directly rather than HTML/wkhtmltopdf. Its invariant mode,
+explicit pagination and exact QR dimensions make output independent of browser
+engine, CSS, host font and external-process differences. The KuDE includes the
+official invoice header, issuer/timbrado information, receiver and operation
+data, item/tax columns, totals on the last page, page numbering, consultation
+information, grouped CDC and the QR on the first page. The QR is rendered at
+28 mm, above the Manual's 25 mm minimum. XML values are represented; no new
+business calculation is performed.
+
+Generate or regenerate locally from Odoo shell:
+
+```python
+from odoo.addons.einvoice_py.services.py_kude_service import PyKudeService
+
+document = env["fiscal.document"].browse(DOCUMENT_ID).exists()
+result = PyKudeService(env).generate(document=document)
+result.attachment_id, result.sha256, result.page_count
+```
+
+Preconditions are a current persisted payload and exact QR artifact for the
+same CDC. Missing, malformed or hash-inconsistent inputs fail safely. The
+initial renderer supports Factura Electrónica only; credit notes, debit notes,
+events and their distinct official representations remain unsupported.
+Historical documents without an exact QR artifact are not silently rebuilt
+from CSC.
+
+Official basis:
+
+* Manual Técnico SIFEN v150 §13.1 defines KuDE as a simplified graphical representation.
+* §§13.3–13.4 define pagination, header, items, totals, consultation data, CDC and QR content.
+* §13.5 permits standard paper formats and states the published models are referential.
+* §13.8 requires an ISO/IEC 18004 QR with a minimum total size of 25 mm.
+
+The architecture decision and renderer trade-off are recorded in
+[ADR-015](../ADR/ADR-015-paraguay-kude-from-persisted-payload.md).
+
 ## Related Documents
 
 * [Documentation Home](../README.md)
@@ -1237,6 +1290,7 @@ Future SIFEN work should build on:
 * [ADR-010 SIFEN XSD Validation Strategy](../ADR/ADR-010-sifen-xsd-validation-strategy.md)
 * [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digital-signature-strategy.md)
 * [ADR-012 Paraguay Qualified Certificate Lifecycle](../ADR/ADR-012-paraguay-qualified-certificate-lifecycle.md)
+* [ADR-015 Paraguay KuDE From Persisted Payload](../ADR/ADR-015-paraguay-kude-from-persisted-payload.md)
 
 ## Next Recommended Reading
 

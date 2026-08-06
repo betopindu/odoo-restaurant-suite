@@ -4,6 +4,9 @@
     "version": "17.0.1.0.0",
     "category": "Accounting/Accounting",
     "depends": ["einvoice_module"],
+    "external_dependencies": {
+        "python": ["reportlab"],
+    },
     "data": [
         "security/ir.model.access.csv",
         "security/fiscal_py_security_rules.xml",

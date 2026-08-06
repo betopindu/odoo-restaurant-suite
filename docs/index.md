@@ -76,6 +76,7 @@ Use ADRs to understand why the platform is shaped the way it is.
 * [ADR-012 Paraguay Qualified Certificate Lifecycle](ADR/ADR-012-paraguay-qualified-certificate-lifecycle.md): define qualified-certificate requirements, logical credential roles, provider-neutral PKCS#12 resolution, trust boundaries, and rotation.
 * [ADR-013 SIFEN Submission Boundaries](ADR/ADR-013-sifen-submission-boundaries.md): separate local validation, transport, authority parsing, and isolated submission side effects.
 * [ADR-014 Paraguay TEST Timbrado Profile](ADR/ADR-014-paraguay-test-timbrado-profile.md): separate TEST homologation configuration from production electronic timbrado.
+* [ADR-015 Paraguay KuDE From Persisted Payload](ADR/ADR-015-paraguay-kude-from-persisted-payload.md): generate and version deterministic KuDE PDFs from persisted payload and exact QR artifacts.
 
 ## Country Implementations
 

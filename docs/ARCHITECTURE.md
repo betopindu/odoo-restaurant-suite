@@ -24,7 +24,7 @@ both logical credential bindings, XMLDSig, QR/CSC, final XSD validation, SOAP
 1.2, mTLS, response classification, and transmission/document persistence.
 This is evidence of interoperability for the tested invoice profile, not
 production certification or coverage of every authority scenario. The suite at
-closeout reports 511 counted tests across 453 test methods.
+current KuDE baseline reports 523 counted tests across 463 test methods.
 
 Stage 8.24B durable pre-POST persistence, production preflight, cron activation,
 monitoring, and production go-live remain pending.
@@ -48,7 +48,19 @@ The credential boundaries have distinct responsibilities. `PySifenCredentialProv
 
 Local inspection validates the certificate structure, private-key match, taxpayer RUC, validity interval, and key usages. Local XMLDSig verification proves the generated signature cryptographically, but neither operation establishes that SIFEN trusts the client certificate. SIFEN makes the final client-certificate trust decision during mutual TLS and its authority validations. A self-signed certificate remains useful for deterministic local tests and negative connection scenarios, but cannot obtain real SIFEN acceptance.
 
-The sandbox transport continues to avoid persisting secret material to Odoo or logs. Because stdlib `ssl` requires temporary certificate/key files for `load_cert_chain`, it creates restrictive OS-managed temporary files only during SSL context construction and unlinks them immediately afterward. The qualified certificate has a one-year operational validity and must be rotated before expiry. Replacement material can be introduced through the credential provider and bindings, inspected, and preflighted without modifying consumer services. Official QR/cHashQR confirmation, QR image rendering, adapter processing integration, and KuDE/PDF remain future work.
+The sandbox transport continues to avoid persisting secret material to Odoo or logs. Because stdlib `ssl` requires temporary certificate/key files for `load_cert_chain`, it creates restrictive OS-managed temporary files only during SSL context construction and unlinks them immediately afterward. The qualified certificate has a one-year operational validity and must be rotated before expiry. Replacement material can be introduced through the credential provider and bindings, inspected, and preflighted without modifying consumer services.
+
+KuDE is a representation branch, not a submission stage. The submission pipeline
+persists the exact final QR URL after XMLDSig as a versioned
+`paraguay_qr_payload` artifact. `PyKudeService` later consumes only the latest
+persisted `paraguay_payload_json` and current QR artifact, renders a
+deterministic PDF with ReportLab, and persists it as a versioned
+`paraguay_kude_pdf`. It cannot access XML, SOAP, authority responses, CSC, or
+network services. Identical input reuses the current PDF; changed payload or QR
+creates a new current version while preserving prior versions and their input
+hashes. The document row lock makes selection and persistence atomic for
+concurrent generators. This boundary is recorded in
+[ADR-015](ADR/ADR-015-paraguay-kude-from-persisted-payload.md).
 
 Stage 8.22 makes the existing TEST-only `verify_document_connection()` operation suitable for a manual live mTLS preflight. It resolves the document credential through the existing provider and role bindings, creates the normal client-certificate SSL context, and performs only an HTTPS `HEAD`. Results distinguish configuration, credential, DNS, TCP, TLS, client-certificate rejection, server-certificate trust, endpoint reachability, and HTTP response outcomes. A non-2xx HTTP response is successful connectivity evidence because it can occur only after reaching the HTTP layer. The adapter stores only a timestamped safe summary under `metadata_json["sifen_test_mtls_preflight"]`; endpoints, secret references, environment-variable names, certificate bytes, passwords, and exception text are excluded.
 
@@ -158,6 +170,8 @@ Administrative UI labels should remain country-neutral whenever a generic concep
   * Paraguay SIFEN automatic credential resolution at persistence
   * Paraguay SIFEN retry input reconstruction from fiscal attachments
   * Configuration-driven Paraguay SIFEN sandbox preflight
+  * Exact Paraguay QR payload artifact persistence
+  * Deterministic, versioned Paraguay invoice KuDE/PDF generation
 * future `einvoice_cr`
 * future `einvoice_ar`
 
@@ -184,6 +198,7 @@ Administrative UI labels should remain country-neutral whenever a generic concep
 * SIFEN, not local inspection, makes the final client-certificate trust decision
 * Certificate rotation must not require changes to credential-consuming services
 * Fiscal credential references and bindings are administrator-only until a narrower delegated access policy is designed
+* Paraguay KuDE is derived only from persisted payload and exact QR artifacts, never fiscal XML or authority responses
 
 See the [ADR index](index.md#adrs) for detailed decision records.
 
@@ -201,8 +216,8 @@ Fiscal Document
 -> Local XMLDSig Verification
 -> Signed XML Attachment
 -> QR Payload
+-> Exact QR Payload Attachment
 -> Final rDE Assembly
--> QR Image (future)
 -> Full Official XSD Validation
 -> SIFEN Sandbox mTLS Verification
 -> Environment-Aware SIFEN Submission Pipeline
@@ -222,6 +237,10 @@ Fiscal Document
 -> SOAP 1.2 Envelope Assembly
 -> SOAP 1.2 Submission
 -> SIFEN Client-Certificate Trust Decision
+
+Persisted Payload + Exact QR Payload Attachment
+-> Deterministic KuDE Rendering
+-> Versioned KuDE PDF Attachment
 
 ## Related Documents
 

@@ -4,7 +4,9 @@ from . import py_certificate_inspection_service
 from . import py_sifen_ambiguous_reconciliation_service
 from . import py_sifen_consulta_de_service
 from . import py_payload_builder
+from . import py_kude_service
 from . import py_qr_generation_service
+from . import py_qr_payload_attachment_service
 from . import py_qualified_certificate_installation_service
 from . import py_sifen_retry_execution_service
 from . import py_sifen_retry_scheduler_service
@@ -73,6 +75,8 @@ from .py_qr_generation_service import (
     PySifenQrResult,
     SifenQrBuilder,
 )
+from .py_kude_service import PyKudeResult, PyKudeService
+from .py_qr_payload_attachment_service import PyQrPayloadAttachmentService
 from .py_xml_signature_service import (
     PyXmlSignatureResult,
     PyXmlSignatureService,

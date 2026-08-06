@@ -10,6 +10,7 @@ sequenceDiagram
     P->>P: XMLDSig
     P->>P: Persist current signed artifact; preserve superseded versions
     P->>P: QR and gCamFuFD
+    P->>P: Persist exact current QR payload
     P->>P: Final rDE
     P->>P: Official XSD validation
     P->>P: SOAP 1.2 rEnviDe
@@ -18,3 +19,6 @@ sequenceDiagram
     S-->>T: HTTP / SOAP response
     T-->>P: Immutable transport result
     P-->>O: Structured parsed result
+    O->>P: Persisted payload plus exact QR artifact
+    P->>P: Deterministic KuDE rendering
+    P-->>O: Versioned KuDE PDF artifact

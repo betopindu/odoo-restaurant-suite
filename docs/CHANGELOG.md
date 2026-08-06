@@ -1,5 +1,18 @@
 # Documentation Changelog
 
+## 2026-08-06 — Payload-first KuDE PDF
+
+* Added deterministic Factura Electrónica KuDE rendering from the persisted
+  normalized payload and exact persisted QR URL; XML, SOAP, CSC and authority
+  responses are excluded from the renderer boundary.
+* Added current/superseded lifecycle metadata for QR and KuDE fiscal artifacts,
+  with document locking, idempotent regeneration and preserved audit history.
+* Selected direct ReportLab rendering over HTML/wkhtmltopdf to avoid external
+  renderer, font and CSS variability.
+* Recorded Manual Técnico SIFEN v150 chapter 13 content, pagination,
+  consultation and QR requirements, plus the invoice-only initial scope.
+* Updated the validation baseline to 523 counted tests across 463 methods.
+
 ## 2026-08-06 — B2B TEST authority-data evidence
 
 * Prepared and structurally validated the controlled B2B FE pipeline using

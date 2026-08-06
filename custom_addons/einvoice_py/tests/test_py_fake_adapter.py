@@ -616,6 +616,10 @@ class TestPyFakeAdapter(TransactionCase):
 
     def test_payload_uses_issuer_schema_readiness_fields(self):
         establishment, point_of_issue, timbrado, csc, sequence = self._create_config()
+        timbrado.write({
+            "valid_from": "2026-01-01",
+            "valid_to": "2026-12-31",
+        })
         issuer = establishment.issuer_id
         self.env["fiscal.py.economic.activity"].create({
             "issuer_id": issuer.id,
@@ -644,6 +648,8 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertEqual(issuer_payload["city_code"], "1")
         self.assertEqual(issuer_payload["city_name"], "ASUNCION")
         self.assertEqual(issuer_payload["branch_name"], "CASA MATRIZ")
+        self.assertEqual(issuer_payload["timbrado_valid_from"], "2026-01-01")
+        self.assertEqual(issuer_payload["timbrado_valid_to"], "2026-12-31")
         self.assertEqual(
             issuer_payload["economic_activities"],
             [

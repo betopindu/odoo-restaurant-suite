@@ -66,6 +66,40 @@ The controlled sequence preserved every rejected transmission and derived
 artifact. Corrections were made only from explicit authority evidence; no
 historical transmission or attachment was deleted.
 
+## Generate and audit the KuDE offline
+
+KuDE generation is an offline representation operation and is never part of a
+retry or authority POST. First confirm that the document has a persisted
+`paraguay_payload_json` and the exact current `paraguay_qr_payload` created from
+its final signed artifact. Do not reconstruct a missing QR URL from CSC, XML or
+an authority response.
+
+```python
+from odoo.addons.einvoice_py.services.py_kude_service import PyKudeService
+
+document = env["fiscal.document"].browse(DOCUMENT_ID).exists()
+result = PyKudeService(env).generate(document=document)
+print({
+    "attachment_id": result.attachment_id,
+    "sha256": result.sha256,
+    "page_count": result.page_count,
+    "cdc": result.cdc,
+})
+```
+
+Verify that the result references the expected payload and QR attachment IDs,
+that its fiscal attachment is `paraguay_kude_pdf`, and that its SHA-256 matches
+the stored PDF. Running the same command again with unchanged artifacts must
+return the same attachment. A changed payload or QR must create a new current
+PDF and leave the previous PDF marked superseded and readable for audit.
+
+The PDF may be delivered as the graphical representation permitted by Manual
+Técnico v150 chapter 13. Keep the signed XML as fiscal evidence. Do not edit,
+pretty-print or post-process the deterministic PDF; regenerate it from the
+persisted inputs instead. The current renderer supports Factura Electrónica
+only. This procedure sends no request to SIFEN and does not change document,
+transmission or retry state.
+
 | Authority result | Root cause | Resolution and validation | Why generic |
 | --- | --- | --- | --- |
 | `1004` | A naive Odoo UTC instant was initially serialized as if already Paraguay civil time; a second attempt exposed practical clock skew. | Centralized UTC-to-`America/Asuncion` conversion and an explicit 60-second signing safety margin; timezone/DST tests and local XML verification. | Depends on an instant and country timezone, never host location or taxpayer data. |

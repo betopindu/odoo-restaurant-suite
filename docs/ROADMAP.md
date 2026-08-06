@@ -91,6 +91,7 @@
 [x] Paraguay fiscal data enrichment
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
+[x] Deterministic, payload-first Paraguay invoice KuDE/PDF generation and artifact versioning
 
 ## Current Baseline
 
@@ -105,8 +106,8 @@ does not authorize production operation.
 
 ## Current Validation Status
 
-At the first-acceptance closeout, the full `einvoice_py` suite reports **511
-counted tests across 453 test methods**. Automated coverage is network-free.
+After KuDE implementation, the full `einvoice_py` suite reports **523 counted
+tests across 463 test methods**. Automated coverage is network-free.
 It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
 1.2 wrapping, mocked mTLS transport, response classification, readiness, and
 end-to-end composition. Live acceptance is recorded separately above and is
@@ -126,12 +127,12 @@ limited to the exercised invoice profile.
 [ ] Retry cron activation after operational approval
 [ ] Operational monitoring and alerting
 [ ] Production go-live
+[ ] Operational KuDE delivery to receivers
+[ ] KuDE profiles for additional SIFEN DTE types
 
 ## Future
 
-[ ] Paraguay QR image/rendering support
 [ ] SIFEN error normalization
-[ ] Paraguay KuDE/PDF
 [ ] Fiscal representation download security
 [ ] Email delivery
 [ ] WhatsApp delivery

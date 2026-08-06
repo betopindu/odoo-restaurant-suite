@@ -164,6 +164,11 @@ class PyPayloadBuilder:
                 if timbrado.valid_from
                 else None
             ),
+            "timbrado_valid_to": (
+                timbrado.valid_to.isoformat()
+                if timbrado.valid_to
+                else None
+            ),
             "house_number": establishment.house_number,
             "department_code": establishment.department_code,
             "department_name": establishment.department_name,

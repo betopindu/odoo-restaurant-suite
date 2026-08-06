@@ -8,3 +8,6 @@ flowchart LR
     G[External secret source] --> H[PKCS#12 material provider]
     H --> E
     E --> C
+    C --> I[Versioned fiscal artifacts]
+    I --> J[Payload-first KuDE renderer]
+    J --> I

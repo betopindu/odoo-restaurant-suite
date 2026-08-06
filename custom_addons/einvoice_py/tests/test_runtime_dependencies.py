@@ -22,3 +22,8 @@ class TestRuntimeDependencies(BaseCase):
         self.assertTrue(versions["lxml"])
         self.assertTrue(versions["libxml2"])
         self.assertTrue(versions["xmlsec"])
+
+    def test_reportlab_is_available_for_deterministic_kude_rendering(self):
+        import reportlab
+
+        self.assertTrue(reportlab.Version)

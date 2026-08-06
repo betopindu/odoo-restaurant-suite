@@ -48,7 +48,12 @@ class _QrGenerationStub:
             raise self.error
         return {
             "qr_hash": "b" * 64,
-            "qr_string": "https://example.test/qr?nVersion=150&cHashQR=" + ("b" * 64),
+            "qr_string": (
+                "https://example.test/qr?nVersion=150&Id="
+                + TestPySifenSubmissionPipelineService.CDC
+                + "&cHashQR="
+                + ("b" * 64)
+            ),
         }
 
 
@@ -194,6 +199,11 @@ class TestPySifenSubmissionPipelineService(TransactionCase):
         self.assertEqual(result["certificate_fingerprint_sha256"], "a" * 64)
         self.assertEqual(result["qr_hash"], "b" * 64)
         self.assertTrue(result["qr_payload"].startswith("https://example.test/qr?"))
+        qr_attachment = self.env["fiscal.attachment"].search([
+            ("document_id", "=", self.document.id),
+            ("attachment_type", "=", "paraguay_qr_payload"),
+        ])
+        self.assertEqual(len(qr_attachment), 1)
         self.assertEqual(result["submission_status"], "accepted")
         self.assertEqual(result["authority_code"], "0260")
         self.assertEqual(result["authority_message"], "Aprobado")

@@ -8,6 +8,9 @@ from odoo.exceptions import ValidationError
 from odoo.addons.einvoice_py.services.py_qr_generation_service import (
     PyQrGenerationService,
 )
+from odoo.addons.einvoice_py.services.py_qr_payload_attachment_service import (
+    PyQrPayloadAttachmentService,
+)
 from odoo.addons.einvoice_py.services.py_sifen_sandbox_transport import (
     PySifenSandboxTransport,
 )
@@ -42,6 +45,7 @@ class PySifenSubmissionPipelineService:
         *,
         signing_pipeline_service=None,
         qr_generation_service=None,
+        qr_payload_attachment_service=None,
         xsd_validation_service=None,
         rde_assembler=None,
         submission_service=None,
@@ -50,6 +54,11 @@ class PySifenSubmissionPipelineService:
         self.env = env
         self.signing_pipeline_service = signing_pipeline_service or PySigningPipelineService(env)
         self.qr_generation_service = qr_generation_service or PyQrGenerationService()
+        self.qr_payload_attachment_service = (
+            qr_payload_attachment_service
+            if qr_payload_attachment_service is not None
+            else PyQrPayloadAttachmentService(env)
+        )
         self.xsd_validation_service = xsd_validation_service or PyXsdValidationService()
         self.rde_assembler = (
             rde_assembler
@@ -149,6 +158,17 @@ class PySifenSubmissionPipelineService:
             return result
         result["qr_hash"] = qr_result.get("qr_hash", "")
         result["qr_payload"] = qr_result.get("qr_string", "")
+        qr_attachment = self._run_stage(
+            result,
+            "qr_persistence",
+            lambda: self.qr_payload_attachment_service.persist(
+                document=document,
+                qr_payload=result["qr_payload"],
+                qr_hash=result["qr_hash"],
+            ),
+        )
+        if qr_attachment is None:
+            return result
 
         assembly_result = self._run_stage(
             result,
@@ -313,6 +333,7 @@ class PySifenSubmissionPipelineService:
             "signing": "Paraguay signing pipeline failed.",
             "signed_xml_attachment": "Signed Paraguay XML attachment could not be read.",
             "qr_generation": "Paraguay QR generation failed.",
+            "qr_persistence": "Paraguay QR payload could not be persisted.",
             "final_xml_preparation": "Final signed Paraguay XML with QR could not be prepared.",
             "final_xsd_validation": "Final signed Paraguay XML failed local SIFEN XSD validation.",
             "test_submission": "SIFEN test submission failed.",
