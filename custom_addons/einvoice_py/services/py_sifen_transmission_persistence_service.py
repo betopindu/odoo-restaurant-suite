@@ -1,4 +1,5 @@
 import json
+from urllib.parse import urlsplit, urlunsplit
 
 from psycopg2 import errors
 
@@ -10,6 +11,9 @@ from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
 )
 from odoo.addons.einvoice_py.services.py_sifen_submission_pipeline_service import (
     PySifenSubmissionPipelineService,
+)
+from odoo.addons.einvoice_py.services.py_sifen_authority_incident_service import (
+    PySifenAuthorityIncidentService,
 )
 
 
@@ -67,6 +71,7 @@ class PySifenTransmissionPersistenceService:
             started_at=started_at,
             finished_at=finished_at,
         ))
+        self._persist_normalized_response(document, transmission, result)
         self._update_document_from_result(document, result)
         return {
             "result": result,
@@ -200,9 +205,12 @@ class PySifenTransmissionPersistenceService:
         transmission = self._find_existing(document, result)
         if transmission:
             transmission.write(values)
+            self._persist_normalized_response(document, transmission, result)
             return transmission
         values["attempt_number"] = self._next_attempt_number(document)
-        return self.env["fiscal.transmission"].sudo().create(values)
+        transmission = self.env["fiscal.transmission"].sudo().create(values)
+        self._persist_normalized_response(document, transmission, result)
+        return transmission
 
     def _validate_document(self, document):
         if (document.country_code or "").upper() != "PY":
@@ -255,6 +263,9 @@ class PySifenTransmissionPersistenceService:
             "country_identifier": result.get("cdc") or document.country_identifier or "",
             "request_hash": result.get("request_hash") or "",
             "response_hash": result.get("response_hash") or "",
+            "endpoint_url": self._safe_endpoint(result.get("endpoint_url")),
+            "http_status": int(result.get("http_status") or 0),
+            "duration_ms": max(0, int(result.get("duration_ms") or 0)),
             "authority_status_code": result.get("authority_code") or "",
             "authority_message": result.get("authority_message") or "",
             "error_code": (
@@ -310,6 +321,10 @@ class PySifenTransmissionPersistenceService:
         return "failed_final"
 
     def _metadata_json(self, result):
+        incident = PySifenAuthorityIncidentService().classify(
+            authority_code=result.get("authority_code"),
+            authority_message=result.get("authority_message"),
+        )
         metadata = {
             "service": "py_sifen_transmission_persistence",
             "pipeline_failed_stage": result.get("failed_stage") or "",
@@ -325,10 +340,56 @@ class PySifenTransmissionPersistenceService:
             "authority_receipt_ref": (
                 result.get("authority_receipt_ref") or ""
             ),
+            "authority_incident_type": incident.incident_type,
+            "manual_retry_allowed": incident.manual_retry_allowed,
+            "automatic_retry_allowed": incident.automatic_retry_allowed,
         }
         return json.dumps(
             metadata,
             ensure_ascii=True,
             separators=(",", ":"),
             sort_keys=True,
+        )
+
+    def _safe_endpoint(self, value):
+        parsed = urlsplit(str(value or ""))
+        if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
+            return ""
+        return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+
+    def _persist_normalized_response(self, document, transmission, result):
+        if not result.get("response_hash") and not result.get("authority_code"):
+            return False
+        existing = self.env["fiscal.attachment"].sudo().search([
+            ("transmission_id", "=", transmission.id),
+            ("attachment_type", "=", "authority_response"),
+        ], limit=1)
+        if existing:
+            return existing
+        incident = PySifenAuthorityIncidentService().classify(
+            authority_code=result.get("authority_code"),
+            authority_message=result.get("authority_message"),
+        )
+        payload = {
+            "schema_version": 1,
+            "submission_status": result.get("submission_status") or "",
+            "authority_code": result.get("authority_code") or "",
+            "authority_message": result.get("authority_message") or "",
+            "authority_receipt_ref": result.get("authority_receipt_ref") or "",
+            "http_status": int(result.get("http_status") or 0),
+            "duration_ms": max(0, int(result.get("duration_ms") or 0)),
+            "request_hash": result.get("request_hash") or "",
+            "response_hash": result.get("response_hash") or "",
+            "response_category": result.get("response_category") or "",
+            "ambiguous": bool(result.get("ambiguous")),
+            "authority_incident_type": incident.incident_type,
+            "manual_retry_allowed": incident.manual_retry_allowed,
+            "automatic_retry_allowed": incident.automatic_retry_allowed,
+        }
+        return self.env["fiscal.attachment"].sudo().create_json_payload_attachment(
+            document,
+            "authority_response",
+            f"{document.uuid}-sifen-response-{transmission.id}.json",
+            payload,
+            transmission=transmission,
         )

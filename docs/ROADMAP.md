@@ -92,6 +92,7 @@
 [x] Paraguay Stage 5 stabilization and administrative UX cleanup
 [x] Initial ADR documentation
 [x] Deterministic, payload-first Paraguay invoice KuDE/PDF generation and artifact versioning
+[x] Safe SIFEN authority-incident observability and guarded manual retry
 
 ## Current Baseline
 

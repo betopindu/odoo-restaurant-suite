@@ -302,6 +302,10 @@ class PySifenSubmissionPipelineService:
             "retryable": False,
             "retry_category": "",
             "ambiguous": False,
+            "endpoint_url": "",
+            "http_status": 0,
+            "duration_ms": 0,
+            "response_category": "",
         }
 
     def _run_stage(self, result, stage, operation):
@@ -361,6 +365,10 @@ class PySifenSubmissionPipelineService:
         result["retryable"] = bool(submission_result.get("retryable"))
         result["ambiguous"] = bool(submission_result.get("ambiguous"))
         metadata = submission_result.get("metadata_json") or {}
+        result["endpoint_url"] = submission_result.get("endpoint_url") or ""
+        result["http_status"] = int(submission_result.get("http_status") or 0)
+        result["duration_ms"] = max(0, int(submission_result.get("duration_ms") or 0))
+        result["response_category"] = metadata.get("response_category", "")
         result["retry_category"] = metadata.get("transport_error_category", "")
         if (
             not result["retry_category"]

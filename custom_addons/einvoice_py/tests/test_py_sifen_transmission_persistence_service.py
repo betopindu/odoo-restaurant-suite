@@ -131,6 +131,10 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
             "authority_receipt_ref": "12345",
             "request_hash": "d" * 64,
             "response_hash": "e" * 64,
+            "endpoint_url": "https://sifen-test.example.test/de",
+            "http_status": 200,
+            "duration_ms": 147,
+            "response_category": "authority_response",
         }
 
     def _submit_and_persist(self):
@@ -157,6 +161,9 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
         self.assertEqual(transmission.authority_message, "Aprobado")
         self.assertEqual(transmission.request_hash, "d" * 64)
         self.assertEqual(transmission.response_hash, "e" * 64)
+        self.assertEqual(transmission.endpoint_url, "https://sifen-test.example.test/de")
+        self.assertEqual(transmission.http_status, 200)
+        self.assertEqual(transmission.duration_ms, 147)
         self.assertEqual(transmission.signed_xml_sha256, "a" * 64)
         self.assertEqual(transmission.qr_hash, "c" * 64)
         self.assertTrue(transmission.started_at)
@@ -170,6 +177,60 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
         self.assertEqual(self.document.authority_receipt_ref, "12345")
         self.assertTrue(self.document.submitted_at)
         self.assertTrue(self.document.accepted_at)
+        response = self.env["fiscal.attachment"].search([
+            ("transmission_id", "=", transmission.id),
+            ("attachment_type", "=", "authority_response"),
+        ])
+        self.assertEqual(len(response), 1)
+        self.assertTrue(response.is_sensitive)
+
+    def test_pki_incident_is_manual_only_and_response_artifact_is_redacted(self):
+        self.pipeline.result = dict(self._accepted_result(), **{
+            "ok": False,
+            "failed_stage": "test_submission",
+            "error_message": "SIFEN test submission was not accepted.",
+            "submission_status": "rejected",
+            "authority_code": "0100",
+            "authority_message": "Error Inesperado(PKI).",
+        })
+
+        persisted = self._submit_and_persist()
+        transmission = self.env["fiscal.transmission"].browse(persisted["transmission_id"])
+        metadata = json.loads(transmission.metadata_json)
+        attachment = self.env["fiscal.attachment"].search([
+            ("transmission_id", "=", transmission.id),
+            ("attachment_type", "=", "authority_response"),
+        ])
+        content = attachment.ir_attachment_id.raw.decode("utf-8")
+
+        self.assertEqual(transmission.state, "rejected")
+        self.assertFalse(metadata["ambiguous"])
+        self.assertEqual(metadata["authority_incident_type"], "transient_authority_incident")
+        self.assertTrue(metadata["manual_retry_allowed"])
+        self.assertFalse(metadata["automatic_retry_allowed"])
+        for secret in ("private-key-secret-fixture", "password-secret-fixture", "certificate-secret-fixture", "<rDE"):
+            self.assertNotIn(secret, content)
+
+    def test_unsafe_endpoint_is_not_persisted(self):
+        self.pipeline.result["endpoint_url"] = "https://user:secret@example.test/de?token=secret"
+        persisted = self._submit_and_persist()
+        transmission = self.env["fiscal.transmission"].browse(persisted["transmission_id"])
+        self.assertFalse(transmission.endpoint_url)
+
+    def test_legacy_result_without_observability_fields_remains_supported(self):
+        result = self._accepted_result()
+        for key in ("endpoint_url", "http_status", "duration_ms", "response_category"):
+            result.pop(key)
+
+        transmission = self.service.persist_result(
+            document=self.document,
+            result=result,
+        )
+
+        self.assertEqual(transmission.state, "accepted")
+        self.assertFalse(transmission.endpoint_url)
+        self.assertEqual(transmission.http_status, 0)
+        self.assertEqual(transmission.duration_ms, 0)
 
     def test_pending_transmission_and_retry_payload_exist_before_pipeline(self):
         observed = {}

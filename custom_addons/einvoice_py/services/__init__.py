@@ -40,6 +40,11 @@ from .py_sifen_credential_provider import (
     PySifenRuntimeCredentials,
 )
 from .py_sifen_datetime_service import PySifenDatetimeService
+from .py_sifen_authority_incident_service import (
+    PySifenAuthorityIncidentClassification,
+    PySifenAuthorityIncidentService,
+)
+from .py_sifen_manual_retry_service import PySifenManualRetryService
 from .py_sifen_ambiguous_reconciliation_service import (
     PySifenAmbiguousSubmissionReconciliationService,
 )

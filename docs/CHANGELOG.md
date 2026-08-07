@@ -1,5 +1,17 @@
 # Documentation Changelog
 
+## 2026-08-07 — Authority incident observability and manual retry guard
+
+* Persisted safe endpoint, HTTP status and measured duration for new SIFEN
+  transmissions, plus a sensitive normalized-response artifact and raw-body
+  SHA-256 without duplicating authority response bytes.
+* Separated exceptional authority incidents from fiscal result codes. Only the
+  exact `0100` / `Error Inesperado(PKI)` combination permits a controlled
+  manual retry; it remains rejected, non-ambiguous and never auto-retryable.
+* Added a CDC-scoped guard that blocks accepted and ambiguous submissions and
+  requires a fresh signing timestamp before delegating to the existing
+  persistence pipeline.
+
 ## 2026-08-07 — B2B TEST receiver gate resolved offline
 
 * Recorded DNIT support confirmation that the SIFEN TEST taxpayer dataset is

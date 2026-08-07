@@ -90,6 +90,10 @@ class _SubmissionStub:
             "authority_message": "Aprobado" if self.outcome == "accepted" else "Rechazado",
             "request_hash": "c" * 64,
             "response_hash": "d" * 64,
+            "endpoint_url": "https://sifen-test.example.test/de",
+            "http_status": 200,
+            "duration_ms": 42,
+            "metadata_json": {"response_category": "authority_response"},
         }
 
 
@@ -208,6 +212,10 @@ class TestPySifenSubmissionPipelineService(TransactionCase):
         self.assertEqual(result["authority_code"], "0260")
         self.assertEqual(result["authority_message"], "Aprobado")
         self.assertEqual(result["request_hash"], "c" * 64)
+        self.assertEqual(result["endpoint_url"], "https://sifen-test.example.test/de")
+        self.assertEqual(result["http_status"], 200)
+        self.assertEqual(result["duration_ms"], 42)
+        self.assertEqual(result["response_category"], "authority_response")
         self.assertEqual(result["response_hash"], "d" * 64)
         serialized = json.dumps(result, sort_keys=True)
         self.assertNotIn("private-key-secret-fixture", serialized)

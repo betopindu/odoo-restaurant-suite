@@ -39,6 +39,35 @@ Do not automatically retry after a timeout, connection loss after POST, or
 worker failure. Treat the outcome as ambiguous and use the existing Consulta
 DE reconciliation by CDC before any operator-authorized resend.
 
+An explicit `0100` response whose normalized message is exactly `Error
+Inesperado(PKI)` is handled differently: it is non-ambiguous and requires no
+Consulta DE, but it is not safe for automatic retry because Manual v150 assigns
+another meaning to `0100` outside this observed context. Preserve the rejected
+transmission, confirm that no acceptance or ambiguous attempt exists for the
+CDC, and use `PySifenManualRetryService` only under explicit operator approval.
+The guard requires a fresh signing instant so the pipeline versions a new
+signed artifact instead of reusing stale XML.
+
+```python
+from odoo import fields
+from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder
+from odoo.addons.einvoice_py.services.py_sifen_manual_retry_service import PySifenManualRetryService
+
+document = env["fiscal.document"].browse(DOCUMENT_ID).exists()
+payload = PyPayloadBuilder(env).build(document)
+result = PySifenManualRetryService(env).retry(
+    document=document,
+    payload=payload,
+    signing_timestamp=fields.Datetime.now(),
+)
+print({"transmission_id": result["transmission_id"], "status": result["result"].get("submission_status")})
+```
+
+Run that command only after authorization: it performs a real POST. Persisted
+observability includes HTTP status, duration, a credential-free endpoint, and
+a sensitive normalized-response artifact. Raw response bytes are represented
+by SHA-256 rather than duplicated into fiscal storage.
+
 ## After submission
 
 Classify the outcome as transport failure, HTTP error, SOAP Fault, malformed
