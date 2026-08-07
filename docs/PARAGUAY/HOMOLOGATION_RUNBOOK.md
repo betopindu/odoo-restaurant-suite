@@ -149,10 +149,12 @@ candidates only, not approved abstractions or implementation work.
 ## Next controlled scenario
 
 The next selected profile is a synchronous B2B cash FE with a real Paraguayan
-taxpayer receiver. The receiver evidence and offline pipeline are complete,
-but the live case is **BLOCKED BY TEST AUTHORITY DATA**. SIFEN TEST returned
-`1306` for masked receiver `380****-*`. Continue only after DNIT confirms that
-receiver in the TEST Marangatu dataset or supplies an authorized TEST receiver.
+taxpayer receiver. SIFEN TEST returned `1306` for masked receiver `380****-*`;
+DNIT support confirmed that TEST taxpayer data is not synchronized with
+Production and instructed use of RUCs from the official electronic-taxpayer
+list. Do not retry that rejected document. Fresh document `17894` uses a
+DNIT-published electronic taxpayer and has passed the complete offline pipeline.
+It is **REQUIRES LIVE TEST** pending separate authorization.
 
 ## Handling receiver rejection 1306
 
@@ -169,10 +171,21 @@ verify all of the following against current official receiver evidence:
 
 If those checks pass, do not try random RUCs, generated identifiers, the
 issuer's RUC or historical snapshots. Preserve the document and transmission,
-then escalate the TEST dataset prerequisite to DNIT. Once provisioning is
-confirmed, regenerate derived artifacts with a fresh signing timestamp and
-authorize one controlled resend. An explicit non-ambiguous `1306` does not
-require Consulta DE.
+then escalate the TEST dataset prerequisite to DNIT. DNIT's operational answer
+for this homologation was that TEST is not synchronized with Production and
+that test receivers should be selected from the [official list of electronic
+taxpayers](https://www.dnit.gov.py/web/portal-institucional/w/resolucion-general-n-06/18).
+Use a fresh document/CDC for the authority-published receiver; do not rewrite or
+retry the rejected evidence. An explicit non-ambiguous `1306` does not require
+Consulta DE.
+
+For an authority-published legal entity, record only independently verified
+fields. The taxpayer list establishes exact legal name and RUC/DV; taxpayer
+nature/type follow the registered legal form. Address and geography must come
+from an authoritative public source and the [DNIT geographic
+catalog](https://ekuatia.set.gov.py/web/e-kuatia/tablas-y-codificaciones), with
+literal code/description pairs. Never infer an address or silently reuse a
+previous receiver snapshot.
 
 ### Safe DNIT support procedure
 

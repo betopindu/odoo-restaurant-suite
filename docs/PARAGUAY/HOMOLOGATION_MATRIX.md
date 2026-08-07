@@ -62,7 +62,7 @@ Status meanings:
 | Scenario | Status | Repository evidence and exact gap |
 | --- | --- | --- |
 | B2C FE, innominado, cash, IVA 10% | READY | Complete payload-to-persistence path; first live acceptance `0260`. The accepted FE had one item, so it is not by itself the guide's two-item/five-FE minimum. |
-| B2B FE to Paraguayan taxpayer | BLOCKED BY TEST AUTHORITY DATA | Current receiver evidence was obtained from a Constancia de RUC and Cédula Tributaria. Document `17886` was locally validated and transmission `18534` proved that the B2B XML mapping is structurally correct, but SIFEN TEST rejected it with `1306` because masked receiver `380****-*` is absent from the TEST Marangatu dataset. No public universal TEST receiver RUC is documented. |
+| B2B FE to Paraguayan taxpayer | REQUIRES LIVE TEST | Document `17886` and transmission `18534` preserve rejection `1306` for a valid Production taxpayer absent from TEST. DNIT support confirmed the dataset difference and instructed use of taxpayers from its published electronic-taxpayer list. Fresh document `17894` uses a DNIT-published receiver and passes the complete offline two-item B2B pipeline; authority behavior remains untested. |
 | IVA 10% | READY | Item/base/VAT/subtotal calculations, XML and focused tests exist; live accepted baseline. |
 | IVA 5% | REQUIRES LIVE TEST | Decimal calculations and XML/tests exist; no live authority evidence. |
 | Exempt item | REQUIRES LIVE TEST | Exempt bucket and XML/tests exist; no live authority evidence. |
@@ -105,24 +105,28 @@ services.
 
 ### External TEST receiver-data gate
 
-Official receiver evidence is now available locally and the normalized B2B
+Official receiver evidence is available locally and the normalized B2B
 snapshot contains a valid RUC/DV split, taxpayer nature/type, legal name and
-official geography. The signed request was nevertheless rejected explicitly
-with `1306`, `RUC del receptor inexistente en la base de datos de Marangatu`.
-This establishes an external TEST-data prerequisite, not a local mapping or
-configuration defect.
+official geography. The first signed request was nevertheless rejected
+explicitly with `1306`, `RUC del receptor inexistente en la base de datos de
+Marangatu`. DNIT support subsequently confirmed that the TEST taxpayer dataset
+is not synchronized with Production and recommended selecting at least five
+receivers from the electronic taxpayers published by DNIT.
 
-The DNIT testing guide requires real customer data but does not state that all
-ordinary Marangatu taxpayers are automatically replicated into SIFEN TEST and
-does not publish a universal receiver RUC. Do not try generated, approximate or
-random taxpayer identifiers. Continue only after DNIT provisions the intended
-receiver in TEST or supplies an authorized TEST receiver dataset in writing.
+This is an external TEST-data rule, not a local mapping correction. Banco Itaú
+Paraguay S.A. appears in DNIT's [Resolution 06/18 electronic-taxpayer
+list](https://www.dnit.gov.py/web/portal-institucional/w/resolucion-general-n-06/18)
+and in the [published electronic-taxpayer list dated
+2024-10-31](https://ekuatia.set.gov.py/documents/20123/473596/Facturadores%2BElectr%C3%B3nicos%2Bal%2B31-10-2024.pdf/648ec052-1e3c-e897-c9c8-7af2762d1dcd?t=1730484481868).
+Fresh document `17894` uses that public authority evidence and is ready for one
+separately authorized live TEST submission. Never try generated, approximate
+or random taxpayer identifiers after `1306`.
 
 ## Live authorization gate
 
-After DNIT confirms provisioning, document `17886` may be regenerated with a
-fresh signing timestamp and submitted once through
-`PySifenTransmissionPersistenceService.submit_and_persist()`. Rejection `1306`
-was explicit and non-ambiguous, so Consulta DE is not required. Preserve
-transmission `18534` as authority evidence and do not replace its receiver with
-an unverified RUC.
+Do not retry document `17886`; preserve it and transmission `18534` as authority
+evidence. Fresh document `17894` is the controlled live candidate and may be
+submitted once through
+`PySifenTransmissionPersistenceService.submit_and_persist()` only under
+separate authorization. Rejection `1306` was explicit and non-ambiguous, so
+Consulta DE is not required.

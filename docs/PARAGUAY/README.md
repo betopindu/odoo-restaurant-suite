@@ -52,8 +52,13 @@ test fixtures.
 The subsequent controlled B2B pipeline is locally complete and structurally
 validated. Its first live TEST attempt was explicitly rejected with `1306`
 because the masked real receiver `380****-*` was not present in the SIFEN TEST
-Marangatu dataset. This status is **BLOCKED BY TEST AUTHORITY DATA**, not a code
-or local receiver-mapping defect. See the
+Marangatu dataset. DNIT support confirmed that TEST is not synchronized with
+Production and instructed homologation participants to select receivers from
+the official published electronic-taxpayer list rather than trying arbitrary
+production RUCs. A fresh two-item B2B document (`17894`) now uses a
+DNIT-published electronic taxpayer and passes payload, XMLDSig, QR, rDE/XSD,
+SOAP 1.2, credential-readiness and KuDE validation offline. Its status is
+**REQUIRES LIVE TEST**; no submission has been made. See the
 [homologation matrix](HOMOLOGATION_MATRIX.md) and
 [runbook](HOMOLOGATION_RUNBOOK.md#handling-receiver-rejection-1306).
 

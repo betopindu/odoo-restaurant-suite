@@ -115,9 +115,9 @@ limited to the exercised invoice profile.
 
 ## Next
 
-[ ] B2B live TEST — **BLOCKED BY TEST AUTHORITY DATA** (`1306`); DNIT inquiry pending
-[x] Prepare and validate the selected B2B FE offline
-[ ] Retry the preserved B2B FE once after DNIT confirms TEST receiver provisioning
+[x] Resolve the B2B TEST receiver-data gate using a DNIT-published electronic taxpayer
+[x] Prepare and validate a fresh two-item B2B FE offline (document `17894`)
+[ ] Submit the fresh B2B FE once under separate controlled authorization
 [ ] Execute it live only under separate authorization
 [ ] Complete the authority-defined TEST homologation case matrix
 [ ] Apply further interoperability corrections only when supported by authority evidence

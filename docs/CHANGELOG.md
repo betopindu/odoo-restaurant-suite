@@ -1,5 +1,18 @@
 # Documentation Changelog
 
+## 2026-08-07 — B2B TEST receiver gate resolved offline
+
+* Recorded DNIT support confirmation that the SIFEN TEST taxpayer dataset is
+  not synchronized with Production and that homologation receivers should be
+  selected from DNIT's published electronic-taxpayer list.
+* Preserved document `17886` and transmission `18534` as non-ambiguous `1306`
+  evidence; they must not be retried or rewritten.
+* Prepared fresh document `17894` with a DNIT-published electronic taxpayer and
+  validated its two-item B2B cash flow through payload, unsigned/signed XML,
+  XMLDSig, QR, rDE/XSD, SOAP 1.2, credential readiness, manifest and KuDE.
+* Reclassified B2B from `BLOCKED BY TEST AUTHORITY DATA` to `REQUIRES LIVE TEST`.
+  No SIFEN request or Consulta DE was performed.
+
 ## 2026-08-06 — Payload-first KuDE PDF
 
 * Added deterministic Factura Electrónica KuDE rendering from the persisted
