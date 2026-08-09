@@ -226,7 +226,18 @@ class PySifenDocumentQueryService:
             })
             return base
 
-        returned_cdc = self._returned_cdc(response_node)
+        returned_content = self._returned_content(response_node)
+        if returned_content is None:
+            base.update({
+                "category": "malformed_response",
+                "authority_message": (
+                    "SIFEN Consulta DE did not return a valid DE container."
+                ),
+            })
+            return base
+        returned_cdc, returned_protocol = returned_content
+        if returned_protocol:
+            base["authority_receipt_ref"] = returned_protocol
         if returned_cdc != expected_cdc:
             base.update({
                 "category": "cdc_mismatch",
@@ -293,27 +304,42 @@ class PySifenDocumentQueryService:
             )
         return query_id
 
-    def _returned_cdc(self, response_node):
+    def _returned_content(self, response_node):
         container = response_node.find(
             f"{{{self.SIFEN_NS}}}xContenDE",
         )
         if container is None:
-            return ""
-        de_node = container.find(f".//{{{self.SIFEN_NS}}}DE")
-        if de_node is not None:
-            return (de_node.get("Id") or "").strip()
-        text = (container.text or "").strip()
-        if not text:
-            return ""
-        try:
-            parsed = self._parse_xml(text.encode("utf-8"))
-        except (TypeError, ValueError, etree.XMLSyntaxError):
-            return ""
-        if parsed.tag == f"{{{self.SIFEN_NS}}}DE":
-            de_node = parsed
-        else:
-            de_node = parsed.find(f".//{{{self.SIFEN_NS}}}DE")
-        return (de_node.get("Id") or "").strip() if de_node is not None else ""
+            return None
+
+        roots = list(container)
+        if not roots:
+            text = (container.text or "").strip()
+            if not text:
+                return None
+            try:
+                roots = [self._parse_xml(text.encode("utf-8"))]
+            except (TypeError, ValueError, etree.XMLSyntaxError):
+                return None
+
+        candidates = []
+        protocols = []
+        for root in roots:
+            for node in root.iter():
+                qname = etree.QName(node)
+                if qname.namespace not in {None, "", self.SIFEN_NS}:
+                    continue
+                if qname.localname == "DE":
+                    candidates.append(node)
+                elif qname.localname == "dProtAut":
+                    value = (node.text or "").strip()
+                    if value:
+                        protocols.append(value)
+        if len(candidates) != 1:
+            return None
+        cdc = (candidates[0].get("Id") or "").strip()
+        if not cdc.isdigit() or len(cdc) != 44 or len(protocols) > 1:
+            return None
+        return cdc, protocols[0] if protocols else ""
 
     def _parse_xml(self, content):
         parser = etree.XMLParser(

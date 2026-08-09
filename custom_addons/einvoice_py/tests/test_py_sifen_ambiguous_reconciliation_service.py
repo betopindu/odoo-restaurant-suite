@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from html import escape
 
 from lxml import etree
 
@@ -409,6 +410,61 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
         self.assertEqual(ambiguous.error_code, "ambiguous_submission")
         self.assertNotEqual(self.document.state, "accepted")
 
+    def test_approved_official_serialized_container_matches_cdc(self):
+        self._ambiguous_transmission()
+        service, _transport = self._reconciliation_service(
+            self._serialized_content_response(self.CDC)
+        )
+
+        result = service.reconcile(document=self.document)
+
+        query = self.env["fiscal.transmission"].browse(
+            result["query_transmission_id"]
+        )
+        self.assertEqual(result["resolution_status"], "accepted")
+        self.assertEqual(query.state, "accepted")
+        self.assertFalse(query.error_code)
+        self.assertEqual(self.document.authority_receipt_ref, "safe-protocol")
+
+    def test_approved_without_content_is_malformed_not_cdc_mismatch(self):
+        ambiguous = self._ambiguous_transmission()
+        service, _transport = self._reconciliation_service(
+            self._response("0422", "CDC encontrado")
+        )
+
+        result = service.reconcile(document=self.document)
+
+        query = self.env["fiscal.transmission"].browse(
+            result["query_transmission_id"]
+        )
+        self.assertEqual(result["resolution_status"], "unresolved")
+        self.assertEqual(query.error_code, "malformed_response")
+        self.assertEqual(ambiguous.error_code, "ambiguous_submission")
+
+    def test_approved_nested_prefixed_container_matches_cdc(self):
+        self._ambiguous_transmission()
+        service, _transport = self._reconciliation_service(
+            self._nested_prefixed_content_response(self.CDC)
+        )
+
+        result = service.reconcile(document=self.document)
+
+        self.assertEqual(result["resolution_status"], "accepted")
+
+    def test_approved_serialized_container_with_different_cdc_is_unresolved(self):
+        self._ambiguous_transmission()
+        service, _transport = self._reconciliation_service(
+            self._serialized_content_response("0" * 44)
+        )
+
+        result = service.reconcile(document=self.document)
+
+        query = self.env["fiscal.transmission"].browse(
+            result["query_transmission_id"]
+        )
+        self.assertEqual(result["resolution_status"], "unresolved")
+        self.assertEqual(query.error_code, "cdc_mismatch")
+
     def test_reconciliation_is_idempotent(self):
         self._ambiguous_transmission()
         service, transport = self._reconciliation_service(
@@ -536,3 +592,38 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
     </soap:Fault>
   </soap:Body>
 </soap:Envelope>""".encode("utf-8")
+
+    def _serialized_content_response(self, cdc):
+        fiscal_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rContDe>
+  <rDE><DE Id="{cdc}"/></rDE>
+  <dProtAut>safe-protocol</dProtAut>
+</rContDe>"""
+        return f"""<?xml version="1.0" encoding="UTF-8"?>
+<env:Envelope xmlns:env="{self.SOAP_NS}">
+  <env:Body>
+    <ns2:rEnviConsDeResponse xmlns:ns2="{self.SIFEN_NS}">
+      <ns2:dFecProc>2026-08-09T12:00:00-03:00</ns2:dFecProc>
+      <ns2:dCodRes>0422</ns2:dCodRes>
+      <ns2:dMsgRes>CDC encontrado</ns2:dMsgRes>
+      <ns2:xContenDE>{escape(fiscal_xml)}</ns2:xContenDE>
+    </ns2:rEnviConsDeResponse>
+  </env:Body>
+</env:Envelope>""".encode("utf-8")
+
+    def _nested_prefixed_content_response(self, cdc):
+        return f"""<?xml version="1.0" encoding="UTF-8"?>
+<env:Envelope xmlns:env="{self.SOAP_NS}">
+  <env:Body>
+    <api:rEnviConsDeResponse xmlns:api="{self.SIFEN_NS}">
+      <api:dFecProc>2026-08-09T12:00:00-03:00</api:dFecProc>
+      <api:dCodRes>0422</api:dCodRes>
+      <api:dMsgRes>CDC encontrado</api:dMsgRes>
+      <api:xContenDE>
+        <container:rContDe xmlns:container="urn:sifen:container">
+          <api:rDE><api:DE Id="{cdc}"/></api:rDE>
+        </container:rContDe>
+      </api:xContenDE>
+    </api:rEnviConsDeResponse>
+  </env:Body>
+</env:Envelope>""".encode("utf-8")
