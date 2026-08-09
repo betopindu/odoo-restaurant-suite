@@ -1219,7 +1219,7 @@ Interpret failures as follows:
 * `soap_fault`: inspect the safe Fault code/reason and retain the raw response securely.
 * `rejected`, `duplicate`, or `unrecognized_official_code`: retain the official code/message and do not infer acceptance from HTTP 200.
 
-The current delivery baseline reports 548 counted tests across 484 test methods.
+The current delivery baseline reports 589 counted tests across 523 test methods.
 Production service composition, configuration-driven
 sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission
 reconciliation, local homologation readiness, XMLDSig signing, QR/`gCamFuFD`,
@@ -1356,6 +1356,26 @@ pre-QR signature, QR payload, SOAP request, or authority response.
 * [ADR-016 Paraguay SIFEN Emitter Events](../ADR/ADR-016-paraguay-sifen-emitter-events.md)
 
 ## Next Recommended Reading
+
+## Receiver events
+
+The official v150 receiver choices are notification of receipt (`10`),
+conformity (`11`, partial or total), disconformity (`12`) and unknown document
+(`13`). `PySifenReceiverEventService` signs `rEve` and reuses SOAP 1.2, the
+credential provider and mTLS; CSC is not involved.
+
+Each attempt creates a scoped `fiscal.py.receiver.event` with the receiver
+snapshot, target CDC, event identity, hashes, safe endpoint, duration and
+authority evidence. Original XML, KuDE and DE transmissions remain immutable.
+The service enforces 45-day registration and 15-day corrective windows,
+partial-before-total conformity, incompatible transition guards and mandatory
+manual review after ambiguity. The official service set exposes no independent
+event-status query; Consulta DE event content is not treated as proof of a
+specific event outcome.
+
+Normative references: [Manual Técnico v150](https://www.dnit.gov.py/documents/20123/420592/Manual%2BT%C3%A9cnico%2BVersi%C3%B3n%2B150.pdf/e706f7c7-6d93-21d4-b45b-5d22d07b2d22),
+[official v150 XSD index](https://ekuatia.set.gov.py/sifen/xsd/) and
+[Resolución General 23/19](https://ekuatia.set.gov.py/web/portal-institucional/w/resolucion-general-n-23-19).
 
 * [ADR-008 Paraguay Numbering Before CDC](../ADR/ADR-008-paraguay-numbering-before-cdc.md)
 * [ADR-009 CSC Only For QR](../ADR/ADR-009-csc-only-for-qr.md)

@@ -2,6 +2,7 @@ import hashlib
 import json
 import time
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from urllib.parse import urlsplit, urlunsplit
 
 from lxml import etree
@@ -13,6 +14,7 @@ from odoo.addons.einvoice_py.services.py_sifen_datetime_service import PySifenDa
 from odoo.addons.einvoice_py.services.py_sifen_event_signature_service import PySifenEventSignatureService
 from odoo.addons.einvoice_py.services.py_sifen_sandbox_transport import PySifenSandboxTransport
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import PySifenTransportError
+from odoo.addons.einvoice_py.services.cdc_service import PyCdcService
 
 
 class PySifenEventService:
@@ -85,6 +87,43 @@ class PySifenEventService:
         ):
             self._text(kind, name, value)
         return etree.tostring(group.getroottree().getroot(), encoding="UTF-8", xml_declaration=True)
+
+    def build_receiver_event(self, *, event_id, event_type, cdc, signing_timestamp, values):
+        group = self._event_root(event_id, signing_timestamp)
+        names = {
+            "notification": "rGeVeNotRec",
+            "conformity_partial": "rGeVeConf",
+            "conformity_total": "rGeVeConf",
+            "disconformity": "rGeVeDisconf",
+            "unknown": "rGeVeDescon",
+        }
+        kind = etree.SubElement(group, self._tag(names[event_type]))
+        self._text(kind, "Id", cdc)
+        if event_type in {"notification", "unknown"}:
+            self._text(kind, "dFecEmi", values["emission_timestamp"])
+            self._text(kind, "dFecRecep", values["reception_timestamp"])
+            self._receiver_identity(kind, values)
+            if event_type == "notification":
+                self._text(kind, "dTotalGs", values["total"])
+            else:
+                self._text(kind, "mOtEve", values["reason"])
+        elif event_type.startswith("conformity_"):
+            self._text(kind, "iTipConf", "2" if event_type == "conformity_partial" else "1")
+            if event_type == "conformity_partial":
+                self._text(kind, "dFecRecep", values["reception_timestamp"])
+        else:
+            self._text(kind, "mOtEve", values["reason"])
+        return etree.tostring(group.getroottree().getroot(), encoding="UTF-8", xml_declaration=True)
+
+    def _receiver_identity(self, parent, values):
+        self._text(parent, "iTipRec", values["receiver_type"])
+        self._text(parent, "dNomRec", values["receiver_name"])
+        if values["receiver_type"] == "1":
+            self._text(parent, "dRucRec", values["receiver_ruc"])
+            self._text(parent, "dDVRec", values["receiver_dv"])
+        else:
+            self._text(parent, "dTipIDRec", values["receiver_id_type"])
+            self._text(parent, "dNumID", values["receiver_id_number"])
 
     def _event_root(self, event_id, signing_timestamp):
         root = etree.Element(self._tag("rGesEve"), nsmap={None: self.SIFEN_NS})
@@ -349,3 +388,175 @@ class PySifenInutilizationService:
 
     def _lock_scope(self, timbrado):
         self.env.cr.execute("SELECT id FROM fiscal_py_timbrado WHERE id = %s FOR UPDATE", [timbrado.id])
+
+
+class PySifenReceiverEventService:
+    EVENT_CODES = {
+        "notification": "10",
+        "conformity_partial": "11",
+        "conformity_total": "11",
+        "disconformity": "12",
+        "unknown": "13",
+    }
+
+    def __init__(self, env, *, event_service=None):
+        self.env = env
+        self.event_service = event_service or PySifenEventService(env)
+
+    def register(self, *, document, event_type, reception_timestamp=None, reason=None, signing_timestamp=None):
+        document.ensure_one()
+        self._lock(document)
+        existing = self._accepted(document, event_type)
+        if existing:
+            return {"accepted": True, "receiver_event_id": existing.id, "idempotent": True}
+        if self._unresolved(document):
+            raise ValidationError("SIFEN receiver event has an unresolved prior attempt requiring manual review.")
+        self._validate(document, event_type, reception_timestamp, reason)
+
+        values = self._values(document, reception_timestamp, reason)
+        adapter = document.adapter_config_id
+        event_id = self.event_service._next_id(adapter, 10)
+        record = self.env["fiscal.py.receiver.event"].sudo().create({
+            "document_id": document.id,
+            "adapter_config_id": adapter.id,
+            "environment": document.environment,
+            "event_type": event_type,
+            "event_code": self.EVENT_CODES[event_type],
+            "event_id": event_id,
+            "target_cdc": values["cdc"],
+            "receiver_type": values["receiver_type"],
+            "receiver_name": values["receiver_name"],
+            "receiver_ruc": values["receiver_ruc"],
+            "receiver_dv": values["receiver_dv"],
+            "receiver_id_type": values["receiver_id_type"],
+            "receiver_id_number": values["receiver_id_number"],
+            "reception_timestamp": reception_timestamp,
+            "reason": reason or "",
+        })
+        event_xml = self.event_service.build_receiver_event(
+            event_id=event_id,
+            event_type=event_type,
+            cdc=values["cdc"],
+            signing_timestamp=signing_timestamp or fields.Datetime.now(),
+            values=values,
+        )
+        original = document.transmission_ids.ids
+        result = self.event_service.execute(
+            adapter=adapter,
+            event_xml_bytes=event_xml,
+            audit_record=record,
+            audit_model="fiscal.py.receiver.event",
+            original_ids=original,
+        )
+        return dict(result, receiver_event_id=record.id, event_id=event_id)
+
+    def _validate(self, document, event_type, reception_timestamp, reason):
+        if event_type not in self.EVENT_CODES:
+            raise ValidationError("Unsupported SIFEN receiver event type.")
+        cdc = (document.country_identifier or document.py_cdc or "").strip()
+        if not cdc.isdigit() or len(cdc) != 44:
+            raise ValidationError("SIFEN receiver event requires a valid 44-digit CDC.")
+        expected_dv = str(PyCdcService.calculate_check_digit(cdc[:-1])[0])
+        if cdc[-1] != expected_dv:
+            raise ValidationError("SIFEN receiver event CDC check digit is invalid.")
+        adapter = document.adapter_config_id
+        if (
+            (document.country_code or "").upper() != "PY"
+            or not adapter
+            or adapter.country_code != "PY"
+            or adapter.environment != document.environment
+            or adapter.tenant_id != document.tenant_id
+            or adapter.company_id != document.company_id
+        ):
+            raise ValidationError("Paraguay receiver event fiscal scope is invalid.")
+        if document.state != "accepted" or not document.issue_datetime:
+            raise ValidationError("SIFEN receiver events require an approved DTE with emission timestamp.")
+        now = fields.Datetime.now()
+        if now > document.issue_datetime + timedelta(days=45):
+            raise ValidationError("SIFEN receiver event registration window has expired.")
+        accepted = self._accepted_events(document)
+        accepted_types = set(accepted.mapped("event_type"))
+        if "unknown" in accepted_types or (
+            event_type == "unknown" and accepted_types & {
+                "conformity_partial", "conformity_total", "disconformity"
+            }
+        ):
+            raise ValidationError("SIFEN receiver event transition is incompatible with unknown-document evidence.")
+        if event_type == "notification" and accepted_types:
+            raise ValidationError("SIFEN receipt notification must precede other receiver events.")
+        if event_type == "conformity_partial" and "conformity_total" in accepted_types:
+            raise ValidationError("Partial conformity cannot follow total conformity.")
+        opposite = {
+            "disconformity": {"conformity_partial", "conformity_total"},
+            "conformity_partial": {"disconformity"},
+            "conformity_total": {"disconformity"},
+        }.get(event_type, set())
+        prior = accepted.filtered(lambda item: item.event_type in opposite).sorted("finished_at", reverse=True)[:1]
+        if prior and now > prior.finished_at + timedelta(days=15):
+            raise ValidationError("SIFEN corrective receiver event window has expired.")
+        if event_type in {"notification", "unknown", "conformity_partial"}:
+            reception = fields.Datetime.to_datetime(reception_timestamp)
+            if not reception or reception < document.issue_datetime:
+                raise ValidationError("SIFEN receiver event reception timestamp is invalid.")
+        if event_type in {"disconformity", "unknown"} and (
+            not isinstance(reason, str) or not 5 <= len(reason.strip()) <= 500
+        ):
+            raise ValidationError("SIFEN receiver event reason must contain 5 to 500 characters.")
+        self._identity(document)
+
+    def _values(self, document, reception_timestamp, reason):
+        identity = self._identity(document)
+        total = format(Decimal(str(document.amount_total or 0)), "f")
+        return dict(
+            cdc=(document.country_identifier or document.py_cdc).strip(),
+            emission_timestamp=PySifenDatetimeService.format_fiscal_datetime(document.issue_datetime),
+            reception_timestamp=(
+                PySifenDatetimeService.format_fiscal_datetime(reception_timestamp)
+                if reception_timestamp else ""
+            ),
+            total=total,
+            reason=(reason or "").strip(),
+            **identity,
+        )
+
+    def _identity(self, document):
+        receiver_type = document.py_receiver_nature
+        name = (document.customer_name or "").strip()
+        if receiver_type not in {"1", "2"} or len(name) < 4:
+            raise ValidationError("SIFEN receiver event identity is incomplete.")
+        ruc = dv = id_type = id_number = ""
+        if receiver_type == "1":
+            parts = (document.customer_tax_id or "").strip().split("-")
+            if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit() or len(parts[1]) != 1:
+                raise ValidationError("SIFEN receiver taxpayer RUC and DV are required.")
+            ruc, dv = parts
+        else:
+            id_type = (document.py_receiver_id_type or "").strip()
+            id_number = (document.py_receiver_id_number or "").strip()
+            if not id_type or not id_number:
+                raise ValidationError("SIFEN non-taxpayer receiver identity is required.")
+        return {
+            "receiver_type": receiver_type,
+            "receiver_name": name,
+            "receiver_ruc": ruc,
+            "receiver_dv": dv,
+            "receiver_id_type": id_type,
+            "receiver_id_number": id_number,
+        }
+
+    def _accepted_events(self, document):
+        return self.env["fiscal.py.receiver.event"].sudo().search([
+            ("document_id", "=", document.id), ("state", "=", "accepted")
+        ])
+
+    def _accepted(self, document, event_type):
+        return self._accepted_events(document).filtered(lambda item: item.event_type == event_type)[:1]
+
+    def _unresolved(self, document):
+        return self.env["fiscal.py.receiver.event"].sudo().search_count([
+            ("document_id", "=", document.id),
+            ("state", "in", ["pending", "manual_review"]),
+        ])
+
+    def _lock(self, document):
+        self.env.cr.execute("SELECT id FROM fiscal_document WHERE id = %s FOR UPDATE", [document.id])

@@ -32,3 +32,9 @@ success is code `0600`; explicit rejections are separate evidence. Timeout,
 HTTP/TLS uncertainty, SOAP Fault and malformed responses require manual review
 and are never retried automatically. Tenant/company scoping and row locks are
 mandatory before eligibility and overlap checks.
+
+Receiver manifestations use this same Paraguay-local protocol boundary through
+`PySifenReceiverEventService`, with a separate `fiscal.py.receiver.event`
+record. Notification, conformity, disconformity and unknown-document semantics
+remain localization rules; no neutral-core state or generic event protocol is
+introduced.

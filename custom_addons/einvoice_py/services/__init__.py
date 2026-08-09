@@ -46,6 +46,7 @@ from .py_sifen_event_service import (
     PySifenCancellationService,
     PySifenEventService,
     PySifenInutilizationService,
+    PySifenReceiverEventService,
 )
 from .py_fiscal_document_delivery_service import (
     PyFiscalDeliveryFile,

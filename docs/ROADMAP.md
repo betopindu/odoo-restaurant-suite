@@ -74,6 +74,8 @@
 [x] Stage 8.22 Live TEST mTLS Preflight
 [x] Stage 8.24A SIFEN Consulta DE and ambiguous submission reconciliation
 [x] Production-safe Consulta DE observability and state reconciliation
+[x] Paraguay v150 receiver-event flows (offline implementation)
+[ ] Live TEST validation of receiver events
 [x] Paraguay SIFEN cancellation and number inutilization flows
 [x] Stage 8.25 SIFEN TEST homologation profile and readiness status
 [x] Stage 8.26 SIFEN XMLDSig signing engine

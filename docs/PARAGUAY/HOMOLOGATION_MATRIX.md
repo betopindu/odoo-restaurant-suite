@@ -77,7 +77,7 @@ Status meanings:
 | QR generation/authority validation | READY | Deterministic QR uses the exact final XMLDSig digest and official TEST CSC pair; the accepted DE proves SIFEN validation for the baseline. Browser QR consultation counts remain pending. |
 | KuDE PDF generation | READY | The invoice renderer consumes only persisted payload plus the exact persisted QR URL, produces deterministic/versioned PDF artifacts, and has unit/integration, regeneration, multipage and idempotency coverage. Live receiver delivery remains operational work. |
 | Cancellation and inutilization | REQUIRES LIVE TEST | Official v150 emitter-event XMLDSig/SOAP, local eligibility, range overlap, persistence, ambiguity and code `0600` handling are implemented and tested offline. No live event has been sent. |
-| Receiver events | NOT IMPLEMENTED | No Paraguay receiver-event implementation. |
+| Receiver events | REQUIRES LIVE TEST | Notification `10`, conformity `11` (partial/total), disconformity `12` and unknown-document `13` are implemented and tested offline; authority acceptance remains pending. |
 | General DTE/event consultation | PARTIAL | TEST Consulta DE by CDC exists for ambiguous reconciliation; general consultation matrix and associated-event output are absent. |
 | Asynchronous batch submission/result | NOT IMPLEMENTED | Current submission is synchronous only. |
 | Synchronous SOAP, mTLS and response persistence | READY | SOAP 1.2, qualified PKCS#12, mTLS, parser and persistence are implemented and live-proven for FE. |

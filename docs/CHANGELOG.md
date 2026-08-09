@@ -1,5 +1,14 @@
 # Documentation Changelog
 
+## 2026-08-09 — Paraguay receiver events
+
+* Added official v150 receipt notification (`10`), conformity (`11`, partial
+  or total), disconformity (`12`) and unknown-document (`13`) flows.
+* Reused XMLDSig, SOAP 1.2, credentials, mTLS and safe event observability.
+* Added scoped audit records, row locking, official time windows, transition
+  guards and manual review after ambiguity. No SIFEN request was executed.
+* Updated the validation baseline to 589 counted tests across 523 methods.
+
 ## 2026-08-09 — Paraguay cancellation and number inutilization
 
 * Added the signed v150 emitter-event boundary over the existing credential and

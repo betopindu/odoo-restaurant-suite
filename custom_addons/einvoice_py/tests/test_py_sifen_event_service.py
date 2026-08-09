@@ -16,6 +16,7 @@ from odoo.tests.common import TransactionCase
 from odoo.addons.einvoice_py.services.py_sifen_credential_provider import PySifenRuntimeCredentials
 from odoo.addons.einvoice_py.services.py_sifen_event_service import (
     PySifenCancellationService, PySifenEventService, PySifenInutilizationService,
+    PySifenReceiverEventService,
 )
 from odoo.addons.einvoice_py.services.py_sifen_event_signature_service import PySifenEventSignatureService
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import PySifenTimeoutError
@@ -76,6 +77,8 @@ class TestPySifenEventService(TransactionCase):
             "name": self.id(), "tenant_id": self.tenant.id, "company_id": self.env.company.id,
             "adapter_config_id": self.adapter.id, "document_type": "invoice", "country_code": "PY",
             "environment": "test", "adapter_code": "py_sifen", "customer_name": "Customer", "amount_total": 100,
+            "customer_tax_id": "80012345-6", "py_receiver_nature": "1",
+            "issue_datetime": fields.Datetime.now() - timedelta(days=1),
             "idempotency_key": self.id(), "py_cdc": self.CDC, "country_identifier": self.CDC,
             "py_document_number": "0000001", "py_timbrado_id": self.timbrado.id,
             "py_establishment_id": self.establishment.id, "py_point_of_issue_id": self.point.id,
@@ -246,6 +249,167 @@ class TestPySifenEventService(TransactionCase):
         context.key = verify_key
         context.verify(signature)
 
+    def test_all_official_receiver_event_requests_are_built(self):
+        cases = (
+            ("notification", "rGeVeNotRec", {}),
+            ("conformity_partial", "rGeVeConf", {}),
+            ("conformity_total", "rGeVeConf", {}),
+            ("disconformity", "rGeVeDisconf", {"reason": "Incorrect operation details"}),
+            ("unknown", "rGeVeDescon", {"reason": "Document is unknown"}),
+        )
+        for event_type, node_name, extra in cases:
+            with self.subTest(event_type=event_type):
+                document = self._copy_accepted({
+                    "name": self.id() + event_type,
+                    "idempotency_key": self.id() + event_type,
+                })
+                service, transport = self._receiver_event(self._response("0600", "OK"))
+                result = service.register(
+                    document=document,
+                    event_type=event_type,
+                    reception_timestamp=fields.Datetime.now(),
+                    **extra,
+                )
+                self.assertTrue(result["accepted"])
+                request = etree.fromstring(transport.calls[0]["body"])
+                node = request.find(f".//{{{PySifenEventService.SIFEN_NS}}}{node_name}")
+                self.assertIsNotNone(node)
+                self.assertEqual(node.find(f"{{{PySifenEventService.SIFEN_NS}}}Id").text, self.CDC)
+                record = self.env["fiscal.py.receiver.event"].browse(result["receiver_event_id"])
+                self.assertEqual(record.state, "accepted")
+                self.assertEqual(record.event_code, PySifenReceiverEventService.EVENT_CODES[event_type])
+                self.assertFalse(record.document_id.event_ids.filtered(
+                    lambda item: item.event_type == "sifen_cancellation"
+                ))
+
+    def test_receiver_event_rejection_and_ambiguity_preserve_document(self):
+        original = (self.document.state, self.document.accepted_at, self.document.metadata_json)
+        rejected, _transport = self._receiver_event(self._response("4152", "Rejected"))
+        result = rejected.register(
+            document=self.document,
+            event_type="conformity_total",
+        )
+        self.assertFalse(result["accepted"])
+        self.assertEqual((self.document.state, self.document.accepted_at, self.document.metadata_json), original)
+
+        other = self._copy_accepted({"name": self.id() + "ambiguous", "idempotency_key": self.id() + "ambiguous"})
+        ambiguous, transport = self._receiver_event(None, error=PySifenTimeoutError())
+        result = ambiguous.register(document=other, event_type="conformity_total")
+        self.assertTrue(result["ambiguous"])
+        with self.assertRaisesRegex(ValidationError, "unresolved"):
+            ambiguous.register(document=other, event_type="conformity_total")
+        self.assertEqual(len(transport.calls), 1)
+
+    def test_receiver_event_malformed_response_requires_manual_review(self):
+        service, transport = self._receiver_event({
+            "status_code": 200,
+            "content": b"not-xml",
+        })
+
+        result = service.register(
+            document=self.document,
+            event_type="conformity_total",
+        )
+
+        record = self.env["fiscal.py.receiver.event"].browse(
+            result["receiver_event_id"]
+        )
+        self.assertTrue(result["ambiguous"])
+        self.assertEqual(record.state, "manual_review")
+        with self.assertRaisesRegex(ValidationError, "unresolved"):
+            service.register(document=self.document, event_type="conformity_total")
+        self.assertEqual(len(transport.calls), 1)
+
+    def test_receiver_event_http_error_and_soap_fault_are_ambiguous(self):
+        fault = {
+            "status_code": 200,
+            "content": b'<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"><soap:Body><soap:Fault/></soap:Body></soap:Envelope>',
+        }
+        http_error = self._response("0600", "OK")
+        http_error["status_code"] = 503
+        for label, response in (("fault", fault), ("http", http_error)):
+            with self.subTest(label=label):
+                document = self._copy_accepted({
+                    "name": self.id() + label,
+                    "idempotency_key": self.id() + label,
+                })
+                service, transport = self._receiver_event(response)
+                result = service.register(
+                    document=document,
+                    event_type="conformity_total",
+                )
+                self.assertTrue(result["ambiguous"])
+                self.assertEqual(
+                    self.env["fiscal.py.receiver.event"].browse(
+                        result["receiver_event_id"]
+                    ).state,
+                    "manual_review",
+                )
+                self.assertEqual(len(transport.calls), 1)
+
+    def test_receiver_event_idempotency_and_incompatible_transitions(self):
+        service, transport = self._receiver_event(self._response("0600", "OK"))
+        first = service.register(document=self.document, event_type="conformity_total")
+        second = service.register(document=self.document, event_type="conformity_total")
+        self.assertTrue(second["idempotent"])
+        self.assertEqual(first["receiver_event_id"], second["receiver_event_id"])
+        self.assertEqual(len(transport.calls), 1)
+        with self.assertRaisesRegex(ValidationError, "Partial conformity"):
+            service.register(
+                document=self.document,
+                event_type="conformity_partial",
+                reception_timestamp=fields.Datetime.now(),
+            )
+        with self.assertRaisesRegex(ValidationError, "precede"):
+            service.register(
+                document=self.document,
+                event_type="notification",
+                reception_timestamp=fields.Datetime.now(),
+            )
+
+    def test_unknown_blocks_later_manifestations(self):
+        service, transport = self._receiver_event(self._response("0600", "OK"))
+        service.register(
+            document=self.document,
+            event_type="unknown",
+            reception_timestamp=fields.Datetime.now(),
+            reason="Document is unknown",
+        )
+        with self.assertRaisesRegex(ValidationError, "unknown-document"):
+            service.register(document=self.document, event_type="conformity_total")
+        self.assertEqual(len(transport.calls), 1)
+
+    def test_receiver_event_validation_scope_and_security(self):
+        service, transport = self._receiver_event(self._response("0600", "OK"))
+        self.document.with_context(einvoice_skip_fiscal_document_lock=True).country_identifier = "1" * 44
+        with self.assertRaisesRegex(ValidationError, "check digit"):
+            service.register(document=self.document, event_type="conformity_total")
+        self.assertEqual(transport.calls, [])
+
+        self.document.with_context(einvoice_skip_fiscal_document_lock=True).write({
+            "country_identifier": self.CDC,
+        })
+        result = service.register(document=self.document, event_type="conformity_total")
+        stored = json.dumps(
+            self.env["fiscal.py.receiver.event"].browse(result["receiver_event_id"]).read()[0],
+            default=str,
+        )
+        for secret in ("private-key", "password", "certificate", "safe/test.p12"):
+            self.assertNotIn(secret, stored)
+
+    def test_receiver_event_row_lock_and_tenant_scope(self):
+        service, transport = self._receiver_event(self._response("0600", "OK"))
+        service._lock(self.document)
+        other_tenant = self.env["fiscal.tenant"].create({
+            "name": self.id() + "-receiver", "code": self.id() + "-receiver",
+            "company_id": self.env.company.id,
+        })
+        other_adapter = self.adapter.copy({"name": self.id() + "-receiver", "tenant_id": other_tenant.id})
+        self.document.with_context(einvoice_skip_fiscal_document_lock=True).adapter_config_id = other_adapter
+        with self.assertRaisesRegex(ValidationError, "scope"):
+            service.register(document=self.document, event_type="conformity_total")
+        self.assertEqual(transport.calls, [])
+
     def _event_service(self, response, error=None):
         transport = _Transport(response=response, error=error)
         return PySifenEventService(self.env, credential_provider=_Provider(self.credentials), signer=_Signer(), transport=transport), transport
@@ -257,6 +421,22 @@ class TestPySifenEventService(TransactionCase):
     def _inutilization(self, response, error=None):
         event, transport = self._event_service(response, error)
         return PySifenInutilizationService(self.env, event_service=event), transport
+
+    def _receiver_event(self, response, error=None):
+        event, transport = self._event_service(response, error)
+        return PySifenReceiverEventService(self.env, event_service=event), transport
+
+    def _copy_accepted(self, values):
+        document = self.document.copy(values)
+        document.with_context(einvoice_skip_fiscal_document_lock=True).write({
+            "state": "accepted",
+            "accepted_at": fields.Datetime.now(),
+            "authority_status": "0260",
+            "customer_name": "Customer",
+            "customer_tax_id": "80012345-6",
+            "py_receiver_nature": "1",
+        })
+        return document
 
     def _inutilization_kwargs(self, start, end):
         return {

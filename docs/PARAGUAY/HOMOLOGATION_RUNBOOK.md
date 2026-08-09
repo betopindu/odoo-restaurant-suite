@@ -6,6 +6,23 @@ See the [capability and homologation matrix](HOMOLOGATION_MATRIX.md) before
 selecting the next case. A locally supported profile is not necessarily one of
 the authority's minimum test rows.
 
+## Receiver-event validation
+
+Receiver-role tests cover notification (`10`), partial/total conformity (`11`),
+disconformity (`12`) and unknown document (`13`). Use a received DTE whose
+receiver identity belongs to the active tenant; do not reuse an outgoing issuer
+fixture merely because it contains receiver fields. Submit exactly one event
+with `PySifenReceiverEventService.register()`.
+
+Code `0600` is accepted. Explicit rejection is preserved separately. Timeout,
+HTTP/TLS uncertainty, SOAP Fault or malformed response leaves `manual_review`:
+stop and never repeat automatically. No independent official event-query flow
+is implemented; Consulta DE must not be used to infer a specific event result.
+
+Use the [official v150 schema set](https://ekuatia.set.gov.py/sifen/xsd/) and
+[Manual Técnico v150](https://www.dnit.gov.py/documents/20123/420592/Manual%2BT%C3%A9cnico%2BVersi%C3%B3n%2B150.pdf/e706f7c7-6d93-21d4-b45b-5d22d07b2d22)
+when preparing authority test evidence.
+
 The first controlled synchronous TEST DE has been accepted. This runbook now
 records that baseline and remains the procedure for subsequent homologation
 cases. Acceptance of one DE is not production authorization.

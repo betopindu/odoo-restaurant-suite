@@ -24,7 +24,7 @@ both logical credential bindings, XMLDSig, QR/CSC, final XSD validation, SOAP
 1.2, mTLS, response classification, and transmission/document persistence.
 This is evidence of interoperability for the tested invoice profile, not
 production certification or coverage of every authority scenario. The suite at
-current delivery baseline reports 548 counted tests across 484 test methods.
+current delivery baseline reports 589 counted tests across 523 test methods.
 
 Stage 8.24B durable pre-POST persistence, production preflight, cron activation,
 monitoring, and production go-live remain pending.
@@ -280,6 +280,15 @@ Persisted Payload + Exact QR Payload Attachment
 * [Diagrams Index](diagrams/README.md)
 
 ## Next Recommended Reading
+
+### Paraguay receiver-event boundary
+
+`PySifenReceiverEventService` reuses the Paraguay signed-event transport while
+keeping receiver rules outside the neutral core. A dedicated
+`fiscal.py.receiver.event` stores target CDC, receiver snapshot, official event
+code, hashes, timing and authority evidence without changing the received DTE
+or its artifacts. Row locking serializes transitions; ambiguous attempts block
+later events and are never retried automatically.
 
 * [ADR-001 Country Addons](ADR/ADR-001-country-addons.md)
 * [Diagrams Hub](diagrams/README.md)
