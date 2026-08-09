@@ -1,5 +1,16 @@
 # Documentation Changelog
 
+## 2026-08-09 — Production-safe SIFEN Consulta DE reconciliation
+
+* Exposed dedicated document-query and reconciliation boundaries while keeping
+  the Stage 8.24A service names backward compatible.
+* Preserved original submission evidence and recorded every query separately
+  with safe endpoint, duration, HTTP status, hashes, normalized result and
+  authority processing time.
+* Treated official `0420` as `reconciliation_not_found`, never as proof of
+  rejection or permission to resend; `0422` alone confirms approval.
+* Added row-locked, idempotent reconciliation and guarded operator diagnostics.
+
 ## 2026-08-09 — Accepted Paraguay document delivery
 
 * Added a versioned final `rDE` artifact after QR/XSD validation and before the

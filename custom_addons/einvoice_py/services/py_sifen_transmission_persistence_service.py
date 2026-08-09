@@ -116,16 +116,24 @@ class PySifenTransmissionPersistenceService:
         cdc = (document.country_identifier or document.py_cdc or "").strip()
         if not cdc:
             return
-        if self.env["fiscal.transmission"].sudo().search_count([
+        transmission_model = self.env["fiscal.transmission"].sudo()
+        if transmission_model.search_count([
             ("transmission_type", "=", self.TRANSMISSION_TYPE),
             ("country_code", "=", "PY"),
             ("environment", "=", "test"),
             ("tenant_id", "=", document.tenant_id.id),
             ("company_id", "=", document.company_id.id),
             ("country_identifier", "=", cdc),
-            "|",
-            ("state", "=", "sent"),
+            "|", ("state", "=", "sent"),
             ("error_code", "=", "ambiguous_submission"),
+        ]) or transmission_model.search_count([
+            ("transmission_type", "=", "status_query"),
+            ("country_code", "=", "PY"),
+            ("environment", "=", "test"),
+            ("tenant_id", "=", document.tenant_id.id),
+            ("company_id", "=", document.company_id.id),
+            ("country_identifier", "=", cdc),
+            ("error_code", "=", "reconciliation_not_found"),
         ]):
             raise ValidationError(
                 "SIFEN submission status is ambiguous; Consulta DE reconciliation is required."

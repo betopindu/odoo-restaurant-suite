@@ -39,6 +39,15 @@ Do not automatically retry after a timeout, connection loss after POST, or
 worker failure. Treat the outcome as ambiguous and use the existing Consulta
 DE reconciliation by CDC before any operator-authorized resend.
 
+Execute that recovery through `PySifenReconciliationService`, never by
+resending the DE. `0422` confirms acceptance. `0420` means only “not found or
+not approved”: persist `reconciliation_not_found`, retain the original
+submission unchanged, keep the CDC blocked, and require an operator/policy
+decision. Timeout, HTTP/TLS failure, SOAP Fault, malformed XML, unsupported
+codes, or CDC mismatch leaves the case unresolved. Explicit diagnostics are
+allowed only for a CDC with a prior submission; accepted documents and
+never-submitted drafts are excluded.
+
 An explicit `0100` response whose normalized message is exactly `Error
 Inesperado(PKI)` is handled differently: it is non-ambiguous and requires no
 Consulta DE, but it is not safe for automatic retry because Manual v150 assigns

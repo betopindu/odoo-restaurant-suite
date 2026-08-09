@@ -1,4 +1,7 @@
 import hashlib
+import json
+import time
+from urllib.parse import urlsplit, urlunsplit
 
 from lxml import etree
 
@@ -20,7 +23,7 @@ from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import (
 )
 
 
-class PySifenConsultaDeService:
+class PySifenDocumentQueryService:
     """Query an approved SIFEN TEST DTE by CDC and persist a safe audit record."""
 
     SOAP_ENV_NS = "http://www.w3.org/2003/05/soap-envelope"
@@ -55,6 +58,7 @@ class PySifenConsultaDeService:
         self._validate_document(document)
         cdc = self._cdc(document, cdc)
         started_at = fields.Datetime.now()
+        started_monotonic = time.monotonic()
         transmission = self._create_transmission(
             document=document,
             cdc=cdc,
@@ -104,6 +108,10 @@ class PySifenConsultaDeService:
             )
         if request_hash and not result.get("request_hash"):
             result["request_hash"] = request_hash
+        result["duration_ms"] = max(
+            0, int((time.monotonic() - started_monotonic) * 1000)
+        )
+        result["endpoint_url"] = self._safe_endpoint(self.endpoint_url)
         self._finish_transmission(
             transmission=transmission,
             result=result,
@@ -159,6 +167,7 @@ class PySifenConsultaDeService:
             "approved": False,
             "not_approved": False,
             "retryable": False,
+            "authority_timestamp": "",
         }
         if not content:
             base["authority_message"] = "SIFEN Consulta DE response was empty."
@@ -190,10 +199,12 @@ class PySifenConsultaDeService:
         authority_code = self._direct_text(response_node, "dCodRes")
         authority_message = self._direct_text(response_node, "dMsgRes")
         receipt_ref = self._direct_text(response_node, "dProtAut")
+        authority_timestamp = self._direct_text(response_node, "dFecProc")
         base.update({
             "authority_code": authority_code,
             "authority_message": authority_message,
             "authority_receipt_ref": receipt_ref,
+            "authority_timestamp": authority_timestamp,
         })
         if status_code < 200 or status_code >= 300:
             base.update({
@@ -356,7 +367,7 @@ class PySifenConsultaDeService:
         if result.get("approved"):
             state = "accepted"
         elif result.get("not_approved"):
-            state = "rejected"
+            state = "manual_review"
         elif result.get("retryable"):
             state = "failed_retryable"
         else:
@@ -366,20 +377,34 @@ class PySifenConsultaDeService:
             "request_hash": result.get("request_hash") or "",
             "response_hash": result.get("response_hash") or "",
             "http_status": result.get("http_status") or 0,
+            "duration_ms": result.get("duration_ms") or 0,
+            "endpoint_url": result.get("endpoint_url") or "",
             "authority_status_code": result.get("authority_code") or "",
             "authority_message": result.get("authority_message") or "",
             "error_code": (
-                ""
-                if result.get("ok")
+                "reconciliation_not_found"
+                if result.get("not_approved")
+                else "" if result.get("ok")
                 else result.get("category") or "consulta_failure"
             ),
             "error_message": (
-                ""
-                if result.get("ok")
+                "SIFEN Consulta DE did not find an approved DTE; operator decision is required."
+                if result.get("not_approved")
+                else "" if result.get("ok")
                 else "SIFEN Consulta DE could not resolve the submission."
             ),
             "error_type": "" if result.get("ok") else "sifen_consulta_de",
             "finished_at": finished_at,
+            "metadata_json": json.dumps({
+                "result_category": result.get("category") or "",
+                "authority_timestamp": result.get("authority_timestamp") or "",
+                "normalized_response": {
+                    "authority_code": result.get("authority_code") or "",
+                    "authority_message": result.get("authority_message") or "",
+                    "approved": bool(result.get("approved")),
+                    "not_found": bool(result.get("not_approved")),
+                },
+            }, sort_keys=True),
         })
 
     def _next_attempt_number(self, document):
@@ -401,4 +426,18 @@ class PySifenConsultaDeService:
             "approved": False,
             "not_approved": False,
             "retryable": retryable,
+            "authority_timestamp": "",
         }
+
+    def _safe_endpoint(self, value):
+        parsed = urlsplit(value or "")
+        if parsed.scheme != "https" or not parsed.hostname:
+            return ""
+        host = parsed.hostname
+        if parsed.port:
+            host = f"{host}:{parsed.port}"
+        return urlunsplit((parsed.scheme, host, parsed.path, "", ""))
+
+
+# Backward-compatible Stage 8.24A name.
+PySifenConsultaDeService = PySifenDocumentQueryService

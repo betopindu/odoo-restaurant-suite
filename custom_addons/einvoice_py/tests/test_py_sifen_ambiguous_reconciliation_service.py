@@ -144,12 +144,18 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
         self.assertEqual(self.document.authority_status, "0422")
         self.assertTrue(self.document.accepted_at)
         self.assertFalse(self.document.authority_receipt_ref)
-        self.assertEqual(ambiguous.state, "accepted")
-        self.assertEqual(ambiguous.authority_status_code, "0422")
+        self.assertEqual(ambiguous.state, "manual_review")
+        self.assertFalse(ambiguous.authority_status_code)
         self.assertEqual(query.transmission_type, "status_query")
         self.assertEqual(query.state, "accepted")
         self.assertEqual(len(query.request_hash), 64)
         self.assertEqual(len(query.response_hash), 64)
+        self.assertEqual(query.http_status, 200)
+        self.assertGreaterEqual(query.duration_ms, 0)
+        self.assertEqual(query.endpoint_url, PySifenConsultaDeService.TEST_ENDPOINT_URL)
+        query_metadata = json.loads(query.metadata_json)
+        self.assertEqual(query_metadata["result_category"], "approved")
+        self.assertEqual(query_metadata["original_submission_ids"], [ambiguous.id])
         self.assertEqual(len(transport.calls), 1)
         self.assertEqual(
             transport.calls[0]["endpoint_url"],
@@ -196,13 +202,15 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
 
         self.assertEqual(
             result["resolution_status"],
-            "operator_action_required",
+            "reconciliation_not_found",
         )
         self.assertEqual(self.document.state, "manual_review")
         self.assertEqual(self.document.authority_status, "0420")
-        self.assertEqual(ambiguous.state, "failed_final")
-        self.assertEqual(ambiguous.error_code, "remote_not_approved")
-        self.assertEqual(ambiguous.retry_state, "not_retryable")
+        self.assertEqual(ambiguous.state, "manual_review")
+        self.assertEqual(ambiguous.error_code, "ambiguous_submission")
+        query = self.env["fiscal.transmission"].browse(result["query_transmission_id"])
+        self.assertEqual(query.state, "manual_review")
+        self.assertEqual(query.error_code, "reconciliation_not_found")
 
     def test_timeout_during_consulta_keeps_submission_ambiguous(self):
         ambiguous = self._ambiguous_transmission()
@@ -251,6 +259,18 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
         self.assertEqual(ambiguous.error_code, "ambiguous_submission")
         self.assertEqual(query.state, "failed_final")
         self.assertEqual(query.error_code, "malformed_response")
+
+    def test_http_error_keeps_submission_ambiguous(self):
+        ambiguous = self._ambiguous_transmission()
+        service, _transport = self._reconciliation_service(
+            self._response("0500", "Unavailable"), http_status=503
+        )
+        result = service.reconcile(document=self.document)
+        query = self.env["fiscal.transmission"].browse(result["query_transmission_id"])
+        self.assertEqual(result["resolution_status"], "unresolved")
+        self.assertEqual(query.http_status, 503)
+        self.assertEqual(query.error_code, "http_failure")
+        self.assertEqual(ambiguous.error_code, "ambiguous_submission")
 
     def test_submission_is_blocked_by_ambiguous_cdc_across_documents(self):
         self._ambiguous_transmission()
@@ -309,7 +329,7 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
             "remote_query_required",
         )
 
-    def test_submission_is_allowed_after_0420_reconciliation(self):
+    def test_submission_remains_blocked_after_0420_reconciliation(self):
         self._ambiguous_transmission()
         reconciliation, _transport = self._reconciliation_service(
             self._response("0420", "Documento no existe o no esta aprobado")
@@ -321,10 +341,51 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
             submission_pipeline_service=pipeline,
         )
 
-        persisted = self._submit(persistence, self.document)
+        with self.assertRaisesRegex(ValidationError, "reconciliation"):
+            self._submit(persistence, self.document)
+        self.assertEqual(pipeline.calls, [])
 
-        self.assertTrue(persisted["result"]["ok"])
-        self.assertEqual(len(pipeline.calls), 1)
+    def test_operator_requested_diagnostic_is_allowed_for_explicit_rejection(self):
+        self.env["fiscal.transmission"].create({
+            "document_id": self.document.id,
+            "transmission_type": "submit",
+            "state": "rejected",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": self.CDC,
+            "authority_status_code": "1306",
+            "authority_message": "Explicit rejection",
+        })
+        service, transport = self._reconciliation_service(
+            self._response("0420", "Documento no existe o no esta aprobado")
+        )
+
+        result = service.reconcile(document=self.document, operator_requested=True)
+
+        self.assertEqual(result["resolution_status"], "reconciliation_not_found")
+        self.assertEqual(len(transport.calls), 1)
+        query = self.env["fiscal.transmission"].browse(result["query_transmission_id"])
+        self.assertTrue(json.loads(query.metadata_json)["operator_requested"])
+
+    def test_draft_without_submission_cannot_be_queried_automatically(self):
+        service, transport = self._reconciliation_service(
+            self._response("0420", "Documento no existe")
+        )
+        with self.assertRaisesRegex(ValidationError, "ambiguous"):
+            service.reconcile(document=self.document)
+        self.assertEqual(transport.calls, [])
+
+    def test_accepted_document_does_not_regress_or_query_again(self):
+        self.document.with_context(einvoice_skip_fiscal_document_lock=True).write({
+            "state": "accepted", "authority_status": "0260"
+        })
+        service, transport = self._reconciliation_service(
+            self._response("0420", "Documento no existe")
+        )
+        result = service.reconcile(document=self.document, operator_requested=True)
+        self.assertEqual(result["resolution_status"], "accepted")
+        self.assertEqual(self.document.state, "accepted")
+        self.assertEqual(transport.calls, [])
 
     def test_approved_response_with_different_cdc_is_not_reconciled(self):
         ambiguous = self._ambiguous_transmission()
@@ -365,11 +426,11 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
         ])
         self.assertEqual(len(queries), 1)
 
-    def _reconciliation_service(self, response, error=None):
+    def _reconciliation_service(self, response, error=None, http_status=200):
         transport = _TransportStub(
             response=(
                 {
-                    "status_code": 200,
+                    "status_code": http_status,
                     "content": response,
                 }
                 if response is not None

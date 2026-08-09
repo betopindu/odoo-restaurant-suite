@@ -54,8 +54,12 @@ from .py_sifen_authority_incident_service import (
 from .py_sifen_manual_retry_service import PySifenManualRetryService
 from .py_sifen_ambiguous_reconciliation_service import (
     PySifenAmbiguousSubmissionReconciliationService,
+    PySifenReconciliationService,
 )
-from .py_sifen_consulta_de_service import PySifenConsultaDeService
+from .py_sifen_consulta_de_service import (
+    PySifenConsultaDeService,
+    PySifenDocumentQueryService,
+)
 from .py_sifen_test_submission_service import (
     PySifenSubmissionFailureResult,
     PySifenSubmissionService,
