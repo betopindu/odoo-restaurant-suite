@@ -1,7 +1,13 @@
+import base64
+import binascii
+import gzip
 import hashlib
+import html
+import io
 import json
+import re
 import time
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import unquote_to_bytes, urlsplit, urlunsplit
 
 from lxml import etree
 
@@ -31,6 +37,9 @@ class PySifenDocumentQueryService:
     TEST_ENDPOINT_URL = (
         "https://sifen-test.set.gov.py/de/ws/consultas/consulta.wsdl"
     )
+    _BASE64_RE = re.compile(r"[A-Za-z0-9+/]*={0,2}\Z")
+    _PERCENT_ESCAPE_RE = re.compile(r"%[0-9A-Fa-f]{2}")
+    _DIAGNOSTIC_DECOMPRESS_LIMIT = 2 * 1024 * 1024
 
     def __init__(
         self,
@@ -319,6 +328,7 @@ class PySifenDocumentQueryService:
             "de_candidate_count": 0,
             "returned_cdc": "",
             "protocol_present": False,
+            "text_classifier": {},
         }
         if container is None:
             return None, structure
@@ -328,8 +338,13 @@ class PySifenDocumentQueryService:
             self._node_identity(node) for node in direct_children[:20]
         ]
         structure["direct_children_truncated"] = len(direct_children) > 20
-        text = (container.text or "").strip()
+        exact_text = container.text or ""
+        text = exact_text.strip()
         structure["text_present"] = bool(text)
+        if exact_text:
+            structure["text_classifier"] = self._classify_container_text(
+                exact_text
+            )
         if direct_children or not text:
             return None, structure
         try:
@@ -361,6 +376,96 @@ class PySifenDocumentQueryService:
             return None, structure
         structure["returned_cdc"] = cdc
         return (cdc, protocols[0] if protocols else ""), structure
+
+    def _classify_container_text(self, text):
+        encoded = text.encode("utf-8")
+        stripped = text.strip()
+        leading = len(text) - len(text.lstrip())
+        trailing = len(text) - len(text.rstrip())
+        starts_with_bom = stripped.startswith("\ufeff")
+        without_bom = stripped[1:].lstrip() if starts_with_bom else stripped
+        first_xml = without_bom.startswith("<")
+        starts_declaration = without_bom.startswith("<?xml")
+
+        once_unescaped = html.unescape(stripped)
+        twice_unescaped = html.unescape(once_unescaped)
+        once_xml = self._text_looks_xml(once_unescaped)
+        twice_xml = self._text_looks_xml(twice_unescaped)
+
+        base64_alphabet = bool(stripped) and bool(
+            self._BASE64_RE.fullmatch(stripped)
+        )
+        base64_length = len(stripped) % 4 == 0
+        decoded = b""
+        base64_ok = False
+        if base64_alphabet and base64_length:
+            try:
+                decoded = base64.b64decode(stripped, validate=True)
+                base64_ok = True
+            except (ValueError, binascii.Error):
+                pass
+        decoded_xml = self._bytes_look_xml(decoded) if base64_ok else False
+        gzip_magic = decoded.startswith(b"\x1f\x8b") if base64_ok else False
+        gzip_ok = self._gzip_is_valid(decoded) if gzip_magic else False
+
+        percent_present = bool(self._PERCENT_ESCAPE_RE.search(stripped))
+        url_decoded = unquote_to_bytes(stripped) if percent_present else b""
+        url_xml = self._bytes_look_xml(url_decoded) if percent_present else False
+
+        entity_markers = "&lt;" in text or "&gt;" in text
+        candidate_markers = sum((entity_markers, base64_ok, percent_present))
+        candidate_xml = sum((
+            first_xml,
+            once_xml and not first_xml,
+            twice_xml and not once_xml,
+            decoded_xml,
+            url_xml,
+        ))
+        prefix = without_bom.split("<", 1)[0] if "<" in without_bom else without_bom
+        return {
+            "text_length": len(text),
+            "text_sha256": hashlib.sha256(encoded).hexdigest(),
+            "utf8_encodable": True,
+            "utf8_decodable": True,
+            "utf8_bom_present": starts_with_bom,
+            "leading_whitespace_length": leading,
+            "trailing_whitespace_length": trailing,
+            "first_non_whitespace_is_xml_delimiter": first_xml,
+            "starts_with_xml_declaration": starts_declaration,
+            "literal_lt_entity_present": "&lt;" in text,
+            "literal_gt_entity_present": "&gt;" in text,
+            "one_entity_unescape_is_xml_like": once_xml,
+            "second_entity_unescape_required": twice_xml and not once_xml,
+            "strict_base64_alphabet": base64_alphabet,
+            "strict_base64_length": base64_length,
+            "strict_base64_decode_succeeds": base64_ok,
+            "base64_decoded_length": len(decoded) if base64_ok else 0,
+            "base64_decoded_is_xml_like": decoded_xml,
+            "base64_decoded_has_gzip_magic": gzip_magic,
+            "gzip_decompression_succeeds": gzip_ok,
+            "percent_encoding_present": percent_present,
+            "url_decoded_is_xml_like": url_xml,
+            "control_before_xml_delimiter": any(
+                ord(char) < 32 and char not in "\t\r\n" for char in prefix
+            ),
+            "ambiguous_encoding_markers": (
+                candidate_markers > 1 or candidate_xml > 1
+            ),
+        }
+
+    def _text_looks_xml(self, value):
+        return value.lstrip("\ufeff \t\r\n").startswith("<")
+
+    def _bytes_look_xml(self, value):
+        return value.lstrip(b"\xef\xbb\xbf \t\r\n").startswith(b"<")
+
+    def _gzip_is_valid(self, value):
+        try:
+            with gzip.GzipFile(fileobj=io.BytesIO(value)) as stream:
+                decompressed = stream.read(self._DIAGNOSTIC_DECOMPRESS_LIMIT + 1)
+            return len(decompressed) <= self._DIAGNOSTIC_DECOMPRESS_LIMIT
+        except (EOFError, OSError):
+            return False
 
     def _node_identity(self, node):
         qname = etree.QName(node)
