@@ -1,4 +1,5 @@
 from . import test_fiscal_py_configuration
+from . import test_py_fiscal_document_delivery_service
 from . import test_py_certificate_inspection_service
 from . import test_py_sifen_ambiguous_reconciliation_service
 from . import test_py_fake_adapter

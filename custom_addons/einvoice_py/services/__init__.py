@@ -40,6 +40,13 @@ from .py_sifen_credential_provider import (
     PySifenRuntimeCredentials,
 )
 from .py_sifen_datetime_service import PySifenDatetimeService
+from .py_fiscal_document_delivery_service import (
+    PyFiscalDeliveryFile,
+    PyFiscalDocumentDeliveryBundle,
+    PyFiscalDocumentDeliveryService,
+    PyFiscalDocumentEmailPreparation,
+)
+from .py_final_rde_attachment_service import PyFinalRdeAttachmentService
 from .py_sifen_authority_incident_service import (
     PySifenAuthorityIncidentClassification,
     PySifenAuthorityIncidentService,

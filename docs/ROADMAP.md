@@ -93,6 +93,7 @@
 [x] Initial ADR documentation
 [x] Deterministic, payload-first Paraguay invoice KuDE/PDF generation and artifact versioning
 [x] Safe SIFEN authority-incident observability and guarded manual retry
+[x] Secure recipient delivery of current accepted Paraguay rDE and KuDE artifacts
 
 ## Current Baseline
 
@@ -107,8 +108,9 @@ does not authorize production operation.
 
 ## Current Validation Status
 
-After offline KuDE validation, the full `einvoice_py` suite reports **524
-counted tests across 464 test methods**. Automated coverage is network-free.
+After accepted-document delivery validation, the full `einvoice_py` suite
+reports **548 counted tests across 484 test methods**. Automated coverage is
+network-free.
 It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
 1.2 wrapping, mocked mTLS transport, response classification, readiness, and
 end-to-end composition. Live acceptance is recorded separately above and is

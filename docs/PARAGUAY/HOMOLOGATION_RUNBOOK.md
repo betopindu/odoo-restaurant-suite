@@ -129,6 +129,19 @@ persisted inputs instead. The current renderer supports Factura Electrónica
 only. This procedure sends no request to SIFEN and does not change document,
 transmission or retry state.
 
+## Deliver accepted evidence
+
+Delivery is permitted only after the document and its authority transmission
+are accepted. Confirm that a current `paraguay_rde_final` and current
+`paraguay_kude_pdf` exist. Use the document form's **Download XML** and
+**Download KuDE** actions; never share an internal attachment URL or ID.
+Resolution is read-only and must return the same hashes on repeated access.
+
+Do not deliver unsigned XML, the signed pre-QR input, payload/QR JSON,
+manifests, normalized responses, superseded files, or credential artifacts.
+Rejected and manual-review documents remain internal evidence only. Cancelled
+documents remain blocked until authority-event semantics are implemented.
+
 | Authority result | Root cause | Resolution and validation | Why generic |
 | --- | --- | --- | --- |
 | `1004` | A naive Odoo UTC instant was initially serialized as if already Paraguay civil time; a second attempt exposed practical clock skew. | Centralized UTC-to-`America/Asuncion` conversion and an explicit 60-second signing safety margin; timezone/DST tests and local XML verification. | Depends on an instant and country timezone, never host location or taxpayer data. |

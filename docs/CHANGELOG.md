@@ -1,5 +1,18 @@
 # Documentation Changelog
 
+## 2026-08-09 — Accepted Paraguay document delivery
+
+* Added a versioned final `rDE` artifact after QR/XSD validation and before the
+  existing SOAP submission boundary.
+* Added side-effect-free resolution of the current accepted KuDE/XML pair with
+  deterministic recipient filenames, integrity checks, and email preparation.
+* Added authenticated UUID-scoped PDF/XML downloads with tenant record-rule and
+  company enforcement; arbitrary attachment IDs and superseded/internal
+  artifacts are never exposed.
+* Kept rejected, ambiguous, unfinished, failed, and cancelled documents outside
+  final-recipient delivery. No mail sender, ZIP bundle, or audit model was added.
+* Updated the validation baseline to 548 counted tests across 484 methods.
+
 ## 2026-08-07 — Authority incident observability and manual retry guard
 
 * Persisted safe endpoint, HTTP status and measured duration for new SIFEN

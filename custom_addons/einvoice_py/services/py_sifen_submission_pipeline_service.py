@@ -8,6 +8,9 @@ from odoo.exceptions import ValidationError
 from odoo.addons.einvoice_py.services.py_qr_generation_service import (
     PyQrGenerationService,
 )
+from odoo.addons.einvoice_py.services.py_final_rde_attachment_service import (
+    PyFinalRdeAttachmentService,
+)
 from odoo.addons.einvoice_py.services.py_qr_payload_attachment_service import (
     PyQrPayloadAttachmentService,
 )
@@ -50,6 +53,7 @@ class PySifenSubmissionPipelineService:
         rde_assembler=None,
         submission_service=None,
         transport=None,
+        final_rde_attachment_service=None,
     ):
         self.env = env
         self.signing_pipeline_service = signing_pipeline_service or PySigningPipelineService(env)
@@ -66,6 +70,11 @@ class PySifenSubmissionPipelineService:
             else PySifenRdeAssembler(
                 xsd_validation_service=self.xsd_validation_service
             )
+        )
+        self.final_rde_attachment_service = (
+            final_rde_attachment_service
+            if final_rde_attachment_service is not None
+            else PyFinalRdeAttachmentService(env)
         )
         self.submission_service = submission_service or PySifenSubmissionService(
             xsd_validation_service=self.xsd_validation_service,
@@ -206,6 +215,19 @@ class PySifenSubmissionPipelineService:
                 },
             )
 
+        final_attachment = self._run_stage(
+            result,
+            "final_xml_persistence",
+            lambda: self.final_rde_attachment_service.persist(
+                document=document,
+                final_xml_bytes=final_xml_bytes,
+                cdc=result["cdc"],
+            ),
+        )
+        if final_attachment is None:
+            return result
+        result["final_xml_attachment_id"] = final_attachment.id
+
         submission_result = self._run_stage(
             result,
             self._submission_stage(document.environment),
@@ -306,6 +328,7 @@ class PySifenSubmissionPipelineService:
             "http_status": 0,
             "duration_ms": 0,
             "response_category": "",
+            "final_xml_attachment_id": 0,
         }
 
     def _run_stage(self, result, stage, operation):
@@ -340,6 +363,7 @@ class PySifenSubmissionPipelineService:
             "qr_persistence": "Paraguay QR payload could not be persisted.",
             "final_xml_preparation": "Final signed Paraguay XML with QR could not be prepared.",
             "final_xsd_validation": "Final signed Paraguay XML failed local SIFEN XSD validation.",
+            "final_xml_persistence": "Final signed Paraguay rDE could not be persisted.",
             "test_submission": "SIFEN test submission failed.",
             "production_submission": "SIFEN production submission failed.",
         }

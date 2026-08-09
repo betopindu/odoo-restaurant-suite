@@ -41,18 +41,19 @@ class _QrGenerationStub:
     def __init__(self, error=None):
         self.error = error
         self.calls = []
+        self.hash_value = "b" * 64
 
     def generate(self, **kwargs):
         self.calls.append(kwargs)
         if self.error:
             raise self.error
         return {
-            "qr_hash": "b" * 64,
+            "qr_hash": self.hash_value,
             "qr_string": (
                 "https://example.test/qr?nVersion=150&Id="
                 + TestPySifenSubmissionPipelineService.CDC
                 + "&cHashQR="
-                + ("b" * 64)
+                + self.hash_value
             ),
         }
 
@@ -369,14 +370,44 @@ class TestPySifenSubmissionPipelineService(TransactionCase):
             )
 
     def test_final_xml_contains_qr_before_xsd_and_submission(self):
-        self._submit()
+        result = self._submit()
         xsd_xml = etree.fromstring(self.xsd.calls[0])
         submission_xml = etree.fromstring(self.submission.calls[0]["final_xml_bytes"])
+        final_attachment = self.env["fiscal.attachment"].browse(
+            result["final_xml_attachment_id"]
+        )
+        final_bytes = base64.b64decode(final_attachment.ir_attachment_id.datas)
 
         self.assertIsNotNone(xsd_xml.find(f"{{{PyUnsignedXmlBuilder.SIFEN_NS}}}gCamFuFD"))
         self.assertIsNotNone(
             submission_xml.find(f"{{{PyUnsignedXmlBuilder.SIFEN_NS}}}gCamFuFD")
         )
+        self.assertEqual(final_attachment.attachment_type, "paraguay_rde_final")
+        self.assertEqual(final_bytes, self.submission.calls[0]["final_xml_bytes"])
+
+    def test_final_rde_is_idempotent_and_changed_content_is_versioned(self):
+        first = self._submit()
+        identical = self._submit()
+        self.assertEqual(
+            first["final_xml_attachment_id"],
+            identical["final_xml_attachment_id"],
+        )
+
+        self.qr.hash_value = "e" * 64
+        changed = self._submit()
+        attachments = self.env["fiscal.attachment"].search([
+            ("document_id", "=", self.document.id),
+            ("attachment_type", "=", "paraguay_rde_final"),
+        ], order="id asc")
+        first_metadata = json.loads(attachments[0].metadata_json)
+        changed_metadata = json.loads(attachments[-1].metadata_json)
+
+        self.assertNotEqual(
+            first["final_xml_attachment_id"],
+            changed["final_xml_attachment_id"],
+        )
+        self.assertEqual(first_metadata["artifact_status"], "superseded")
+        self.assertEqual(changed_metadata["artifact_status"], "current")
 
     def test_signing_failure_stops_pipeline(self):
         self.signing.error = ValidationError("signing secret detail")

@@ -267,3 +267,19 @@ class FiscalDocument(models.Model):
         copy=False,
         help="Payment currency code used in the Paraguay payload. Default is PYG.",
     )
+
+    def action_download_paraguay_kude(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_url",
+            "url": f"/einvoice_py/delivery/{self.uuid}/pdf",
+            "target": "self",
+        }
+
+    def action_download_paraguay_xml(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_url",
+            "url": f"/einvoice_py/delivery/{self.uuid}/xml",
+            "target": "self",
+        }

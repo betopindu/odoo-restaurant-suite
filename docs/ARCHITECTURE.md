@@ -24,7 +24,7 @@ both logical credential bindings, XMLDSig, QR/CSC, final XSD validation, SOAP
 1.2, mTLS, response classification, and transmission/document persistence.
 This is evidence of interoperability for the tested invoice profile, not
 production certification or coverage of every authority scenario. The suite at
-current KuDE baseline reports 524 counted tests across 464 test methods.
+current delivery baseline reports 548 counted tests across 484 test methods.
 
 Stage 8.24B durable pre-POST persistence, production preflight, cron activation,
 monitoring, and production go-live remain pending.
@@ -102,6 +102,27 @@ and postponed-durability decisions are recorded in
 is recorded in [ADR-014](ADR/ADR-014-paraguay-test-timbrado-profile.md).
 
 Administrative UI labels should remain country-neutral whenever a generic concept exists. Country-specific terminology should be used only when there is no meaningful cross-country abstraction, such as Timbrado, CDC, CSC, issuer RUC, establishment, or point of issue.
+
+### Paraguay recipient delivery boundary
+
+`PyFiscalDocumentDeliveryService` is a read-only boundary over accepted fiscal
+evidence. It never builds payloads, signs XML, renders KuDE, contacts SIFEN, or
+interprets transport results. The submission pipeline persists the XSD-valid
+recipient-ready `rDE` as the versioned `paraguay_rde_final` artifact immediately
+before SOAP submission; this is distinct from `paraguay_xml_signed`, which is
+the signed pre-QR input retained for signing and retry audit. Delivery resolves
+only the single current final `rDE` and current KuDE PDF, verifies hashes, final
+XML structure and XMLDSig locally, and returns immutable, redacted file results.
+
+Only `accepted` documents are deliverable. Rejected, ambiguous, draft, ready,
+signed, submitted, failed, and cancelled documents are blocked. Cancellation
+delivery semantics remain pending the future authority-event implementation.
+Downloads use authenticated UUID-scoped routes and re-run document record-rule
+and company checks; callers cannot address arbitrary attachment IDs. Email
+preparation is side-effect-free and returns only the PDF/XML pair. No delivery
+audit model is added: pure resolution and preparation remain idempotent and do
+not create records; a future actual mail/send operation may justify an audit
+event at that side-effect boundary.
 
 ## 1. Core Modules
 

@@ -1191,7 +1191,7 @@ Interpret failures as follows:
 * `soap_fault`: inspect the safe Fault code/reason and retain the raw response securely.
 * `rejected`, `duplicate`, or `unrecognized_official_code`: retain the official code/message and do not infer acceptance from HTTP 200.
 
-The current KuDE baseline reports 524 counted tests across 464 test methods.
+The current delivery baseline reports 548 counted tests across 484 test methods.
 Production service composition, configuration-driven
 sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission
 reconciliation, local homologation readiness, XMLDSig signing, QR/`gCamFuFD`,
@@ -1281,6 +1281,34 @@ Official basis:
 
 The architecture decision and renderer trade-off are recorded in
 [ADR-015](../ADR/ADR-015-paraguay-kude-from-persisted-payload.md).
+
+## Accepted document delivery
+
+`PyFiscalDocumentDeliveryService` exposes the recipient-facing evidence for an
+accepted Paraguay document. It resolves the current deterministic KuDE PDF and
+the current final signed `rDE`, validates both stored hashes, confirms that the
+XML contains the matching `DE`, valid XMLDSig `Signature`, and `gCamFuFD`, and
+returns immutable file descriptors. It never selects unsigned XML, the signed pre-QR
+artifact, superseded artifacts, normalized payloads, QR payloads, manifests,
+responses, credentials, or certificate material.
+
+Recipient filenames are deterministic and contain no database identifiers:
+`FE-001-001-0000006.pdf` and `FE-001-001-0000006.xml`. The fiscal document form
+shows **Download KuDE** and **Download XML** only for accepted Paraguay
+documents. The authenticated routes use the document UUID, then enforce the
+normal tenant record rule and active-company boundary before resolving the
+artifacts; no arbitrary attachment-ID download is exposed.
+
+`prepare_email()` suggests the persisted receiver email, a short subject/body,
+and exactly those two immutable attachments. It does not send mail or create an
+audit record. Rejected, ambiguous, unfinished, failed, and cancelled documents
+are not final-recipient deliverables. Cancellation behavior remains pending
+the authority event/cancellation implementation.
+
+Historical accepted documents created before `paraguay_rde_final` persistence
+fail closed. Their final XML may be installed only by a separately audited
+migration from exact persisted evidence; delivery never rebuilds it from a
+pre-QR signature, QR payload, SOAP request, or authority response.
 
 ## Related Documents
 
