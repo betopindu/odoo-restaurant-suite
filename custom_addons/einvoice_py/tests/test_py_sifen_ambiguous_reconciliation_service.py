@@ -425,6 +425,14 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
         self.assertEqual(query.state, "accepted")
         self.assertFalse(query.error_code)
         self.assertEqual(self.document.authority_receipt_ref, "safe-protocol")
+        structure = json.loads(query.metadata_json)["response_structure"]
+        self.assertTrue(structure["container_present"])
+        self.assertTrue(structure["text_present"])
+        self.assertTrue(structure["embedded_xml_parseable"])
+        self.assertEqual(structure["embedded_root"]["local_name"], "rContDe")
+        self.assertEqual(structure["de_candidate_count"], 1)
+        self.assertEqual(structure["returned_cdc"], self.CDC)
+        self.assertTrue(structure["protocol_present"])
 
     def test_approved_without_content_is_malformed_not_cdc_mismatch(self):
         ambiguous = self._ambiguous_transmission()
@@ -440,6 +448,10 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
         self.assertEqual(result["resolution_status"], "unresolved")
         self.assertEqual(query.error_code, "malformed_response")
         self.assertEqual(ambiguous.error_code, "ambiguous_submission")
+        structure = json.loads(query.metadata_json)["response_structure"]
+        self.assertFalse(structure["container_present"])
+        self.assertFalse(structure["text_present"])
+        self.assertFalse(structure["embedded_xml_parseable"])
 
     def test_approved_nested_prefixed_container_matches_cdc(self):
         self._ambiguous_transmission()
@@ -450,6 +462,61 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
         result = service.reconcile(document=self.document)
 
         self.assertEqual(result["resolution_status"], "accepted")
+        query = self.env["fiscal.transmission"].browse(
+            result["query_transmission_id"]
+        )
+        structure = json.loads(query.metadata_json)["response_structure"]
+        self.assertEqual(structure["direct_children"], [])
+        self.assertTrue(structure["text_present"])
+        self.assertTrue(structure["embedded_xml_parseable"])
+        self.assertEqual(structure["de_candidate_count"], 1)
+
+    def test_embedded_child_is_diagnosed_but_not_accepted_as_xsd_string(self):
+        self._ambiguous_transmission()
+        service, _transport = self._reconciliation_service(
+            self._embedded_content_response(self.CDC)
+        )
+
+        result = service.reconcile(document=self.document)
+
+        query = self.env["fiscal.transmission"].browse(
+            result["query_transmission_id"]
+        )
+        self.assertEqual(result["resolution_status"], "unresolved")
+        self.assertEqual(query.error_code, "malformed_response")
+        structure = json.loads(query.metadata_json)["response_structure"]
+        self.assertEqual(
+            structure["direct_children"],
+            [{"local_name": "rDE", "namespace": self.SIFEN_NS}],
+        )
+
+    def test_approved_serialized_namespaced_de_matches_cdc(self):
+        self._ambiguous_transmission()
+        service, _transport = self._reconciliation_service(
+            self._serialized_namespaced_content_response(self.CDC)
+        )
+
+        result = service.reconcile(document=self.document)
+
+        self.assertEqual(result["resolution_status"], "accepted")
+
+    def test_malformed_content_diagnostics_do_not_persist_text(self):
+        self._ambiguous_transmission()
+        secret_text = "private-receiver-content-that-is-not-xml"
+        service, _transport = self._reconciliation_service(
+            self._text_content_response(secret_text)
+        )
+
+        result = service.reconcile(document=self.document)
+
+        query = self.env["fiscal.transmission"].browse(
+            result["query_transmission_id"]
+        )
+        self.assertEqual(query.error_code, "malformed_response")
+        self.assertNotIn(secret_text, query.metadata_json)
+        structure = json.loads(query.metadata_json)["response_structure"]
+        self.assertTrue(structure["text_present"])
+        self.assertFalse(structure["embedded_xml_parseable"])
 
     def test_approved_serialized_container_with_different_cdc_is_unresolved(self):
         self._ambiguous_transmission()
@@ -563,13 +630,13 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
     ):
         content = ""
         if include_content:
-            content = f"""
-              <sifen:xContenDE>
-                <sifen:rDE>
-                  <sifen:DE Id="{returned_cdc or self.CDC}"/>
-                </sifen:rDE>
-              </sifen:xContenDE>
-            """
+            fiscal_xml = (
+                f'<rContDe xmlns="{self.SIFEN_NS}"><rDE>'
+                f'<DE Id="{returned_cdc or self.CDC}"/></rDE></rContDe>'
+            )
+            content = (
+                f"<sifen:xContenDE>{escape(fiscal_xml)}</sifen:xContenDE>"
+            )
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <soap:Envelope xmlns:soap="{self.SOAP_NS}"
                xmlns:sifen="{self.SIFEN_NS}">
@@ -578,6 +645,19 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
       <sifen:dCodRes>{code}</sifen:dCodRes>
       <sifen:dMsgRes>{message}</sifen:dMsgRes>
       {content}
+    </sifen:rEnviConsDeResponse>
+  </soap:Body>
+</soap:Envelope>""".encode("utf-8")
+
+    def _embedded_content_response(self, cdc):
+        return f"""<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="{self.SOAP_NS}"
+               xmlns:sifen="{self.SIFEN_NS}">
+  <soap:Body>
+    <sifen:rEnviConsDeResponse>
+      <sifen:dCodRes>0422</sifen:dCodRes>
+      <sifen:dMsgRes>CDC encontrado</sifen:dMsgRes>
+      <sifen:xContenDE><sifen:rDE><sifen:DE Id="{cdc}"/></sifen:rDE></sifen:xContenDE>
     </sifen:rEnviConsDeResponse>
   </soap:Body>
 </soap:Envelope>""".encode("utf-8")
@@ -612,18 +692,28 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
 </env:Envelope>""".encode("utf-8")
 
     def _nested_prefixed_content_response(self, cdc):
+        fiscal_xml = f"""<container:rContDe
+    xmlns:container="urn:sifen:container"
+    xmlns:api="{self.SIFEN_NS}">
+  <api:rDE><api:DE Id="{cdc}"/></api:rDE>
+</container:rContDe>"""
+        return self._text_content_response(fiscal_xml)
+
+    def _serialized_namespaced_content_response(self, cdc):
+        fiscal_xml = f"""<rContDe xmlns="{self.SIFEN_NS}">
+  <rDE><DE Id="{cdc}"/></rDE>
+</rContDe>"""
+        return self._text_content_response(fiscal_xml)
+
+    def _text_content_response(self, content):
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <env:Envelope xmlns:env="{self.SOAP_NS}">
   <env:Body>
-    <api:rEnviConsDeResponse xmlns:api="{self.SIFEN_NS}">
-      <api:dFecProc>2026-08-09T12:00:00-03:00</api:dFecProc>
-      <api:dCodRes>0422</api:dCodRes>
-      <api:dMsgRes>CDC encontrado</api:dMsgRes>
-      <api:xContenDE>
-        <container:rContDe xmlns:container="urn:sifen:container">
-          <api:rDE><api:DE Id="{cdc}"/></api:rDE>
-        </container:rContDe>
-      </api:xContenDE>
-    </api:rEnviConsDeResponse>
+    <s:rEnviConsDeResponse xmlns:s="{self.SIFEN_NS}">
+      <s:dFecProc>2026-08-09T12:00:00-03:00</s:dFecProc>
+      <s:dCodRes>0422</s:dCodRes>
+      <s:dMsgRes>CDC encontrado</s:dMsgRes>
+      <s:xContenDE>{escape(content)}</s:xContenDE>
+    </s:rEnviConsDeResponse>
   </env:Body>
 </env:Envelope>""".encode("utf-8")

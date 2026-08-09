@@ -227,7 +227,8 @@ class PySifenDocumentQueryService:
             return base
 
         returned_content = self._returned_content(response_node)
-        if returned_content is None:
+        base["response_structure"] = returned_content[1]
+        if returned_content[0] is None:
             base.update({
                 "category": "malformed_response",
                 "authority_message": (
@@ -235,7 +236,7 @@ class PySifenDocumentQueryService:
                 ),
             })
             return base
-        returned_cdc, returned_protocol = returned_content
+        returned_cdc, returned_protocol = returned_content[0]
         if returned_protocol:
             base["authority_receipt_ref"] = returned_protocol
         if returned_cdc != expected_cdc:
@@ -308,18 +309,35 @@ class PySifenDocumentQueryService:
         container = response_node.find(
             f"{{{self.SIFEN_NS}}}xContenDE",
         )
+        structure = {
+            "container_present": container is not None,
+            "container_namespace": self.SIFEN_NS if container is not None else "",
+            "direct_children": [],
+            "text_present": False,
+            "embedded_xml_parseable": False,
+            "embedded_root": None,
+            "de_candidate_count": 0,
+            "returned_cdc": "",
+            "protocol_present": False,
+        }
         if container is None:
-            return None
+            return None, structure
 
-        roots = list(container)
-        if not roots:
-            text = (container.text or "").strip()
-            if not text:
-                return None
-            try:
-                roots = [self._parse_xml(text.encode("utf-8"))]
-            except (TypeError, ValueError, etree.XMLSyntaxError):
-                return None
+        direct_children = list(container)
+        structure["direct_children"] = [
+            self._node_identity(node) for node in direct_children[:20]
+        ]
+        structure["direct_children_truncated"] = len(direct_children) > 20
+        text = (container.text or "").strip()
+        structure["text_present"] = bool(text)
+        if direct_children or not text:
+            return None, structure
+        try:
+            roots = [self._parse_xml(text.encode("utf-8"))]
+        except (TypeError, ValueError, etree.XMLSyntaxError):
+            return None, structure
+        structure["embedded_xml_parseable"] = True
+        structure["embedded_root"] = self._node_identity(roots[0])
 
         candidates = []
         protocols = []
@@ -334,12 +352,22 @@ class PySifenDocumentQueryService:
                     value = (node.text or "").strip()
                     if value:
                         protocols.append(value)
+        structure["de_candidate_count"] = len(candidates)
+        structure["protocol_present"] = bool(protocols)
         if len(candidates) != 1:
-            return None
+            return None, structure
         cdc = (candidates[0].get("Id") or "").strip()
         if not cdc.isdigit() or len(cdc) != 44 or len(protocols) > 1:
-            return None
-        return cdc, protocols[0] if protocols else ""
+            return None, structure
+        structure["returned_cdc"] = cdc
+        return (cdc, protocols[0] if protocols else ""), structure
+
+    def _node_identity(self, node):
+        qname = etree.QName(node)
+        return {
+            "local_name": qname.localname[:100],
+            "namespace": (qname.namespace or "")[:200],
+        }
 
     def _parse_xml(self, content):
         parser = etree.XMLParser(
@@ -424,6 +452,7 @@ class PySifenDocumentQueryService:
             "metadata_json": json.dumps({
                 "result_category": result.get("category") or "",
                 "authority_timestamp": result.get("authority_timestamp") or "",
+                "response_structure": result.get("response_structure") or {},
                 "normalized_response": {
                     "authority_code": result.get("authority_code") or "",
                     "authority_message": result.get("authority_message") or "",
