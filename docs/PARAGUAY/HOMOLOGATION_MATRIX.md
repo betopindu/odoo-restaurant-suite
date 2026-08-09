@@ -76,7 +76,7 @@ Status meanings:
 | Ambiguous POST and Consulta DE | REQUIRES LIVE TEST | Timeout normalization, CDC blocking, row-locked SOAP Consulta DE, immutable submission evidence, `0422` acceptance, `0420` `reconciliation_not_found`, safe observability and idempotency are tested without network. No live ambiguous outcome should be manufactured. |
 | QR generation/authority validation | READY | Deterministic QR uses the exact final XMLDSig digest and official TEST CSC pair; the accepted DE proves SIFEN validation for the baseline. Browser QR consultation counts remain pending. |
 | KuDE PDF generation | READY | The invoice renderer consumes only persisted payload plus the exact persisted QR URL, produces deterministic/versioned PDF artifacts, and has unit/integration, regeneration, multipage and idempotency coverage. Live receiver delivery remains operational work. |
-| Cancellation and inutilization | NOT IMPLEMENTED | Core has a cancelled state, but Paraguay event SOAP/XML, authority response and persistence services do not exist. |
+| Cancellation and inutilization | REQUIRES LIVE TEST | Official v150 emitter-event XMLDSig/SOAP, local eligibility, range overlap, persistence, ambiguity and code `0600` handling are implemented and tested offline. No live event has been sent. |
 | Receiver events | NOT IMPLEMENTED | No Paraguay receiver-event implementation. |
 | General DTE/event consultation | PARTIAL | TEST Consulta DE by CDC exists for ambiguous reconciliation; general consultation matrix and associated-event output are absent. |
 | Asynchronous batch submission/result | NOT IMPLEMENTED | Current submission is synchronous only. |

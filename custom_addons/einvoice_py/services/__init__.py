@@ -12,6 +12,8 @@ from . import py_sifen_retry_execution_service
 from . import py_sifen_retry_scheduler_service
 from . import py_sifen_credential_provider
 from . import py_sifen_datetime_service
+from . import py_sifen_event_service
+from . import py_sifen_event_signature_service
 from . import py_signing_pipeline_service
 from . import py_sifen_sandbox_transport
 from . import py_sifen_rde_assembler
@@ -40,6 +42,11 @@ from .py_sifen_credential_provider import (
     PySifenRuntimeCredentials,
 )
 from .py_sifen_datetime_service import PySifenDatetimeService
+from .py_sifen_event_service import (
+    PySifenCancellationService,
+    PySifenEventService,
+    PySifenInutilizationService,
+)
 from .py_fiscal_document_delivery_service import (
     PyFiscalDeliveryFile,
     PyFiscalDocumentDeliveryBundle,

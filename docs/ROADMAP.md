@@ -74,6 +74,7 @@
 [x] Stage 8.22 Live TEST mTLS Preflight
 [x] Stage 8.24A SIFEN Consulta DE and ambiguous submission reconciliation
 [x] Production-safe Consulta DE observability and state reconciliation
+[x] Paraguay SIFEN cancellation and number inutilization flows
 [x] Stage 8.25 SIFEN TEST homologation profile and readiness status
 [x] Stage 8.26 SIFEN XMLDSig signing engine
 [x] Stage 8.27 SIFEN QR payload and gCamFuFD builder

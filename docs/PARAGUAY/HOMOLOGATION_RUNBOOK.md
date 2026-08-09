@@ -57,6 +57,22 @@ CDC, and use `PySifenManualRetryService` only under explicit operator approval.
 The guard requires a fresh signing instant so the pipeline versions a new
 signed artifact instead of reusing stale XML.
 
+### Emitter events
+
+Never cancel by changing the document state directly. Invoke
+`PySifenCancellationService` only after confirming the document remains accepted,
+has no unresolved cancellation, and is inside the authority window. Preserve the
+accepted XML, KuDE, submission transmission and `accepted_at`. Stop after any
+explicit rejection. Timeout, HTTP/TLS uncertainty, SOAP Fault or malformed
+response is an ambiguous event outcome: keep the cancellation in manual review
+and do not POST again.
+
+Before inutilization, confirm the timbrado, establishment, point, document type,
+range and occurrence date from operational evidence. Do not use a range that
+contains any created/issued number. A request may contain at most 1000
+correlative numbers and must be reported by day 15 of the following month.
+Ambiguous inutilization records are evidence and must not be duplicated.
+
 ```python
 from odoo import fields
 from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder

@@ -991,6 +991,32 @@ Each query persists a separate `status_query` audit record: sanitized HTTPS endp
 
 This recovery does not change the current Odoo transaction durability model. It uses neither explicit commits nor independent cursors, outbox records, or a new queue. It also does not support the production environment.
 
+## Cancellation and number inutilization
+
+Emitter events use the official SOAP 1.2 event endpoint and v150 event schemas.
+`PySifenCancellationService` accepts only an approved Paraguay document with a
+CDC and authority acceptance time. A Factura Electrónica must be inside the
+official 48-hour window; other supported DTE types use 168 hours. The reason is
+5–500 characters. Code `0600` is the only locally recognized success and moves
+the document to `cancelled` while preserving `accepted_at`, the accepted
+transmission and all DE artifacts. Rejection leaves the document accepted.
+Timeout, HTTP/TLS uncertainty, SOAP Fault or malformed XML creates a manual
+review cancellation transmission and blocks another cancellation POST.
+
+`PySifenInutilizationService` handles a correlated range of 1–1000 unused
+seven-digit numbers scoped by tenant, company, environment, timbrado,
+establishment, point of issue and document type. The range cannot overlap any
+locally issued number or prior inutilization evidence. The reason is 5–150
+characters, and reporting is limited to the first 15 days of the month after
+the recorded numbering error. It creates `fiscal.py.inutilization`; no dummy DE,
+CDC, CSC or signed document artifact is generated. Identical repeated calls are
+idempotent, and ambiguous evidence is never automatically retried.
+
+Both operations sign `rEve` using the existing `xml_signing` credential and use
+the existing `mutual_tls` binding. They persist only safe endpoint, HTTP status,
+duration, request/response hashes, event identity, authority code/message,
+protocol and timestamp. Raw event XML and secret material are excluded.
+
 ## SIFEN TEST homologation readiness
 
 Stage 8.25 checks the existing document-scoped TEST profile without making a network call:
@@ -1327,6 +1353,7 @@ pre-QR signature, QR payload, SOAP request, or authority response.
 * [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digital-signature-strategy.md)
 * [ADR-012 Paraguay Qualified Certificate Lifecycle](../ADR/ADR-012-paraguay-qualified-certificate-lifecycle.md)
 * [ADR-015 Paraguay KuDE From Persisted Payload](../ADR/ADR-015-paraguay-kude-from-persisted-payload.md)
+* [ADR-016 Paraguay SIFEN Emitter Events](../ADR/ADR-016-paraguay-sifen-emitter-events.md)
 
 ## Next Recommended Reading
 

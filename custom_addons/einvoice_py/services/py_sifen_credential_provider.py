@@ -119,6 +119,51 @@ class PySifenCredentialProvider:
             timeout_seconds=timeout_seconds,
         )
 
+    def resolve_event(self, *, adapter_config):
+        """Resolve signing and mTLS material for a SIFEN event without CSC."""
+        adapter_config.ensure_one()
+        adapter = adapter_config
+        if (
+            not adapter.active
+            or (adapter.country_code or "").upper() != "PY"
+            or adapter.environment not in {"test", "production"}
+        ):
+            raise PySifenCredentialConfigurationError(
+                "Paraguay SIFEN event adapter configuration is invalid."
+            )
+        signing_credential = self._role_credential(adapter, "xml_signing")
+        mutual_tls_credential = self._role_credential(adapter, "mutual_tls")
+        for credential in (signing_credential, mutual_tls_credential):
+            if (
+                not credential.active
+                or credential.tenant_id != adapter.tenant_id
+                or credential.company_id != adapter.company_id
+                or credential.material_format not in self.SUPPORTED_MATERIAL_FORMATS
+            ):
+                raise PySifenCredentialScopeError(
+                    "Paraguay SIFEN event credential scope is invalid."
+                )
+        certificate_bytes, private_key_bytes, password = self._signing_material(
+            signing_credential
+        )
+        timeout_seconds = (
+            adapter.timeout_seconds
+            if adapter.timeout_seconds and adapter.timeout_seconds > 0
+            else PySifenTestSubmissionService.DEFAULT_TIMEOUT_SECONDS
+        )
+        return PySifenRuntimeCredentials(
+            adapter_config=adapter,
+            xml_signing_credential=signing_credential,
+            mutual_tls_credential=mutual_tls_credential,
+            signing_certificate_bytes=certificate_bytes,
+            signing_private_key_bytes=private_key_bytes,
+            signing_private_key_password=password,
+            csc_id="",
+            csc_value="",
+            endpoint_url="",
+            timeout_seconds=timeout_seconds,
+        )
+
     def _adapter(self, document):
         if (document.country_code or "").upper() != "PY":
             raise PySifenCredentialConfigurationError(

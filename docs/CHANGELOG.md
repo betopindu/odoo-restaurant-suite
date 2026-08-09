@@ -1,5 +1,16 @@
 # Documentation Changelog
 
+## 2026-08-09 — Paraguay cancellation and number inutilization
+
+* Added the signed v150 emitter-event boundary over the existing credential and
+  mutual-TLS infrastructure, without changing DE submission.
+* Added cancellation eligibility, independent transmissions, immutable accepted
+  evidence and conservative manual-review handling.
+* Added tenant-scoped, locked and idempotent unused-number ranges with issued
+  number and prior-range overlap protection.
+* Persisted safe transport and authority observability without raw XML or secret
+  material. No live SIFEN event was executed.
+
 ## 2026-08-09 — Production-safe SIFEN Consulta DE reconciliation
 
 * Exposed dedicated document-query and reconciliation boundaries while keeping
