@@ -556,6 +556,74 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
 
         self.assertEqual(result["resolution_status"], "accepted")
 
+    def test_legal_xml_declaration_variants_are_normalized(self):
+        service = PySifenConsultaDeService(self.env)
+        variants = (
+            ('<?xml version="1.0" encoding="UTF-8"?>', True, False),
+            ("<?xml version='1.0' encoding='UTF-8'?>", True, False),
+            ('<?xml version="1.0"?>', False, False),
+            (
+                '<?xml version="1.0" encoding="UTF-8" '
+                'standalone="yes"?>',
+                True,
+                True,
+            ),
+            (
+                "<?xml version='1.0' encoding='UTF-16' "
+                "standalone='no'?>",
+                True,
+                True,
+            ),
+            (
+                '<?xml\tversion = "1.0"\nencoding = "utf-8"\r'
+                'standalone = "yes" ?>',
+                True,
+                True,
+            ),
+        )
+        body = f'<rDE xmlns="{self.SIFEN_NS}"/>'
+
+        for declaration, has_encoding, has_standalone in variants:
+            normalized, metadata = service._normalize_embedded_xml_text(
+                declaration + body
+            )
+            with self.subTest(declaration=declaration):
+                self.assertEqual(normalized, body)
+                self.assertTrue(metadata["xml_declaration_present"])
+                self.assertTrue(metadata["xml_declaration_valid"])
+                self.assertTrue(metadata["xml_declaration_removed"])
+                self.assertEqual(
+                    metadata["declaration_has_encoding"], has_encoding
+                )
+                self.assertEqual(
+                    metadata["declaration_has_standalone"], has_standalone
+                )
+
+    def test_malformed_xml_declaration_is_rejected_with_safe_metadata(self):
+        self._ambiguous_transmission()
+        fiscal_xml = (
+            '<?xml encoding="UTF-8" version="1.0"?>'
+            f'<rContDe xmlns="{self.SIFEN_NS}">'
+            f'<rDE><DE Id="{self.CDC}"/></rDE></rContDe>'
+        )
+        service, _transport = self._reconciliation_service(
+            self._text_content_response(fiscal_xml)
+        )
+
+        result = service.reconcile(document=self.document)
+
+        query = self.env["fiscal.transmission"].browse(
+            result["query_transmission_id"]
+        )
+        structure = json.loads(query.metadata_json)["response_structure"]
+        self.assertEqual(result["resolution_status"], "unresolved")
+        self.assertEqual(query.error_code, "malformed_response")
+        self.assertTrue(structure["xml_declaration_present"])
+        self.assertFalse(structure["xml_declaration_valid"])
+        self.assertFalse(structure["xml_declaration_removed"])
+        self.assertFalse(structure["declaration_has_encoding"])
+        self.assertFalse(structure["declaration_has_standalone"])
+
     def test_decoded_unicode_does_not_reinterpret_declared_encoding(self):
         self._ambiguous_transmission()
         fiscal_xml = (

@@ -33,9 +33,14 @@ class PySifenDocumentQueryService:
         "https://sifen-test.set.gov.py/de/ws/consultas/consulta.wsdl"
     )
     _XML_DECLARATION_RE = re.compile(
-        r"\A<\?xml\s+version\s*=\s*(['\"])(?:1\.0|1\.1)\1"
-        r"(?:\s+encoding\s*=\s*(['\"])[A-Za-z][A-Za-z0-9._-]*\2)?"
-        r"(?:\s+standalone\s*=\s*(['\"])(?:yes|no)\3)?\s*\?>"
+        r"\A<\?xml[ \t\r\n]+version[ \t\r\n]*=[ \t\r\n]*"
+        r"(?P<version_quote>['\"])(?:1\.0|1\.1)(?P=version_quote)"
+        r"(?:[ \t\r\n]+encoding[ \t\r\n]*=[ \t\r\n]*"
+        r"(?P<encoding_quote>['\"])(?P<encoding>[A-Za-z][A-Za-z0-9._-]*)"
+        r"(?P=encoding_quote))?"
+        r"(?:[ \t\r\n]+standalone[ \t\r\n]*=[ \t\r\n]*"
+        r"(?P<standalone_quote>['\"])(?P<standalone>yes|no)"
+        r"(?P=standalone_quote))?[ \t\r\n]*\?>\Z"
     )
 
     def __init__(
@@ -327,7 +332,11 @@ class PySifenDocumentQueryService:
             "protocol_present": False,
             "text_length": 0,
             "text_sha256": "",
+            "xml_declaration_present": False,
             "xml_declaration_removed": False,
+            "xml_declaration_valid": False,
+            "declaration_has_encoding": False,
+            "declaration_has_standalone": False,
         }
         if container is None:
             return None, structure
@@ -347,12 +356,16 @@ class PySifenDocumentQueryService:
             ).hexdigest()
         if direct_children or not text:
             return None, structure
+        normalized, declaration_metadata = self._normalize_embedded_xml_text(
+            exact_text
+        )
+        structure.update(declaration_metadata)
+        if normalized is None:
+            return None, structure
         try:
-            root, declaration_removed = self._parse_embedded_xml_text(exact_text)
-            roots = [root]
+            roots = [self._parse_xml(normalized)]
         except (TypeError, ValueError, etree.XMLSyntaxError):
             return None, structure
-        structure["xml_declaration_removed"] = declaration_removed
         structure["embedded_xml_parseable"] = True
         structure["embedded_root"] = self._node_identity(roots[0])
 
@@ -379,18 +392,37 @@ class PySifenDocumentQueryService:
         structure["returned_cdc"] = cdc
         return (cdc, protocols[0] if protocols else ""), structure
 
-    def _parse_embedded_xml_text(self, value):
+    def _normalize_embedded_xml_text(self, value):
         normalized = value.lstrip("\ufeff \t\r\n")
-        declaration_removed = False
-        if normalized.startswith("<?xml"):
-            declaration = self._XML_DECLARATION_RE.match(normalized)
+        metadata = {
+            "xml_declaration_present": normalized.startswith("<?xml"),
+            "xml_declaration_removed": False,
+            "xml_declaration_valid": False,
+            "declaration_has_encoding": False,
+            "declaration_has_standalone": False,
+        }
+        if metadata["xml_declaration_present"]:
+            declaration_end = normalized.find("?>")
+            if declaration_end < 0:
+                return None, metadata
+            declaration_text = normalized[:declaration_end + 2]
+            declaration = self._XML_DECLARATION_RE.fullmatch(declaration_text)
             if declaration is None:
-                raise ValueError("Invalid XML declaration.")
-            normalized = normalized[declaration.end():].lstrip()
-            declaration_removed = True
+                return None, metadata
+            metadata.update({
+                "xml_declaration_removed": True,
+                "xml_declaration_valid": True,
+                "declaration_has_encoding": bool(
+                    declaration.group("encoding")
+                ),
+                "declaration_has_standalone": bool(
+                    declaration.group("standalone")
+                ),
+            })
+            normalized = normalized[declaration_end + 2:].lstrip()
         if not normalized:
-            raise ValueError("Empty embedded XML.")
-        return self._parse_xml(normalized), declaration_removed
+            return None, metadata
+        return normalized, metadata
 
     def _node_identity(self, node):
         qname = etree.QName(node)
