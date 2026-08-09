@@ -1,4 +1,3 @@
-import base64
 import json
 from datetime import datetime
 from html import escape
@@ -434,11 +433,9 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
         self.assertEqual(structure["de_candidate_count"], 1)
         self.assertEqual(structure["returned_cdc"], self.CDC)
         self.assertTrue(structure["protocol_present"])
-        classifier = structure["text_classifier"]
-        self.assertTrue(classifier["first_non_whitespace_is_xml_delimiter"])
-        self.assertTrue(classifier["starts_with_xml_declaration"])
-        self.assertFalse(classifier["literal_lt_entity_present"])
-        self.assertFalse(classifier["strict_base64_decode_succeeds"])
+        self.assertTrue(structure["xml_declaration_removed"])
+        self.assertGreater(structure["text_length"], 0)
+        self.assertEqual(len(structure["text_sha256"]), 64)
 
     def test_approved_without_content_is_malformed_not_cdc_mismatch(self):
         ambiguous = self._ambiguous_transmission()
@@ -524,30 +521,6 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
         self.assertTrue(structure["text_present"])
         self.assertFalse(structure["embedded_xml_parseable"])
 
-    def test_text_classifier_distinguishes_entity_escape_layers(self):
-        service = PySifenConsultaDeService(self.env)
-
-        once = service._classify_container_text("&lt;rDE/&gt;")
-        twice = service._classify_container_text("&amp;lt;rDE/&amp;gt;")
-
-        self.assertTrue(once["literal_lt_entity_present"])
-        self.assertTrue(once["one_entity_unescape_is_xml_like"])
-        self.assertFalse(once["second_entity_unescape_required"])
-        self.assertFalse(twice["literal_lt_entity_present"])
-        self.assertFalse(twice["one_entity_unescape_is_xml_like"])
-        self.assertTrue(twice["second_entity_unescape_required"])
-
-    def test_text_classifier_reports_base64_without_enabling_it(self):
-        service = PySifenConsultaDeService(self.env)
-        encoded = base64.b64encode(b"<rContDe/>").decode("ascii")
-
-        classification = service._classify_container_text(encoded)
-
-        self.assertTrue(classification["strict_base64_alphabet"])
-        self.assertTrue(classification["strict_base64_decode_succeeds"])
-        self.assertEqual(classification["base64_decoded_length"], 10)
-        self.assertTrue(classification["base64_decoded_is_xml_like"])
-
     def test_serialized_xml_with_bom_and_whitespace_is_supported(self):
         self._ambiguous_transmission()
         fiscal_xml = (
@@ -565,22 +538,57 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
         query = self.env["fiscal.transmission"].browse(
             result["query_transmission_id"]
         )
-        classifier = json.loads(query.metadata_json)[
-            "response_structure"
-        ]["text_classifier"]
-        self.assertTrue(classifier["utf8_bom_present"])
-        self.assertTrue(classifier["first_non_whitespace_is_xml_delimiter"])
+        structure = json.loads(query.metadata_json)["response_structure"]
+        self.assertFalse(structure["xml_declaration_removed"])
 
-    def test_text_classifier_flags_mixed_encoding_markers_as_ambiguous(self):
-        service = PySifenConsultaDeService(self.env)
-
-        classification = service._classify_container_text(
-            "&lt;rDE/&gt;%3CrDE%2F%3E"
+    def test_xml_declaration_without_encoding_is_supported(self):
+        self._ambiguous_transmission()
+        fiscal_xml = (
+            '<?xml version="1.0"?>'
+            f'<rContDe xmlns="{self.SIFEN_NS}">'
+            f'<rDE><DE Id="{self.CDC}"/></rDE></rContDe>'
+        )
+        service, _transport = self._reconciliation_service(
+            self._text_content_response(fiscal_xml)
         )
 
-        self.assertTrue(classification["literal_lt_entity_present"])
-        self.assertTrue(classification["percent_encoding_present"])
-        self.assertTrue(classification["ambiguous_encoding_markers"])
+        result = service.reconcile(document=self.document)
+
+        self.assertEqual(result["resolution_status"], "accepted")
+
+    def test_decoded_unicode_does_not_reinterpret_declared_encoding(self):
+        self._ambiguous_transmission()
+        fiscal_xml = (
+            '<?xml version="1.0" encoding="UTF-16"?>'
+            f'<rContDe xmlns="{self.SIFEN_NS}">'
+            f'<rDE><DE Id="{self.CDC}"/></rDE></rContDe>'
+        )
+        service, _transport = self._reconciliation_service(
+            self._text_content_response(fiscal_xml)
+        )
+
+        result = service.reconcile(document=self.document)
+
+        self.assertEqual(result["resolution_status"], "accepted")
+
+    def test_multiple_de_candidates_are_malformed(self):
+        self._ambiguous_transmission()
+        fiscal_xml = (
+            f'<rContDe xmlns="{self.SIFEN_NS}"><rDE>'
+            f'<DE Id="{self.CDC}"/><DE Id="{self.CDC}"/>'
+            '</rDE></rContDe>'
+        )
+        service, _transport = self._reconciliation_service(
+            self._text_content_response(fiscal_xml)
+        )
+
+        result = service.reconcile(document=self.document)
+
+        query = self.env["fiscal.transmission"].browse(
+            result["query_transmission_id"]
+        )
+        self.assertEqual(result["resolution_status"], "unresolved")
+        self.assertEqual(query.error_code, "malformed_response")
 
     def test_approved_serialized_container_with_different_cdc_is_unresolved(self):
         self._ambiguous_transmission()
