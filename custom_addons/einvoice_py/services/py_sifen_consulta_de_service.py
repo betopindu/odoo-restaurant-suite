@@ -327,6 +327,8 @@ class PySifenDocumentQueryService:
             "text_present": False,
             "embedded_xml_parseable": False,
             "embedded_root": None,
+            "embedded_fragment_count": 0,
+            "embedded_fragment_roots": [],
             "de_candidate_count": 0,
             "returned_cdc": "",
             "protocol_present": False,
@@ -362,12 +364,15 @@ class PySifenDocumentQueryService:
         structure.update(declaration_metadata)
         if normalized is None:
             return None, structure
-        try:
-            roots = [self._parse_xml(normalized)]
-        except (TypeError, ValueError, etree.XMLSyntaxError):
+        roots = self._parse_embedded_roots(normalized)
+        if roots is None:
             return None, structure
         structure["embedded_xml_parseable"] = True
         structure["embedded_root"] = self._node_identity(roots[0])
+        structure["embedded_fragment_count"] = len(roots)
+        structure["embedded_fragment_roots"] = [
+            self._node_identity(root) for root in roots
+        ]
 
         candidates = []
         protocols = []
@@ -391,6 +396,42 @@ class PySifenDocumentQueryService:
             return None, structure
         structure["returned_cdc"] = cdc
         return (cdc, protocols[0] if protocols else ""), structure
+
+    def _parse_embedded_roots(self, value):
+        if "<!DOCTYPE" in value.upper() or "<!ENTITY" in value.upper():
+            return None
+        try:
+            return [self._parse_xml(value)]
+        except (TypeError, ValueError):
+            return None
+        except etree.XMLSyntaxError as error:
+            last_error = error.error_log.last_error
+            if not last_error or last_error.type_name != "ERR_DOCUMENT_END":
+                return None
+
+        wrapper_name = "consulta-de-fragments"
+        try:
+            wrapper = self._parse_xml(
+                f"<{wrapper_name}>{value}</{wrapper_name}>"
+            )
+        except (TypeError, ValueError, etree.XMLSyntaxError):
+            return None
+        if (wrapper.text or "").strip():
+            return None
+        roots = list(wrapper)
+        if any((root.tail or "").strip() for root in roots):
+            return None
+        identities = [
+            (etree.QName(root).localname, etree.QName(root).namespace or "")
+            for root in roots
+        ]
+        if identities != [
+            ("rDE", self.SIFEN_NS),
+            ("dProtAut", ""),
+            ("xContEv", ""),
+        ]:
+            return None
+        return roots
 
     def _normalize_embedded_xml_text(self, value):
         normalized = value.lstrip("\ufeff \t\r\n")

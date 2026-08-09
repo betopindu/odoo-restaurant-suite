@@ -503,6 +503,51 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
 
         self.assertEqual(result["resolution_status"], "accepted")
 
+    def test_approved_live_fragment_sequence_matches_cdc(self):
+        self._ambiguous_transmission()
+        fiscal_xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            f'<rDE xmlns="{self.SIFEN_NS}"><DE Id="{self.CDC}"/></rDE>'
+            '<dProtAut>safe-protocol</dProtAut>'
+            '<xContEv/>'
+        )
+        service, _transport = self._reconciliation_service(
+            self._text_content_response(fiscal_xml)
+        )
+
+        result = service.reconcile(document=self.document)
+
+        self.assertEqual(result["resolution_status"], "accepted")
+        query = self.env["fiscal.transmission"].browse(
+            result["query_transmission_id"]
+        )
+        structure = json.loads(query.metadata_json)["response_structure"]
+        self.assertEqual(structure["returned_cdc"], self.CDC)
+        self.assertTrue(structure["protocol_present"])
+        self.assertEqual(structure["embedded_fragment_count"], 3)
+        self.assertEqual(
+            [item["local_name"] for item in structure["embedded_fragment_roots"]],
+            ["rDE", "dProtAut", "xContEv"],
+        )
+
+    def test_unrecognized_fragment_sequence_is_malformed(self):
+        self._ambiguous_transmission()
+        fiscal_xml = (
+            f'<rDE xmlns="{self.SIFEN_NS}"><DE Id="{self.CDC}"/></rDE>'
+            '<unexpected/>'
+        )
+        service, _transport = self._reconciliation_service(
+            self._text_content_response(fiscal_xml)
+        )
+
+        result = service.reconcile(document=self.document)
+
+        query = self.env["fiscal.transmission"].browse(
+            result["query_transmission_id"]
+        )
+        self.assertEqual(result["resolution_status"], "unresolved")
+        self.assertEqual(query.error_code, "malformed_response")
+
     def test_malformed_content_diagnostics_do_not_persist_text(self):
         self._ambiguous_transmission()
         secret_text = "private-receiver-content-that-is-not-xml"
