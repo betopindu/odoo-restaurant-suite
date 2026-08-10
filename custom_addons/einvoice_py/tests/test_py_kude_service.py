@@ -222,6 +222,13 @@ class TestPyKudeService(TransactionCase):
 
         self.assertEqual(result.page_count, 2)
         self.assertEqual(result.pdf_bytes, self.service.generate(document=self.document).pdf_bytes)
+        reader = PdfFileReader(io.BytesIO(result.pdf_bytes))
+        first_page = reader.getPage(0).extractText()
+        final_page = reader.getPage(1).extractText()
+        self.assertNotIn("TOTAL A PAGAR", first_page)
+        self.assertNotIn("Consulte la validez", first_page)
+        self.assertIn("TOTAL A PAGAR", final_page)
+        self.assertIn("Consulte la validez", final_page)
 
     def test_two_service_instances_are_idempotent_under_document_lock(self):
         self._prepare()
@@ -281,7 +288,7 @@ class TestPyKudeService(TransactionCase):
         text = reader.getPage(0).extractText()
 
         self.assertIn("AMBIENTE: TEST", text)
-        self.assertIn("presentacion del KuDE", text)
+        self.assertIn("presentacion del KuDE", " ".join(text.split()))
 
     def test_pdf_projects_structured_fiscal_sections_and_exact_cdc(self):
         payload = self._payload()

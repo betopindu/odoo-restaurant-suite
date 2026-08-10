@@ -220,14 +220,14 @@ class PyKudeService:
             y = self._draw_operation_block(pdf, payload, y)
             y = self._draw_item_table(pdf, page_items, y)
             if page_index == page_count - 1:
-                self._draw_totals_table(pdf, payload, y)
-            if page_index == 0:
+                y = self._draw_totals_table(pdf, payload, y)
                 if preview:
-                    self._draw_fiscal_footer(pdf, payload, preview=True)
+                    self._draw_fiscal_footer(pdf, payload, y - 3 * mm, preview=True)
                 else:
                     self._draw_fiscal_footer(
                         pdf,
                         payload,
+                        y - 3 * mm,
                         qr_payload=qr_payload,
                     )
             pdf.showPage()
@@ -249,7 +249,7 @@ class PyKudeService:
         document = payload["document"]
         top = height - self.MARGIN
         content_width = width - 2 * self.MARGIN
-        header_height = 39 * mm
+        header_height = 33 * mm
         bottom = top - header_height
         divider = self.MARGIN + content_width * 0.62
         pdf.setLineWidth(0.7)
@@ -259,7 +259,7 @@ class PyKudeService:
         text_x = self.MARGIN + 4 * mm
         if logo_bytes:
             logo_width = 28 * mm
-            logo_height = 14 * mm
+            logo_height = 12 * mm
             self._draw_logo(
                 pdf,
                 logo_bytes,
@@ -281,7 +281,7 @@ class PyKudeService:
             pdf.drawString(text_x, y, self._safe(trade_name))
 
         details_x = self.MARGIN + 4 * mm
-        y = top - 21 * mm
+        y = top - 18 * mm
         pdf.setFont("Helvetica", 6.5)
         activity = "; ".join(
             self._safe(item.get("description"))
@@ -361,12 +361,6 @@ class PyKudeService:
         operation = payload["operation"]
         condition = payload["condition"]
         document = payload["document"]
-        block_height = 31 * mm
-        bottom = top - block_height
-        content_width = width - 2 * self.MARGIN
-        divider = self.MARGIN + content_width / 2
-        pdf.rect(self.MARGIN, bottom, content_width, block_height)
-        pdf.line(divider, bottom, divider, top)
         left = (
             ("Fecha y hora de emision", document.get("issue_datetime")),
             ("Condicion de venta", condition.get("sale_condition_description")),
@@ -382,9 +376,18 @@ class PyKudeService:
             ("Telefono", receiver.get("phone")),
             ("Correo electronico", receiver.get("email")),
         )
+        installments = condition.get("installments") or []
+        left_count = sum(value not in (None, "") for _label, value in left)
+        right_count = sum(value not in (None, "") for _label, value in right)
+        installment_height = 9 if any(item.get("due_date") for item in installments) else 0
+        block_height = max(48, max(left_count, right_count) * 9 + 12 + installment_height)
+        bottom = top - block_height
+        content_width = width - 2 * self.MARGIN
+        divider = self.MARGIN + content_width / 2
+        pdf.rect(self.MARGIN, bottom, content_width, block_height)
+        pdf.line(divider, bottom, divider, top)
         self._draw_label_values(pdf, left, self.MARGIN + 3 * mm, top - 5 * mm, 78)
         self._draw_label_values(pdf, right, divider + 3 * mm, top - 5 * mm, 70)
-        installments = condition.get("installments") or []
         if installments:
             due_dates = ", ".join(
                 self._safe(item.get("due_date"))
@@ -403,11 +406,11 @@ class PyKudeService:
     def _item_columns(self):
         return (
             ("Codigo", 14 * mm, "left"),
-            ("Descripcion", 48 * mm, "left"),
-            ("Unidad", 12 * mm, "left"),
-            ("Cantidad", 14 * mm, "right"),
+            ("Descripcion", 54 * mm, "left"),
+            ("Unidad", 10 * mm, "left"),
+            ("Cantidad", 12 * mm, "right"),
             ("Precio unit.", 21 * mm, "right"),
-            ("Descuento", 17 * mm, "right"),
+            ("Descuento", 15 * mm, "right"),
             ("Exentas", 17 * mm, "right"),
             ("IVA 5%", 17 * mm, "right"),
             ("IVA 10%", 20 * mm, "right"),
@@ -440,7 +443,7 @@ class PyKudeService:
         for item in items:
             description_lines = self._wrap_text(
                 item.get("description"),
-                45 * mm,
+                51 * mm,
                 "Helvetica",
                 6,
             )
@@ -476,7 +479,7 @@ class PyKudeService:
                 x += column_width
                 pdf.line(x, y - row_height, x, y)
             y -= row_height
-        return y - 3 * mm
+        return y
 
     def _paginate_items(self, items):
         pages = []
@@ -486,7 +489,7 @@ class PyKudeService:
             lines = len(
                 self._wrap_text(
                     item.get("description"),
-                    45 * mm,
+                    51 * mm,
                     "Helvetica",
                     6,
                 )
@@ -530,19 +533,29 @@ class PyKudeService:
                 self._format_amount(value),
             )
             y -= row_height
-        return y - 2 * mm
+        return y
 
-    def _draw_fiscal_footer(self, pdf, payload, *, qr_payload=None, preview=False):
+    def _draw_fiscal_footer(
+        self,
+        pdf,
+        payload,
+        top,
+        *,
+        qr_payload=None,
+        preview=False,
+    ):
         width, _height = self.PAGE_SIZE
         block_x = self.MARGIN
-        block_y = self.MARGIN
         block_width = width - 2 * self.MARGIN
-        block_height = 39 * mm
+        block_height = 34 * mm
+        block_y = top - block_height
+        if block_y < self.MARGIN:
+            raise ValidationError("KuDE content exceeds the printable page area.")
         qr_box = 34 * mm
         pdf.rect(block_x, block_y, block_width, block_height)
         pdf.line(block_x + qr_box, block_y, block_x + qr_box, block_y + block_height)
         qr_x = block_x + 3 * mm
-        qr_y = block_y + 6 * mm
+        qr_y = block_y + 3 * mm
         if preview:
             pdf.rect(qr_x, qr_y, self.QR_SIZE, self.QR_SIZE)
             pdf.setFont("Helvetica-Bold", 7)
@@ -562,7 +575,7 @@ class PyKudeService:
 
         text_x = block_x + qr_box + 4 * mm
         text_width = block_width - qr_box - 8 * mm
-        y = block_y + block_height - 6 * mm
+        y = block_y + block_height - 5 * mm
         pdf.setFont("Helvetica", 6.5)
         if preview:
             lines = (
