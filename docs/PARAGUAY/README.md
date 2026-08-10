@@ -1276,11 +1276,15 @@ current version and keeps every prior version for audit.
 ReportLab is used directly rather than HTML/wkhtmltopdf. Its invariant mode,
 explicit pagination and exact QR dimensions make output independent of browser
 engine, CSS, host font and external-process differences. The KuDE includes the
-official invoice header, issuer/timbrado information, receiver and operation
-data, item/tax columns, totals on the last page, page numbering, consultation
-information, grouped CDC and the QR on the first page. The QR is rendered at
-28 mm, above the Manual's 25 mm minimum. The persisted environment is shown
-explicitly and item descriptions wrap without truncation. XML values are
+official invoice header in a compact bordered block, issuer/timbrado and
+document identity, a two-column operation/receiver block, bordered item and
+totals tables, page numbering, consultation information, grouped CDC and the
+QR on the first page. Numeric columns are right-aligned, Guaraní amounts use a
+deterministic thousands presentation, and item descriptions wrap without
+truncation. The optional company logo is read from the existing Odoo company
+record at render time, preserves its aspect ratio and is never copied into a
+new fiscal artifact. Missing or invalid branding leaves a neutral text header.
+The QR is rendered at 28 mm, above the Manual's 25 mm minimum. XML values are
 represented; no new business calculation is performed.
 
 Generate or regenerate locally from Odoo shell:
@@ -1349,8 +1353,10 @@ Paraguay invoices outside `validation_error`. The action uses the separate,
 authenticated `/einvoice_py/preview/<document UUID>/kude` route and generates
 `PREVIEW-FE-<number>.pdf` on demand from the current persisted payload.
 
-Preview output is visibly marked **PREVIEW - SIN VALIDEZ FISCAL** on every page
-and retains the TEST/PRODUCTION environment label. It never reads CSC,
+Preview output is visibly marked **VISTA PREVIA — SIN VALIDEZ FISCAL** and
+retains the TEST/PRODUCTION environment label. It shares only the visual
+renderer with the fiscal KuDE; its evidence and delivery semantics remain a
+separate boundary. It never reads CSC,
 credentials, authority responses or final XML. It neither requires nor creates
 a fiscal QR: the QR area contains a non-functional preview placeholder.
 Preview PDFs are not cached or persisted as fiscal attachments, do not enter

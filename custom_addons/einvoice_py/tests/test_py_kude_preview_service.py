@@ -155,7 +155,7 @@ class TestPyKudePreviewService(TransactionCase):
         self.assertEqual(first.pdf_bytes, second.pdf_bytes)
         self.assertEqual(first.sha256, hashlib.sha256(first.pdf_bytes).hexdigest())
         self.assertEqual(first.filename, "PREVIEW-FE-001-001-0000099.pdf")
-        self.assertIn("PREVIEW - SIN VALIDEZ FISCAL", text)
+        self.assertIn("VISTA PREVIA - SIN VALIDEZ FISCAL", text)
         self.assertIn("AMBIENTE: TEST", text)
         self.assertIn("QR NO DISPONIBLE", text)
         self.assertNotIn("Consulte la validez", text)
@@ -179,7 +179,7 @@ class TestPyKudePreviewService(TransactionCase):
             einvoice_skip_fiscal_document_lock=True
         ).write({"state": "accepted", "authority_status": "local_demo"})
         preview = self.service.render(document=self.document)
-        self.assertIn("PREVIEW", self._text(preview.pdf_bytes))
+        self.assertIn("VISTA PREVIA", self._text(preview.pdf_bytes))
         with self.assertRaisesRegex(ValidationError, "acceptance evidence"):
             PyFiscalDocumentDeliveryService(self.env).resolve(document=self.document)
 

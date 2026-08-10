@@ -1,5 +1,14 @@
 # Documentation Changelog
 
+## 2026-08-10 — Paraguay KuDE presentation
+
+* Redesigned the shared Paraguay KuDE presentation with compact bordered
+  fiscal sections, a true item grid, aligned Guaraní totals, grouped CDC,
+  clearer consultation footer and optional non-persisted company branding.
+* Kept the preview boundary explicitly non-fiscal with a dedicated
+  `VISTA PREVIA - SIN VALIDEZ FISCAL` indicator and QR placeholder; accepted
+  delivery, QR provenance and artifact lifecycle rules are unchanged.
+
 ## 2026-08-09 — Paraguay receiver events
 
 * Added official v150 receipt notification (`10`), conformity (`11`, partial

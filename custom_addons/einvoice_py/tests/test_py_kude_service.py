@@ -282,3 +282,82 @@ class TestPyKudeService(TransactionCase):
 
         self.assertIn("AMBIENTE: TEST", text)
         self.assertIn("presentacion del KuDE", text)
+
+    def test_pdf_projects_structured_fiscal_sections_and_exact_cdc(self):
+        payload = self._payload()
+        payload["items"].append({
+            "code": "ITEM-5",
+            "description": "Servicio gravado al cinco por ciento",
+            "unit_measure_description": "UNI",
+            "quantity": 2,
+            "price_unit": 55000,
+            "discount": 0,
+            "total": 110000,
+            "tax_affectation": "1",
+            "tax_rate": 5,
+        })
+        payload["items"].append({
+            "code": "ITEM-EX",
+            "description": "Operacion exenta",
+            "unit_measure_description": "UNI",
+            "quantity": 1,
+            "price_unit": 25000,
+            "discount": 0,
+            "total": 25000,
+            "tax_affectation": "3",
+            "tax_rate": 0,
+        })
+        payload["totals"].update({
+            "subtotal_exempt": 25000,
+            "subtotal_5": 110000,
+            "total_operation": 245000,
+            "total_general": 245000,
+            "total_vat_5": 5238,
+            "total_vat": 15238,
+        })
+        self._persist_payload(payload)
+        self._persist_qr()
+
+        result = self.service.generate(document=self.document)
+        text = "\n".join(
+            page.extractText()
+            for page in PdfFileReader(io.BytesIO(result.pdf_bytes)).pages
+        )
+
+        for expected in (
+            "FACTURA ELECTRONICA",
+            "Fecha y hora de emision",
+            "Nombre o razon social",
+            "VALOR DE VENTA",
+            "SUBTOTAL IVA 5%",
+            "SUBTOTAL IVA 10%",
+            "Operacion exenta",
+            "25.000",
+            "TOTAL A PAGAR",
+            "Consulte la validez",
+            "0144 4444 0170 0100 1001 4528 2201 7012 5158 7326 0988",
+        ):
+            self.assertIn(expected, text)
+
+    def test_company_logo_is_optional_and_reported_without_persistence(self):
+        original_logo = self.env.company.logo
+        try:
+            self.env.company.logo = False
+            self._prepare()
+            without_logo = self.service.generate(document=self.document)
+            self.assertFalse(without_logo.logo_rendered)
+
+            png = base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l"
+                "EQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+            )
+            self.env.company.logo = base64.b64encode(png)
+            with_logo = self.service.generate(document=self.document)
+            self.assertTrue(with_logo.logo_rendered)
+            self.assertNotEqual(without_logo.pdf_bytes, with_logo.pdf_bytes)
+            self.assertFalse(self.env["fiscal.attachment"].search([
+                ("document_id", "=", self.document.id),
+                ("attachment_type", "=", "paraguay_kude_logo"),
+            ]))
+        finally:
+            self.env.company.logo = original_logo

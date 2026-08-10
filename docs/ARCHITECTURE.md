@@ -144,8 +144,16 @@ Fiscal preview is a separate boundary, not a delivery mode.
 the same deterministic KuDE renderer in preview mode. It does not require a
 signature, fiscal QR, final `rDE`, transmission or authority result. Instead of
 fabricating a fiscal QR it draws a non-functional placeholder, and every page
-is visibly marked `PREVIEW - SIN VALIDEZ FISCAL` while retaining the configured
+is visibly marked `VISTA PREVIA - SIN VALIDEZ FISCAL` while retaining the configured
 environment label.
+
+The shared Paraguay renderer owns presentation only: compact bordered issuer,
+operation/receiver, items and totals regions; deterministic numeric formatting;
+width-aware text wrapping; optional company branding read from existing Odoo
+data; and the QR/CDC footer. The fiscal KuDE still receives the exact persisted
+QR payload, whereas preview mode receives no QR and renders a non-functional
+placeholder. This visual reuse does not merge their authority or persistence
+contracts.
 
 Preview is generated on demand and is not persisted or cached as a fiscal
 artifact. Its authenticated UUID route is `/einvoice_py/preview/...`, distinct

@@ -14,12 +14,14 @@ class PyKudePreviewResult:
     sha256: str
     page_count: int
     cdc: str
+    logo_rendered: bool
 
     def __repr__(self):
         return (
             "PyKudePreviewResult("
             f"filename={self.filename!r}, sha256={self.sha256!r}, "
             f"page_count={self.page_count!r}, cdc={self.cdc!r}, "
+            f"logo_rendered={self.logo_rendered!r}, "
             "pdf_bytes=<redacted>)"
         )
 
@@ -42,9 +44,11 @@ class PyKudePreviewService:
         self._validate_document(document)
         _attachment, payload = self.kude_service.load_payload(document)
         self.kude_service.validate_payload(payload, document)
+        logo_bytes = self.kude_service.load_company_logo(document)
         pdf_bytes, page_count = self.kude_service.render_pdf(
             payload,
             preview=True,
+            logo_bytes=logo_bytes,
         )
         return PyKudePreviewResult(
             pdf_bytes=pdf_bytes,
@@ -52,6 +56,7 @@ class PyKudePreviewService:
             sha256=hashlib.sha256(pdf_bytes).hexdigest(),
             page_count=page_count,
             cdc=payload["cdc"],
+            logo_rendered=bool(logo_bytes),
         )
 
     def _check_access(self, document):

@@ -11,6 +11,7 @@ from reportlab.graphics.barcode.qr import QrCodeWidget
 from reportlab.graphics.shapes import Drawing
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
@@ -30,6 +31,7 @@ class PyKudeResult:
     sha256: str
     page_count: int
     cdc: str
+    logo_rendered: bool
 
 
 class PyKudeService:
@@ -58,7 +60,12 @@ class PyKudeService:
             document=document
         )
         self.validate_payload(payload, document)
-        pdf_bytes, page_count = self.render_pdf(payload, qr_payload=qr_payload)
+        logo_bytes = self.load_company_logo(document)
+        pdf_bytes, page_count = self.render_pdf(
+            payload,
+            qr_payload=qr_payload,
+            logo_bytes=logo_bytes,
+        )
         attachment = self._persist(
             document=document,
             pdf_bytes=pdf_bytes,
@@ -80,6 +87,7 @@ class PyKudeService:
             sha256=attachment.sha256,
             page_count=page_count,
             cdc=payload["cdc"],
+            logo_rendered=bool(logo_bytes),
         )
 
     def current(self, *, document):
@@ -164,7 +172,25 @@ class PyKudeService:
         if not payload["items"] or any(value in (None, "") for value in mandatory):
             raise ValidationError("Persisted Paraguay payload is incomplete for KuDE.")
 
-    def render_pdf(self, payload, *, qr_payload=None, preview=False):
+    def load_company_logo(self, document):
+        encoded = document.company_id.logo
+        if not encoded:
+            return None
+        try:
+            logo_bytes = base64.b64decode(encoded, validate=True)
+            ImageReader(io.BytesIO(logo_bytes)).getSize()
+        except Exception:
+            return None
+        return logo_bytes
+
+    def render_pdf(
+        self,
+        payload,
+        *,
+        qr_payload=None,
+        preview=False,
+        logo_bytes=None,
+    ):
         if not preview and not qr_payload:
             raise ValidationError("Final KuDE rendering requires the persisted fiscal QR.")
         pages = self._paginate_items(payload["items"])
@@ -183,195 +209,390 @@ class PyKudeService:
         )
         pdf.setAuthor("Fiscal e-Invoice Platform")
         for page_index, page_items in enumerate(pages):
-            y = self._draw_header(
-                pdf, payload, page_index, page_count, preview=preview
+            y = self._draw_document_header(
+                pdf,
+                payload,
+                page_index,
+                page_count,
+                preview=preview,
+                logo_bytes=logo_bytes,
             )
-            y = self._draw_items(pdf, page_items, y)
+            y = self._draw_operation_block(pdf, payload, y)
+            y = self._draw_item_table(pdf, page_items, y)
             if page_index == page_count - 1:
-                self._draw_totals(pdf, payload, y)
+                self._draw_totals_table(pdf, payload, y)
             if page_index == 0:
                 if preview:
-                    self._draw_preview_placeholder(pdf)
+                    self._draw_fiscal_footer(pdf, payload, preview=True)
                 else:
-                    self._draw_qr(pdf, payload["cdc"], qr_payload)
-            if preview:
-                self._draw_preview_mark(pdf)
+                    self._draw_fiscal_footer(
+                        pdf,
+                        payload,
+                        qr_payload=qr_payload,
+                    )
             pdf.showPage()
         pdf.save()
         return output.getvalue(), page_count
 
-    def _draw_header(self, pdf, payload, page_index, page_count, *, preview=False):
+    def _draw_document_header(
+        self,
+        pdf,
+        payload,
+        page_index,
+        page_count,
+        *,
+        preview=False,
+        logo_bytes=None,
+    ):
         width, height = self.PAGE_SIZE
         issuer = payload["issuer"]
         document = payload["document"]
-        receiver = payload["receiver"]
-        operation = payload["operation"]
-        condition = payload["condition"]
         top = height - self.MARGIN
-        pdf.setFont("Helvetica-Bold", 12)
-        title = (
-            "PREVIEW - SIN VALIDEZ FISCAL"
-            if preview
-            else "KuDE DE FACTURA ELECTRONICA"
-        )
-        pdf.drawString(self.MARGIN, top, title)
+        content_width = width - 2 * self.MARGIN
+        header_height = 39 * mm
+        bottom = top - header_height
+        divider = self.MARGIN + content_width * 0.62
+        pdf.setLineWidth(0.7)
+        pdf.rect(self.MARGIN, bottom, content_width, header_height)
+        pdf.line(divider, bottom, divider, top)
+
+        text_x = self.MARGIN + 4 * mm
+        if logo_bytes:
+            logo_width = 28 * mm
+            logo_height = 14 * mm
+            self._draw_logo(
+                pdf,
+                logo_bytes,
+                self.MARGIN + 3 * mm,
+                top - logo_height - 3 * mm,
+                logo_width,
+                logo_height,
+            )
+            text_x += logo_width + 3 * mm
+        y = top - 5 * mm
         pdf.setFont("Helvetica-Bold", 9)
-        pdf.drawCentredString(
-            width / 2,
-            top - 14,
-            f"AMBIENTE: {payload['environment'].upper()}",
-        )
-        pdf.setFont("Helvetica", 7)
-        pdf.drawRightString(width - self.MARGIN, top, f"Pagina {page_index + 1}/{page_count}")
-        y = top - 25
-        pdf.setFont("Helvetica-Bold", 9)
-        pdf.drawString(self.MARGIN, y, self._safe(issuer.get("name")))
-        y -= 10
-        pdf.setFont("Helvetica", 7)
+        pdf.drawString(text_x, y, self._safe(issuer.get("name")))
+        trade_name = issuer.get("branch_name")
+        if trade_name and self._safe(trade_name).casefold() != self._safe(
+            issuer.get("name")
+        ).casefold():
+            y -= 9
+            pdf.setFont("Helvetica-Bold", 7)
+            pdf.drawString(text_x, y, self._safe(trade_name))
+
+        details_x = self.MARGIN + 4 * mm
+        y = top - 21 * mm
+        pdf.setFont("Helvetica", 6.5)
         activity = "; ".join(
             self._safe(item.get("description"))
             for item in issuer.get("economic_activities") or []
             if item.get("description")
         )
         for label, value in (
-            ("Nombre de fantasia", issuer.get("branch_name")),
-            ("Actividad", activity),
             ("Direccion", self._joined(issuer.get("address"), issuer.get("city_name"))),
-            ("RUC", issuer.get("full_ruc")),
-            ("Timbrado", issuer.get("timbrado_number")),
-            ("Vigencia", self._date_range(issuer)),
-            ("Factura Electronica", document.get("py_full_number")),
+            ("Telefono", issuer.get("phone")),
+            ("Correo", issuer.get("email")),
+            ("Actividad", activity),
         ):
-            pdf.drawString(self.MARGIN, y, f"{label}: {self._safe(value)}")
-            y -= 9
-        y -= 3
-        pdf.line(self.MARGIN, y, width - self.MARGIN, y)
+            if value not in (None, ""):
+                line = f"{label}: {self._safe(value)}"
+                pdf.drawString(details_x, y, self._truncate(line, 88))
+                y -= 8
+
+        right_x = divider + 4 * mm
+        right_width = width - self.MARGIN - right_x - 3 * mm
+        y = top - 5 * mm
+        pdf.setFont("Helvetica-Bold", 8)
+        for label, value in (
+            ("RUC", issuer.get("full_ruc")),
+            ("Timbrado Nro.", issuer.get("timbrado_number")),
+            ("Inicio de vigencia", issuer.get("timbrado_valid_from")),
+        ):
+            pdf.drawString(right_x, y, self._truncate(f"{label}: {self._safe(value)}", 42))
+            y -= 10
+        y -= 2
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawCentredString(right_x + right_width / 2, y, "FACTURA ELECTRONICA")
+        y -= 13
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawCentredString(
+            right_x + right_width / 2,
+            y,
+            self._safe(document.get("py_full_number")),
+        )
         y -= 11
-        receiver_id = self._receiver_id(receiver)
-        fields = (
-            ("Fecha de emision", document.get("issue_datetime")),
-            ("Condicion", condition.get("sale_condition_description")),
+        pdf.setFont("Helvetica", 6.5)
+        pdf.drawRightString(
+            right_x + right_width,
+            y,
+            f"Pagina {page_index + 1} de {page_count}",
+        )
+
+        y = bottom - 3 * mm
+        if preview:
+            bar_height = 9 * mm
+            pdf.setFillGray(0.92)
+            pdf.rect(self.MARGIN, y - bar_height, content_width, bar_height, fill=1)
+            pdf.setFillGray(0)
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawCentredString(
+                width / 2,
+                y - 4 * mm,
+                "VISTA PREVIA - SIN VALIDEZ FISCAL",
+            )
+            pdf.setFont("Helvetica-Bold", 7)
+            pdf.drawRightString(
+                width - self.MARGIN - 3 * mm,
+                y - 7 * mm,
+                f"AMBIENTE: {payload['environment'].upper()}",
+            )
+            return y - bar_height - 3 * mm
+        pdf.setFont("Helvetica-Bold", 7)
+        pdf.drawRightString(
+            width - self.MARGIN,
+            y,
+            f"AMBIENTE: {payload['environment'].upper()}",
+        )
+        return y - 3 * mm
+
+    def _draw_operation_block(self, pdf, payload, top):
+        width, _height = self.PAGE_SIZE
+        receiver = payload["receiver"]
+        operation = payload["operation"]
+        condition = payload["condition"]
+        document = payload["document"]
+        block_height = 31 * mm
+        bottom = top - block_height
+        content_width = width - 2 * self.MARGIN
+        divider = self.MARGIN + content_width / 2
+        pdf.rect(self.MARGIN, bottom, content_width, block_height)
+        pdf.line(divider, bottom, divider, top)
+        left = (
+            ("Fecha y hora de emision", document.get("issue_datetime")),
+            ("Condicion de venta", condition.get("sale_condition_description")),
             ("Moneda", operation.get("currency_description") or operation.get("currency")),
-            ("RUC/Documento", receiver_id),
-            ("Receptor", receiver.get("name")),
-            ("Direccion", receiver.get("address")),
-            ("Telefono", receiver.get("phone")),
-            ("Correo", receiver.get("email")),
+            ("Tipo de cambio", operation.get("exchange_rate")),
             ("Tipo de operacion", operation.get("transaction_type_description")),
         )
-        for label, value in fields:
-            if value not in (None, ""):
-                pdf.drawString(self.MARGIN, y, f"{label}: {self._safe(value)}")
-                y -= 9
+        receiver_id = self._receiver_id(receiver)
+        right = (
+            ("RUC/Documento", receiver_id),
+            ("Nombre o razon social", receiver.get("name")),
+            ("Direccion", receiver.get("address")),
+            ("Telefono", receiver.get("phone")),
+            ("Correo electronico", receiver.get("email")),
+        )
+        self._draw_label_values(pdf, left, self.MARGIN + 3 * mm, top - 5 * mm, 78)
+        self._draw_label_values(pdf, right, divider + 3 * mm, top - 5 * mm, 70)
         installments = condition.get("installments") or []
         if installments:
-            pdf.drawString(self.MARGIN, y, "Cuotas:")
-            y -= 9
-            for installment in installments:
-                value = self._joined(
-                    installment.get("due_date"),
-                    self._number(installment.get("amount")),
-                    separator=" - ",
+            due_dates = ", ".join(
+                self._safe(item.get("due_date"))
+                for item in installments
+                if item.get("due_date")
+            )
+            if due_dates:
+                pdf.setFont("Helvetica", 6.5)
+                pdf.drawString(
+                    self.MARGIN + 3 * mm,
+                    bottom + 3 * mm,
+                    self._truncate(f"Cuotas / vencimientos: {due_dates}", 82),
                 )
-                pdf.drawString(self.MARGIN + 5 * mm, y, self._safe(value))
-                y -= 9
-        return y - 5
+        return bottom - 3 * mm
 
-    def _draw_items(self, pdf, items, y):
-        columns = (
-            ("Cod", 15 * mm),
-            ("Descripcion", 52 * mm),
-            ("UM", 13 * mm),
-            ("Cant.", 16 * mm),
-            ("P. unit.", 23 * mm),
-            ("Desc.", 19 * mm),
-            ("Exentas", 20 * mm),
-            ("5%", 20 * mm),
-            ("10%", 20 * mm),
+    def _item_columns(self):
+        return (
+            ("Codigo", 14 * mm, "left"),
+            ("Descripcion", 48 * mm, "left"),
+            ("Unidad", 12 * mm, "left"),
+            ("Cantidad", 14 * mm, "right"),
+            ("Precio unit.", 21 * mm, "right"),
+            ("Descuento", 17 * mm, "right"),
+            ("Exentas", 17 * mm, "right"),
+            ("IVA 5%", 17 * mm, "right"),
+            ("IVA 10%", 20 * mm, "right"),
+        )
+
+    def _draw_item_table(self, pdf, items, top):
+        columns = self._item_columns()
+        table_width = sum(item[1] for item in columns)
+        first_header = 12
+        second_header = 15
+        header_height = first_header + second_header
+        y = top
+        pdf.setFillGray(0.92)
+        pdf.rect(self.MARGIN, y - header_height, table_width, header_height, fill=1)
+        pdf.setFillGray(0)
+        sales_x = self.MARGIN + sum(item[1] for item in columns[:6])
+        pdf.line(sales_x, y - first_header, self.MARGIN + table_width, y - first_header)
+        pdf.setFont("Helvetica-Bold", 6.2)
+        pdf.drawCentredString(
+            sales_x + sum(item[1] for item in columns[6:]) / 2,
+            y - 8,
+            "VALOR DE VENTA",
         )
         x = self.MARGIN
-        pdf.setFont("Helvetica-Bold", 6)
-        for label, column_width in columns:
-            pdf.drawString(x, y, label)
+        for index, (label, column_width, _alignment) in enumerate(columns):
+            label_y = y - 21 if index >= 6 else y - 17
+            pdf.drawCentredString(x + column_width / 2, label_y, label)
             x += column_width
-        y -= 9
-        pdf.setFont("Helvetica", 6)
+        y -= header_height
         for item in items:
             description_lines = self._wrap_text(
                 item.get("description"),
-                50 * mm,
+                45 * mm,
                 "Helvetica",
                 6,
             )
+            row_height = max(18, 8 + len(description_lines) * 8)
             rate = self._decimal(item.get("tax_rate"))
             affectation = item.get("tax_affectation")
             total = item.get("total")
             values = (
                 item.get("code"),
-                description_lines[0],
+                description_lines,
                 item.get("unit_measure_description"),
-                self._number(item.get("quantity")),
-                self._number(item.get("price_unit")),
-                self._number(item.get("discount")),
-                self._number(total) if affectation == "3" else "",
-                self._number(total) if affectation != "3" and rate == Decimal("5") else "",
-                self._number(total) if affectation != "3" and rate == Decimal("10") else "",
+                self._format_quantity(item.get("quantity")),
+                self._format_amount(item.get("price_unit")),
+                self._format_amount(item.get("discount")),
+                self._format_amount(total) if affectation == "3" else "",
+                self._format_amount(total) if affectation != "3" and rate == Decimal("5") else "",
+                self._format_amount(total) if affectation != "3" and rate == Decimal("10") else "",
             )
             x = self.MARGIN
-            for value, (_label, column_width) in zip(values, columns):
-                pdf.drawString(x, y, self._safe(value))
+            pdf.setFont("Helvetica", 6)
+            for value, (_label, column_width, alignment) in zip(values, columns):
+                if isinstance(value, list):
+                    for line_index, line in enumerate(value):
+                        pdf.drawString(x + 2, y - 9 - line_index * 8, line)
+                elif alignment == "right":
+                    pdf.drawRightString(x + column_width - 2, y - 11, self._safe(value))
+                else:
+                    pdf.drawString(x + 2, y - 11, self._safe(value))
                 x += column_width
-            for continuation in description_lines[1:]:
-                y -= 9
-                pdf.drawString(self.MARGIN + columns[0][1], y, continuation)
-            y -= 9
-        return y - 4
+            pdf.rect(self.MARGIN, y - row_height, table_width, row_height)
+            x = self.MARGIN
+            for _label, column_width, _alignment in columns[:-1]:
+                x += column_width
+                pdf.line(x, y - row_height, x, y)
+            y -= row_height
+        return y - 3 * mm
 
     def _paginate_items(self, items):
         pages = []
         current = []
-        used_rows = 0
+        used_height = 0
         for item in items:
-            rows = max(
-                1,
-                len(
-                    self._wrap_text(
-                        item.get("description"),
-                        50 * mm,
-                        "Helvetica",
-                        6,
-                    )
-                ),
+            lines = len(
+                self._wrap_text(
+                    item.get("description"),
+                    45 * mm,
+                    "Helvetica",
+                    6,
+                )
             )
-            if current and used_rows + rows > self.ITEMS_PER_PAGE:
+            row_height = max(18, 8 + lines * 8)
+            if current and used_height + row_height > 285:
                 pages.append(current)
                 current = []
-                used_rows = 0
+                used_height = 0
             current.append(item)
-            used_rows += rows
+            used_height += row_height
         pages.append(current)
         return pages
 
-    def _draw_totals(self, pdf, payload, y):
-        totals = payload["totals"]
-        pdf.setFont("Helvetica-Bold", 8)
-        rows = (
-            ("Subtotal exentas", totals.get("subtotal_exempt")),
-            ("Subtotal 5%", totals.get("subtotal_5")),
-            ("Subtotal 10%", totals.get("subtotal_10")),
-            ("Total de la operacion", totals.get("total_operation")),
-            ("Total a pagar", totals.get("total_general")),
-            ("Total en Guaranies", totals.get("total_general")),
-            ("Liquidacion IVA 5%", totals.get("total_vat_5")),
-            ("Liquidacion IVA 10%", totals.get("total_vat_10")),
-            ("Total IVA", totals.get("total_vat")),
-        )
-        for label, value in rows:
-            pdf.drawString(self.MARGIN, y, f"{label}: {self._number(value)}")
-            y -= 10
-
-    def _draw_qr(self, pdf, cdc, qr_payload):
+    def _draw_totals_table(self, pdf, payload, top):
         width, _height = self.PAGE_SIZE
+        totals = payload["totals"]
+        rows = (
+            ("SUBTOTAL EXENTAS", totals.get("subtotal_exempt")),
+            ("SUBTOTAL IVA 5%", totals.get("subtotal_5")),
+            ("SUBTOTAL IVA 10%", totals.get("subtotal_10")),
+            ("TOTAL DE LA OPERACION", totals.get("total_operation")),
+            ("TOTAL A PAGAR", totals.get("total_general")),
+            ("TOTAL EN GUARANIES", totals.get("total_general")),
+            ("LIQUIDACION IVA 5%", totals.get("total_vat_5")),
+            ("LIQUIDACION IVA 10%", totals.get("total_vat_10")),
+            ("TOTAL IVA", totals.get("total_vat")),
+        )
+        table_width = 92 * mm
+        row_height = 10
+        x = width - self.MARGIN - table_width
+        y = top
+        pdf.setFont("Helvetica-Bold", 6.5)
+        for label, value in rows:
+            pdf.rect(x, y - row_height, table_width, row_height)
+            pdf.line(x + 62 * mm, y - row_height, x + 62 * mm, y)
+            pdf.drawString(x + 3, y - 7, label)
+            pdf.drawRightString(
+                x + table_width - 3,
+                y - 7,
+                self._format_amount(value),
+            )
+            y -= row_height
+        return y - 2 * mm
+
+    def _draw_fiscal_footer(self, pdf, payload, *, qr_payload=None, preview=False):
+        width, _height = self.PAGE_SIZE
+        block_x = self.MARGIN
+        block_y = self.MARGIN
+        block_width = width - 2 * self.MARGIN
+        block_height = 39 * mm
+        qr_box = 34 * mm
+        pdf.rect(block_x, block_y, block_width, block_height)
+        pdf.line(block_x + qr_box, block_y, block_x + qr_box, block_y + block_height)
+        qr_x = block_x + 3 * mm
+        qr_y = block_y + 6 * mm
+        if preview:
+            pdf.rect(qr_x, qr_y, self.QR_SIZE, self.QR_SIZE)
+            pdf.setFont("Helvetica-Bold", 7)
+            pdf.drawCentredString(
+                qr_x + self.QR_SIZE / 2,
+                qr_y + self.QR_SIZE / 2 + 4,
+                "QR NO DISPONIBLE",
+            )
+            pdf.setFont("Helvetica", 6)
+            pdf.drawCentredString(
+                qr_x + self.QR_SIZE / 2,
+                qr_y + self.QR_SIZE / 2 - 6,
+                "Vista previa no fiscal",
+            )
+        else:
+            self._draw_qr_image(pdf, qr_payload, qr_x, qr_y)
+
+        text_x = block_x + qr_box + 4 * mm
+        text_width = block_width - qr_box - 8 * mm
+        y = block_y + block_height - 6 * mm
+        pdf.setFont("Helvetica", 6.5)
+        if preview:
+            lines = (
+                "Vista previa para inspeccion interna.",
+                "No constituye una representacion fiscal autorizada.",
+                "El codigo QR fiscal no esta disponible.",
+            )
+        else:
+            parsed = urlsplit(qr_payload)
+            consultation_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+            lines = (
+                "Consulte la validez de esta Factura Electronica con el numero de CDC",
+                f"impreso abajo en: {consultation_url}",
+                f"CDC: {self._group_cdc(payload['cdc'])}",
+            )
+        for line in lines:
+            pdf.drawString(text_x, y, self._truncate(line, 92))
+            y -= 10
+        pdf.setFont("Helvetica-Bold", 6.5)
+        legal_lines = self._wrap_text(
+            "ESTE DOCUMENTO ES UNA REPRESENTACION GRAFICA DE UN DOCUMENTO ELECTRONICO (XML)",
+            text_width,
+            "Helvetica-Bold",
+            6.5,
+        )
+        for line in legal_lines:
+            pdf.drawString(text_x, y, line)
+            y -= 9
+
+    def _draw_qr_image(self, pdf, qr_payload, x, y):
         qr = QrCodeWidget(qr_payload)
         bounds = qr.getBounds()
         drawing = Drawing(
@@ -390,48 +611,53 @@ class PyKudeService:
         renderPDF.draw(
             drawing,
             pdf,
-            width - self.MARGIN - self.QR_SIZE,
-            self.MARGIN + 10 * mm,
+            x,
+            y,
         )
-        pdf.setFont("Helvetica", 6)
-        parsed = urlsplit(qr_payload)
-        consultation_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-        pdf.drawString(
-            self.MARGIN,
-            self.MARGIN + 27,
-            "Consulte la validez mediante el codigo QR.",
-        )
-        pdf.drawString(
-            self.MARGIN,
-            self.MARGIN + 18,
-            f"Consulta SIFEN: {consultation_url}",
-        )
-        pdf.drawString(self.MARGIN, self.MARGIN + 9, f"CDC: {self._group_cdc(cdc)}")
 
-    def _draw_preview_placeholder(self, pdf):
-        width, _height = self.PAGE_SIZE
-        x = width - self.MARGIN - self.QR_SIZE
-        y = self.MARGIN + 10 * mm
-        pdf.setLineWidth(1)
-        pdf.rect(x, y, self.QR_SIZE, self.QR_SIZE)
-        pdf.setFont("Helvetica-Bold", 7)
-        pdf.drawCentredString(
-            x + self.QR_SIZE / 2,
-            y + self.QR_SIZE / 2 + 4,
-            "QR NO DISPONIBLE",
+    def _draw_logo(self, pdf, logo_bytes, x, y, max_width, max_height):
+        image = ImageReader(io.BytesIO(logo_bytes))
+        image_width, image_height = image.getSize()
+        scale = min(max_width / image_width, max_height / image_height)
+        width = image_width * scale
+        height = image_height * scale
+        pdf.drawImage(
+            image,
+            x + (max_width - width) / 2,
+            y + (max_height - height) / 2,
+            width=width,
+            height=height,
+            preserveAspectRatio=True,
+            mask="auto",
         )
-        pdf.setFont("Helvetica", 6)
-        pdf.drawCentredString(x + self.QR_SIZE / 2, y + self.QR_SIZE / 2 - 6, "Vista previa no fiscal")
 
-    def _draw_preview_mark(self, pdf):
-        width, height = self.PAGE_SIZE
-        pdf.saveState()
-        pdf.setFillGray(0.82)
-        pdf.setFont("Helvetica-Bold", 34)
-        pdf.translate(width / 2, height / 2)
-        pdf.rotate(35)
-        pdf.drawCentredString(0, 0, "PREVIEW - SIN VALIDEZ FISCAL")
-        pdf.restoreState()
+    def _draw_label_values(self, pdf, values, x, y, max_characters):
+        pdf.setFont("Helvetica", 6.5)
+        for label, value in values:
+            if value in (None, ""):
+                continue
+            pdf.drawString(
+                x,
+                y,
+                self._truncate(f"{label}: {self._safe(value)}", max_characters),
+            )
+            y -= 9
+
+    def _truncate(self, value, length):
+        text = self._safe(value)
+        return text if len(text) <= length else f"{text[:length - 3]}..."
+
+    def _format_amount(self, value):
+        amount = self._decimal(value)
+        if amount == amount.to_integral_value():
+            return f"{int(amount):,}".replace(",", ".")
+        return f"{amount:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
+
+    def _format_quantity(self, value):
+        quantity = self._decimal(value)
+        if quantity == quantity.to_integral_value():
+            return str(int(quantity))
+        return format(quantity.normalize(), "f").replace(".", ",")
 
     def _persist(self, *, document, pdf_bytes, filename, metadata):
         self._lock_document(document)
