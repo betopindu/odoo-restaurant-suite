@@ -40,6 +40,10 @@
 * Kept UI downloads and email preparation on the same fail-closed service
   boundary and documented fiscal preview as separate from recipient delivery;
   no local/demo bypass was introduced.
+* Added an authenticated, ephemeral KuDE Preview boundary for visual inspection
+  of complete Paraguay invoice payloads before acceptance. Preview output is
+  unmistakably non-fiscal, fabricates no QR, persists no artifact and cannot
+  satisfy recipient-delivery eligibility.
 
 * Added a versioned final `rDE` artifact after QR/XSD validation and before the
   existing SOAP submission boundary.

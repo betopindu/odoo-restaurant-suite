@@ -5,6 +5,11 @@
         <field name="inherit_id" ref="einvoice_module.view_fiscal_document_form"/>
         <field name="arch" type="xml">
             <xpath expr="//header" position="inside">
+                <button name="action_preview_paraguay_kude"
+                        type="object"
+                        string="Preview KuDE"
+                        class="btn-secondary"
+                        invisible="country_code != 'PY' or document_type != 'invoice' or state in ('validation_error', 'cancelled')"/>
                 <button name="action_download_paraguay_kude"
                         type="object"
                         string="Download KuDE"

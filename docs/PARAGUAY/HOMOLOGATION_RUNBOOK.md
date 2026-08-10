@@ -189,8 +189,11 @@ Rejected and manual-review documents remain internal evidence only. Cancelled
 documents remain blocked until authority-event semantics are implemented.
 
 For local visual work, do not mark a fixture accepted and do not use recipient
-delivery routes. Fiscal preview is a separate, not-yet-implemented facility and
-must be visibly non-authoritative when introduced.
+delivery routes. Persist a complete normalized payload, open the fiscal
+document and select **Preview KuDE**. The resulting PDF is generated on demand,
+contains no fiscal QR and is visibly marked **PREVIEW - SIN VALIDEZ FISCAL**.
+It creates no attachment, transmission or authority evidence and cannot make
+the document eligible for delivery.
 
 | Authority result | Root cause | Resolution and validation | Why generic |
 | --- | --- | --- | --- |

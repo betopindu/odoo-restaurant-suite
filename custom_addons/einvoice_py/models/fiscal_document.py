@@ -283,3 +283,11 @@ class FiscalDocument(models.Model):
             "url": f"/einvoice_py/delivery/{self.uuid}/xml",
             "target": "self",
         }
+
+    def action_preview_paraguay_kude(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_url",
+            "url": f"/einvoice_py/preview/{self.uuid}/kude",
+            "target": "self",
+        }

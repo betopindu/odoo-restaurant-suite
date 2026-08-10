@@ -1342,10 +1342,23 @@ audit record. Rejected, ambiguous, unfinished, failed, and cancelled documents
 are not final-recipient deliverables. Cancellation behavior remains pending
 the authority event/cancellation implementation.
 
-A future fiscal-document preview must remain separate from delivery. Preview
-output must be visibly identified as TEST/PREVIEW, must not use these recipient
-routes, and must neither claim nor simulate authority acceptance. The current
-implementation deliberately provides no demo or preview bypass.
+## KuDE preview
+
+The fiscal document form exposes **Preview KuDE** for complete, non-cancelled
+Paraguay invoices outside `validation_error`. The action uses the separate,
+authenticated `/einvoice_py/preview/<document UUID>/kude` route and generates
+`PREVIEW-FE-<number>.pdf` on demand from the current persisted payload.
+
+Preview output is visibly marked **PREVIEW - SIN VALIDEZ FISCAL** on every page
+and retains the TEST/PRODUCTION environment label. It never reads CSC,
+credentials, authority responses or final XML. It neither requires nor creates
+a fiscal QR: the QR area contains a non-functional preview placeholder.
+Preview PDFs are not cached or persisted as fiscal attachments, do not enter
+artifact version history and can never be selected by recipient delivery.
+
+Preview does not mutate state, create a transmission, simulate `0260`/`0422`,
+or satisfy delivery eligibility. Accepted documents may also be previewed, but
+their preview remains distinct from their authority-backed KuDE/XML delivery.
 
 Historical accepted documents created before `paraguay_rde_final` persistence
 fail closed. Their final XML may be installed only by a separately audited

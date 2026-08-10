@@ -53,12 +53,12 @@ class PyKudeService:
     def generate(self, *, document, filename=None):
         document.ensure_one()
         self._validate_document(document)
-        payload_attachment, payload = self._payload(document)
+        payload_attachment, payload = self.load_payload(document)
         qr_attachment, qr_payload = self.qr_attachment_service.read_current(
             document=document
         )
-        self._validate_payload(payload, document)
-        pdf_bytes, page_count = self._render(payload, qr_payload)
+        self.validate_payload(payload, document)
+        pdf_bytes, page_count = self.render_pdf(payload, qr_payload=qr_payload)
         attachment = self._persist(
             document=document,
             pdf_bytes=pdf_bytes,
@@ -98,7 +98,7 @@ class PyKudeService:
                 "KuDE currently supports Paraguay electronic invoices only."
             )
 
-    def _payload(self, document):
+    def load_payload(self, document):
         attachment = self.env["fiscal.attachment"].sudo().search(
             [
                 ("document_id", "=", document.id),
@@ -123,7 +123,7 @@ class PyKudeService:
             raise ValidationError("Persisted Paraguay payload is invalid for KuDE.")
         return attachment, payload
 
-    def _validate_payload(self, payload, document):
+    def validate_payload(self, payload, document):
         required_sections = (
             "document",
             "operation",
@@ -164,7 +164,9 @@ class PyKudeService:
         if not payload["items"] or any(value in (None, "") for value in mandatory):
             raise ValidationError("Persisted Paraguay payload is incomplete for KuDE.")
 
-    def _render(self, payload, qr_payload):
+    def render_pdf(self, payload, *, qr_payload=None, preview=False):
+        if not preview and not qr_payload:
+            raise ValidationError("Final KuDE rendering requires the persisted fiscal QR.")
         pages = self._paginate_items(payload["items"])
         page_count = len(pages)
         output = io.BytesIO()
@@ -174,20 +176,31 @@ class PyKudeService:
             invariant=1,
             pageCompression=1,
         )
-        pdf.setTitle("KuDE de Factura Electronica")
+        pdf.setTitle(
+            "Preview de Factura Electronica"
+            if preview
+            else "KuDE de Factura Electronica"
+        )
         pdf.setAuthor("Fiscal e-Invoice Platform")
         for page_index, page_items in enumerate(pages):
-            y = self._draw_header(pdf, payload, page_index, page_count)
+            y = self._draw_header(
+                pdf, payload, page_index, page_count, preview=preview
+            )
             y = self._draw_items(pdf, page_items, y)
             if page_index == page_count - 1:
                 self._draw_totals(pdf, payload, y)
             if page_index == 0:
-                self._draw_qr(pdf, payload["cdc"], qr_payload)
+                if preview:
+                    self._draw_preview_placeholder(pdf)
+                else:
+                    self._draw_qr(pdf, payload["cdc"], qr_payload)
+            if preview:
+                self._draw_preview_mark(pdf)
             pdf.showPage()
         pdf.save()
         return output.getvalue(), page_count
 
-    def _draw_header(self, pdf, payload, page_index, page_count):
+    def _draw_header(self, pdf, payload, page_index, page_count, *, preview=False):
         width, height = self.PAGE_SIZE
         issuer = payload["issuer"]
         document = payload["document"]
@@ -196,7 +209,12 @@ class PyKudeService:
         condition = payload["condition"]
         top = height - self.MARGIN
         pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(self.MARGIN, top, "KuDE DE FACTURA ELECTRONICA")
+        title = (
+            "PREVIEW - SIN VALIDEZ FISCAL"
+            if preview
+            else "KuDE DE FACTURA ELECTRONICA"
+        )
+        pdf.drawString(self.MARGIN, top, title)
         pdf.setFont("Helvetica-Bold", 9)
         pdf.drawCentredString(
             width / 2,
@@ -389,6 +407,31 @@ class PyKudeService:
             f"Consulta SIFEN: {consultation_url}",
         )
         pdf.drawString(self.MARGIN, self.MARGIN + 9, f"CDC: {self._group_cdc(cdc)}")
+
+    def _draw_preview_placeholder(self, pdf):
+        width, _height = self.PAGE_SIZE
+        x = width - self.MARGIN - self.QR_SIZE
+        y = self.MARGIN + 10 * mm
+        pdf.setLineWidth(1)
+        pdf.rect(x, y, self.QR_SIZE, self.QR_SIZE)
+        pdf.setFont("Helvetica-Bold", 7)
+        pdf.drawCentredString(
+            x + self.QR_SIZE / 2,
+            y + self.QR_SIZE / 2 + 4,
+            "QR NO DISPONIBLE",
+        )
+        pdf.setFont("Helvetica", 6)
+        pdf.drawCentredString(x + self.QR_SIZE / 2, y + self.QR_SIZE / 2 - 6, "Vista previa no fiscal")
+
+    def _draw_preview_mark(self, pdf):
+        width, height = self.PAGE_SIZE
+        pdf.saveState()
+        pdf.setFillGray(0.82)
+        pdf.setFont("Helvetica-Bold", 34)
+        pdf.translate(width / 2, height / 2)
+        pdf.rotate(35)
+        pdf.drawCentredString(0, 0, "PREVIEW - SIN VALIDEZ FISCAL")
+        pdf.restoreState()
 
     def _persist(self, *, document, pdf_bytes, filename, metadata):
         self._lock_document(document)

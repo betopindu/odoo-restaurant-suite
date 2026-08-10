@@ -100,6 +100,7 @@ from .py_qr_generation_service import (
     SifenQrBuilder,
 )
 from .py_kude_service import PyKudeResult, PyKudeService
+from .py_kude_preview_service import PyKudePreviewResult, PyKudePreviewService
 from .py_qr_payload_attachment_service import PyQrPayloadAttachmentService
 from .py_xml_signature_service import (
     PyXmlSignatureResult,

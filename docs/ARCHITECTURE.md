@@ -139,11 +139,20 @@ audit model is added: pure resolution and preparation remain idempotent and do
 not create records; a future actual mail/send operation may justify an audit
 event at that side-effect boundary.
 
-Fiscal preview is a separate future boundary, not a delivery mode. A preview
-may render clearly marked TEST/PREVIEW output from local or draft inputs, but it
-must not use recipient delivery routes, mutate the document to `accepted`, or
-create authority evidence. No preview bypass exists in the production delivery
-service.
+Fiscal preview is a separate boundary, not a delivery mode.
+`PyKudePreviewService` reads the current persisted normalized payload and calls
+the same deterministic KuDE renderer in preview mode. It does not require a
+signature, fiscal QR, final `rDE`, transmission or authority result. Instead of
+fabricating a fiscal QR it draws a non-functional placeholder, and every page
+is visibly marked `PREVIEW - SIN VALIDEZ FISCAL` while retaining the configured
+environment label.
+
+Preview is generated on demand and is not persisted or cached as a fiscal
+artifact. Its authenticated UUID route is `/einvoice_py/preview/...`, distinct
+from recipient `/delivery/...` routes, and it enforces normal record rules and
+active-company scope. Preview never mutates the document to `accepted`, creates
+authority evidence, or satisfies delivery eligibility. The production delivery
+service has no preview or demo bypass.
 
 ## 1. Core Modules
 

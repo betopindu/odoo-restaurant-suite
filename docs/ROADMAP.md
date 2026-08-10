@@ -98,6 +98,7 @@
 [x] Deterministic, payload-first Paraguay invoice KuDE/PDF generation and artifact versioning
 [x] Safe SIFEN authority-incident observability and guarded manual retry
 [x] Secure recipient delivery of current accepted Paraguay rDE and KuDE artifacts
+[x] Non-authoritative, ephemeral Paraguay KuDE Preview separated from delivery
 
 ## Current Baseline
 
