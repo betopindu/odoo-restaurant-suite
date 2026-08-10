@@ -33,6 +33,14 @@
 
 ## 2026-08-09 — Accepted Paraguay document delivery
 
+* Hardened recipient delivery so `state = accepted` alone is insufficient.
+  Delivery now requires coherent persisted SIFEN acceptance evidence for the
+  same document scope and CDC, through either synchronous `0260` acceptance or
+  authoritative Consulta DE `0422` reconciliation.
+* Kept UI downloads and email preparation on the same fail-closed service
+  boundary and documented fiscal preview as separate from recipient delivery;
+  no local/demo bypass was introduced.
+
 * Added a versioned final `rDE` artifact after QR/XSD validation and before the
   existing SOAP submission boundary.
 * Added side-effect-free resolution of the current accepted KuDE/XML pair with

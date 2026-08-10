@@ -1320,6 +1320,15 @@ returns immutable file descriptors. It never selects unsigned XML, the signed pr
 artifact, superseded artifacts, normalized payloads, QR payloads, manifests,
 responses, credentials, or certificate material.
 
+Delivery requires two independent facts: a coherent document state and
+persisted authority-backed acceptance. The accepted evidence must belong to
+the same document, tenant, company, environment and CDC. It is either an
+accepted synchronous `submit` transmission with official result `0260`, or an
+accepted Consulta DE reconciliation with `0422`, exact returned CDC, normalized
+`approved` result and linkage to the prior submission. Ambiguous, incomplete or
+contradictory evidence is rejected. Setting `state = accepted`, adding local
+metadata, or installing artifacts does not make a document deliverable.
+
 Recipient filenames are deterministic and contain no database identifiers:
 `FE-001-001-0000006.pdf` and `FE-001-001-0000006.xml`. The fiscal document form
 shows **Download KuDE** and **Download XML** only for accepted Paraguay
@@ -1332,6 +1341,11 @@ and exactly those two immutable attachments. It does not send mail or create an
 audit record. Rejected, ambiguous, unfinished, failed, and cancelled documents
 are not final-recipient deliverables. Cancellation behavior remains pending
 the authority event/cancellation implementation.
+
+A future fiscal-document preview must remain separate from delivery. Preview
+output must be visibly identified as TEST/PREVIEW, must not use these recipient
+routes, and must neither claim nor simulate authority acceptance. The current
+implementation deliberately provides no demo or preview bypass.
 
 Historical accepted documents created before `paraguay_rde_final` persistence
 fail closed. Their final XML may be installed only by a separately audited

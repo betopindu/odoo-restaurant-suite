@@ -116,15 +116,34 @@ the signed pre-QR input retained for signing and retry audit. Delivery resolves
 only the single current final `rDE` and current KuDE PDF, verifies hashes, final
 XML structure and XMLDSig locally, and returns immutable, redacted file results.
 
-Only `accepted` documents are deliverable. Rejected, ambiguous, draft, ready,
-signed, submitted, failed, and cancelled documents are blocked. Cancellation
-delivery semantics remain pending the future authority-event implementation.
+The `accepted` document state is necessary but never sufficient for delivery.
+The service also requires coherent persisted SIFEN evidence for the same
+document, tenant, company, environment and CDC. Direct acceptance is proven by
+an accepted `submit` transmission carrying the official synchronous success
+code `0260` and a non-ambiguous result. Acceptance recovered through Consulta
+DE is proven by an accepted `status_query` with `0422`, an `approved` normalized
+result, the exact returned CDC and an auditable link to the prior submission.
+Every accepted evidence record must be internally coherent; missing,
+contradictory, incomplete or ambiguous evidence fails closed. Document fields,
+attachments and manually writable metadata never substitute for authority
+evidence.
+
+Rejected, ambiguous, draft, ready, signed, submitted, failed, and cancelled
+documents are blocked. Downloads and email preparation both call this same
+invariant through the delivery service; controllers contain no weaker copy.
+Cancellation delivery semantics remain pending the future authority-event implementation.
 Downloads use authenticated UUID-scoped routes and re-run document record-rule
 and company checks; callers cannot address arbitrary attachment IDs. Email
 preparation is side-effect-free and returns only the PDF/XML pair. No delivery
 audit model is added: pure resolution and preparation remain idempotent and do
 not create records; a future actual mail/send operation may justify an audit
 event at that side-effect boundary.
+
+Fiscal preview is a separate future boundary, not a delivery mode. A preview
+may render clearly marked TEST/PREVIEW output from local or draft inputs, but it
+must not use recipient delivery routes, mutate the document to `accepted`, or
+create authority evidence. No preview bypass exists in the production delivery
+service.
 
 ## 1. Core Modules
 

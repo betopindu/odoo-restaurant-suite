@@ -12,6 +12,9 @@ from odoo.exceptions import AccessError, ValidationError
 from odoo.addons.einvoice_py.services.py_xml_signature_verification_service import (
     PyXmlSignatureVerificationService,
 )
+from odoo.addons.einvoice_py.services.py_sifen_recep_de_response_parser import (
+    PySifenRecepDeResponseParser,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +49,7 @@ class PyFiscalDocumentDeliveryService:
     XML_TYPE = "paraguay_rde_final"
     SIFEN_NS = "http://ekuatia.set.gov.py/sifen/xsd"
     DS_NS = "http://www.w3.org/2000/09/xmldsig#"
+    CONSULTA_APPROVED_CODE = "0422"
     DOCUMENT_PREFIXES = {
         "invoice": "FE",
         "credit_note": "NCE",
@@ -105,6 +109,92 @@ class PyFiscalDocumentDeliveryService:
             raise ValidationError("Only accepted Paraguay fiscal documents are deliverable.")
         if not (document.country_identifier or document.py_cdc):
             raise ValidationError("Accepted Paraguay document CDC is missing.")
+        if not self._has_authoritative_acceptance(document):
+            raise ValidationError(
+                "Paraguay delivery requires coherent persisted SIFEN acceptance evidence."
+            )
+
+    def _has_authoritative_acceptance(self, document):
+        cdc = (document.country_identifier or document.py_cdc or "").strip()
+        evidence = self.env["fiscal.transmission"].sudo().search([
+            ("document_id", "=", document.id),
+            ("transmission_type", "in", ("submit", "status_query")),
+            ("state", "=", "accepted"),
+        ])
+        if not evidence:
+            return False
+        direct = evidence.filtered(lambda item: item.transmission_type == "submit")
+        candidates = direct or evidence.filtered(
+            lambda item: item.transmission_type == "status_query"
+        )
+        validations = [
+            self._valid_acceptance_transmission(item, document=document, cdc=cdc)
+            for item in candidates
+        ]
+        return bool(validations) and all(validations)
+
+    def _valid_acceptance_transmission(self, transmission, *, document, cdc):
+        if (
+            transmission.document_id != document
+            or transmission.tenant_id != document.tenant_id
+            or transmission.company_id != document.company_id
+            or (transmission.country_code or "").upper() != "PY"
+            or transmission.environment != document.environment
+            or (transmission.country_identifier or "").strip() != cdc
+            or not re.fullmatch(r"[0-9a-f]{64}", transmission.request_hash or "")
+            or not re.fullmatch(r"[0-9a-f]{64}", transmission.response_hash or "")
+        ):
+            return False
+        metadata = self._metadata(transmission)
+        if metadata.get("ambiguous") is True:
+            return False
+        if transmission.transmission_type == "submit":
+            return (
+                metadata.get("ambiguous") is False
+                and transmission.authority_status_code
+                == PySifenRecepDeResponseParser.ACCEPTED_CODE
+                and document.authority_status
+                == PySifenRecepDeResponseParser.ACCEPTED_CODE
+            )
+        return self._valid_reconciliation_evidence(
+            transmission,
+            document=document,
+            cdc=cdc,
+            metadata=metadata,
+        )
+
+    def _valid_reconciliation_evidence(
+        self, transmission, *, document, cdc, metadata
+    ):
+        normalized = metadata.get("normalized_response")
+        structure = metadata.get("response_structure")
+        original_ids = metadata.get("original_submission_ids")
+        if (
+            transmission.authority_status_code != self.CONSULTA_APPROVED_CODE
+            or document.authority_status != self.CONSULTA_APPROVED_CODE
+            or metadata.get("result_category") != "approved"
+            or not isinstance(normalized, dict)
+            or normalized.get("approved") is not True
+            or not isinstance(structure, dict)
+            or structure.get("returned_cdc") != cdc
+            or not isinstance(original_ids, list)
+            or not original_ids
+            or any(not isinstance(item, int) for item in original_ids)
+        ):
+            return False
+        originals = self.env["fiscal.transmission"].sudo().browse(original_ids).exists()
+        if len(originals) != len(set(original_ids)):
+            return False
+        return all(
+            original.document_id == document
+            and original.transmission_type == "submit"
+            and original.tenant_id == document.tenant_id
+            and original.company_id == document.company_id
+            and (original.country_code or "").upper() == "PY"
+            and original.environment == document.environment
+            and (original.country_identifier or "").strip() == cdc
+            for original in originals
+        )
 
     def _current_attachment(self, document, attachment_type):
         attachments = self.env["fiscal.attachment"].sudo().search([

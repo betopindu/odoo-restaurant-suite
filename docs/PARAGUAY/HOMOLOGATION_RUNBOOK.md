@@ -173,8 +173,12 @@ transmission or retry state.
 
 ## Deliver accepted evidence
 
-Delivery is permitted only after the document and its authority transmission
-are accepted. Confirm that a current `paraguay_rde_final` and current
+Delivery is permitted only after the document is accepted and the same-scoped
+persisted authority evidence proves acceptance. The supported evidence is an
+accepted `submit` result `0260`, or an accepted Consulta DE reconciliation
+`0422` with matching returned CDC and linkage to its prior submission. A manual
+state change, local/demo metadata, or artifact presence is not evidence.
+Confirm that a current `paraguay_rde_final` and current
 `paraguay_kude_pdf` exist. Use the document form's **Download XML** and
 **Download KuDE** actions; never share an internal attachment URL or ID.
 Resolution is read-only and must return the same hashes on repeated access.
@@ -183,6 +187,10 @@ Do not deliver unsigned XML, the signed pre-QR input, payload/QR JSON,
 manifests, normalized responses, superseded files, or credential artifacts.
 Rejected and manual-review documents remain internal evidence only. Cancelled
 documents remain blocked until authority-event semantics are implemented.
+
+For local visual work, do not mark a fixture accepted and do not use recipient
+delivery routes. Fiscal preview is a separate, not-yet-implemented facility and
+must be visibly non-authoritative when introduced.
 
 | Authority result | Root cause | Resolution and validation | Why generic |
 | --- | --- | --- | --- |

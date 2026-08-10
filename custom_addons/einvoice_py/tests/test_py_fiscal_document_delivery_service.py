@@ -90,6 +90,10 @@ class TestPyFiscalDocumentDeliveryService(TransactionCase):
             "application/xml",
             {"artifact_status": "current", "cdc": self.CDC},
         )
+        self.acceptance = self._transmission(
+            state="accepted",
+            authority_status_code="0260",
+        )
         self.service = PyFiscalDocumentDeliveryService(
             self.env,
             signature_verification_service=_SignatureVerificationStub(),
@@ -127,6 +131,22 @@ class TestPyFiscalDocumentDeliveryService(TransactionCase):
         etree.SubElement(qr, f"{{{sifen}}}dCarQR").text = "https://example.test/qr"
         return etree.tostring(root, encoding="UTF-8", xml_declaration=True)
 
+    def _transmission(self, **overrides):
+        values = {
+            "document_id": self.document.id,
+            "transmission_type": "submit",
+            "state": "rejected",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": self.CDC,
+            "authority_status_code": "1300",
+            "request_hash": "a" * 64,
+            "response_hash": "b" * 64,
+            "metadata_json": json.dumps({"ambiguous": False}),
+        }
+        values.update(overrides)
+        return self.env["fiscal.transmission"].create(values)
+
     def test_accepted_document_resolves_current_pdf_and_final_xml(self):
         bundle = self.service.resolve(document=self.document)
 
@@ -157,6 +177,124 @@ class TestPyFiscalDocumentDeliveryService(TransactionCase):
                 ).write({"state": state})
                 with self.assertRaisesRegex(ValidationError, "Only accepted"):
                     self.service.resolve(document=self.document)
+
+    def test_accepted_state_without_authority_evidence_is_blocked(self):
+        self.acceptance.unlink()
+        with self.assertRaisesRegex(ValidationError, "acceptance evidence"):
+            self.service.resolve(document=self.document)
+
+    def test_forged_local_accepted_state_is_blocked(self):
+        self.acceptance.unlink()
+        self.document.with_context(
+            einvoice_skip_fiscal_document_lock=True
+        ).write({"metadata_json": json.dumps({"authority_source": "local_demo"})})
+        with self.assertRaisesRegex(ValidationError, "acceptance evidence"):
+            self.service.prepare_email(document=self.document)
+
+    def test_rejected_or_ambiguous_submission_is_blocked(self):
+        self.acceptance.unlink()
+        self._transmission()
+        with self.assertRaisesRegex(ValidationError, "acceptance evidence"):
+            self.service.resolve(document=self.document)
+        self._transmission(
+            state="accepted",
+            authority_status_code="0260",
+            metadata_json=json.dumps({"ambiguous": True}),
+        )
+        with self.assertRaisesRegex(ValidationError, "acceptance evidence"):
+            self.service.resolve(document=self.document)
+
+    def test_incoherent_accepted_transmission_is_blocked(self):
+        for field, value in (
+            ("country_identifier", "0" * 44),
+            ("environment", "production"),
+            ("country_code", "CR"),
+        ):
+            with self.subTest(field=field):
+                original = self.acceptance[field]
+                self.acceptance.write({field: value})
+                with self.assertRaisesRegex(ValidationError, "acceptance evidence"):
+                    self.service.resolve(document=self.document)
+                self.acceptance.write({field: original})
+
+        self.acceptance.write({"request_hash": ""})
+        with self.assertRaisesRegex(ValidationError, "acceptance evidence"):
+            self.service.resolve(document=self.document)
+
+    def test_document_authority_status_must_match_direct_evidence(self):
+        self.document.with_context(
+            einvoice_skip_fiscal_document_lock=True
+        ).write({"authority_status": "0422"})
+        with self.assertRaisesRegex(ValidationError, "acceptance evidence"):
+            self.service.resolve(document=self.document)
+
+    def test_accepted_transmission_for_another_document_is_blocked(self):
+        self.acceptance.unlink()
+        other = self.document.copy({
+            "name": "Other accepted document",
+            "idempotency_key": f"{self.id()}-other",
+        })
+        self.env["fiscal.transmission"].create({
+            "document_id": other.id,
+            "transmission_type": "submit",
+            "state": "accepted",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": self.CDC,
+            "authority_status_code": "0260",
+        })
+        with self.assertRaisesRegex(ValidationError, "acceptance evidence"):
+            self.service.resolve(document=self.document)
+
+    def test_authoritative_consulta_reconciliation_is_eligible(self):
+        self.acceptance.unlink()
+        self.document.with_context(
+            einvoice_skip_fiscal_document_lock=True
+        ).write({"authority_status": "0422"})
+        original = self._transmission(
+            state="manual_review",
+            authority_status_code="",
+            metadata_json=json.dumps({"ambiguous": True}),
+        )
+        self._transmission(
+            transmission_type="status_query",
+            state="accepted",
+            authority_status_code="0422",
+            metadata_json=json.dumps({
+                "result_category": "approved",
+                "normalized_response": {"approved": True},
+                "response_structure": {"returned_cdc": self.CDC},
+                "original_submission_ids": [original.id],
+            }),
+        )
+        self.assertEqual(self.service.resolve(document=self.document).document["cdc"], self.CDC)
+
+    def test_direct_acceptance_remains_canonical_after_diagnostic_query(self):
+        self._transmission(
+            transmission_type="status_query",
+            state="accepted",
+            authority_status_code="0422",
+            metadata_json=json.dumps({
+                "result_category": "approved",
+                "normalized_response": {"approved": True},
+                "response_structure": {"returned_cdc": self.CDC},
+            }),
+        )
+        self.assertEqual(self.service.resolve(document=self.document).document["cdc"], self.CDC)
+
+    def test_incomplete_consulta_evidence_is_blocked(self):
+        self.acceptance.unlink()
+        self._transmission(
+            transmission_type="status_query",
+            state="accepted",
+            authority_status_code="0422",
+            metadata_json=json.dumps({
+                "result_category": "approved",
+                "normalized_response": {"approved": True},
+            }),
+        )
+        with self.assertRaisesRegex(ValidationError, "acceptance evidence"):
+            self.service.resolve(document=self.document)
 
     def test_superseded_artifacts_are_never_selected(self):
         old_pdf = self._attachment(
