@@ -28,6 +28,7 @@ from . import test_py_sifen_transmission_persistence_service
 from . import test_py_signing_pipeline_service
 from . import test_py_signed_xml_preparation_service
 from . import test_py_signed_xml_attachment_service
+from . import test_py_source_artifact_service
 from . import test_py_xml_signature_service
 from . import test_py_xml_signature_verification_service
 from . import test_runtime_dependencies

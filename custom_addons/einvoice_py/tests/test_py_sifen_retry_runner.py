@@ -74,6 +74,11 @@ class TestPySifenRetryRunner(TransactionCase):
             now_provider=lambda: self.NOW,
         )
         self.runner = self.env["py.sifen.retry.runner"]
+        from odoo.addons.einvoice_py.services.py_source_artifact_service import PySourceArtifactService
+        PySourceArtifactService(self.env).persist_payload(
+            document=self.document,
+            payload=self._payload("fixture"),
+        )
 
     def _accepted_result(self, hash_seed):
         return {
@@ -124,7 +129,7 @@ class TestPySifenRetryRunner(TransactionCase):
         values = {
             "limit": 10,
             "retry_execution_service": self.execution_service,
-            "payload": {"payload": "fixture"},
+            "payload": self._payload("fixture"),
             "certificate_bytes": b"certificate-secret-fixture",
             "private_key_bytes": b"private-key-secret-fixture",
             "private_key_password": "password-secret-fixture",
@@ -135,11 +140,10 @@ class TestPySifenRetryRunner(TransactionCase):
         return self.runner.run_sifen_retries(**values)
 
     def _create_retry_attachments(self):
-        self.env["fiscal.attachment"].sudo().create_json_payload_attachment(
-            self.document,
-            "paraguay_payload_json",
-            "runner-retry-payload.json",
-            {"payload": "stored-runner-fixture"},
+        from odoo.addons.einvoice_py.services.py_source_artifact_service import PySourceArtifactService
+        PySourceArtifactService(self.env).persist_payload(
+            document=self.document,
+            payload=self._payload("stored-runner-fixture"),
         )
         self.env["fiscal.attachment"].sudo().create({
             "name": "runner-retry-signed.xml",
@@ -149,9 +153,16 @@ class TestPySifenRetryRunner(TransactionCase):
             "filename": "runner-retry-signed.xml",
             "is_sensitive": True,
             "metadata_json": json.dumps({
-                "signing_time": "2026-07-05T11:30:00",
+                "signing_time": "2026-07-05T07:30:00",
             }),
         })
+
+    def _payload(self, marker):
+        return {
+            "cdc": self.CDC,
+            "document": {"py_cdc": self.CDC},
+            "payload": marker,
+        }
 
     def test_runner_executes_due_retries(self):
         transmission = self._scheduled_transmission()
@@ -181,11 +192,11 @@ class TestPySifenRetryRunner(TransactionCase):
         self.assertEqual(results[0]["execution_status"], "executed")
         self.assertEqual(
             self.pipeline.calls[0]["payload"],
-            {"payload": "stored-runner-fixture"},
+            self._payload("stored-runner-fixture"),
         )
         self.assertEqual(
             self.pipeline.calls[0]["signing_timestamp"],
-            "2026-07-05T11:30:00",
+            self.NOW,
         )
 
     def test_runner_respects_batch_size(self):

@@ -76,11 +76,15 @@ Status meanings:
 | Ambiguous POST and Consulta DE | REQUIRES LIVE TEST | Timeout normalization, CDC blocking, row-locked SOAP Consulta DE, immutable submission evidence, `0422` acceptance, `0420` `reconciliation_not_found`, safe observability and idempotency are tested without network. No live ambiguous outcome should be manufactured. |
 | QR generation/authority validation | READY | Deterministic QR uses the exact final XMLDSig digest and official TEST CSC pair; the accepted DE proves SIFEN validation for the baseline. Browser QR consultation counts remain pending. |
 | KuDE PDF generation | READY | The invoice renderer consumes only persisted payload plus the exact persisted QR URL, produces deterministic/versioned PDF artifacts, and has unit/integration, regeneration, multipage and idempotency coverage. Live receiver delivery remains operational work. |
-| Cancellation and inutilization | REQUIRES LIVE TEST | Official v150 emitter-event XMLDSig/SOAP, local eligibility, range overlap, persistence, ambiguity and code `0600` handling are implemented and tested offline. No live event has been sent. |
-| Receiver events | REQUIRES LIVE TEST | Notification `10`, conformity `11` (partial/total), disconformity `12` and unknown-document `13` are implemented and tested offline; authority acceptance remains pending. |
+| Cancellation and inutilization | PARTIAL | Signed event XML/SOAP, locking and persistence exist, but complete associated-DTE/receiver-event eligibility and official event-XSD evidence remain pending. |
+| Receiver events | PARTIAL | Notification `10`, conformity `11`, disconformity `12` and unknown-document `13` have offline request/persistence coverage; the received-DTE boundary and official event-XSD validation remain incomplete. |
 | General DTE/event consultation | PARTIAL | TEST Consulta DE by CDC exists for ambiguous reconciliation; general consultation matrix and associated-event output are absent. |
 | Asynchronous batch submission/result | NOT IMPLEMENTED | Current submission is synchronous only. |
 | Synchronous SOAP, mTLS and response persistence | READY | SOAP 1.2, qualified PKCS#12, mTLS, parser and persistence are implemented and live-proven for FE. |
+| Retry freshness and artifact provenance | READY | Manual and scheduled retries resolve one current hash/CDC-validated payload, use a fresh centralized signing instant and persist a linked, versioned payload/unsigned/signed/QR/rDE chain. Cron remains disabled. |
+
+Live DE diagnostics remain blocked while SIFEN TEST returns `0100 - Error
+Inesperado(PKI)`. That incident is never eligible for automatic retry.
 
 Country-neutral core support does not imply Paraguay protocol support. In
 particular, a neutral `credit_note`, `debit_note` or `cancelled` value is not an

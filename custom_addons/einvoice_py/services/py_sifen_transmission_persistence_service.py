@@ -15,6 +15,9 @@ from odoo.addons.einvoice_py.services.py_sifen_submission_pipeline_service impor
 from odoo.addons.einvoice_py.services.py_sifen_authority_incident_service import (
     PySifenAuthorityIncidentService,
 )
+from odoo.addons.einvoice_py.services.py_source_artifact_service import (
+    PySourceArtifactService,
+)
 
 
 class PySifenTransmissionPersistenceService:
@@ -27,6 +30,7 @@ class PySifenTransmissionPersistenceService:
         env,
         submission_pipeline_service=None,
         credential_provider=None,
+        source_artifact_service=None,
     ):
         self.env = env
         self.submission_pipeline_service = (
@@ -34,6 +38,9 @@ class PySifenTransmissionPersistenceService:
         )
         self.credential_provider = (
             credential_provider or PySifenCredentialProvider(env)
+        )
+        self.source_artifact_service = (
+            source_artifact_service or PySourceArtifactService(env)
         )
 
     def submit_and_persist(self, **kwargs):
@@ -144,18 +151,9 @@ class PySifenTransmissionPersistenceService:
             raise ValidationError(
                 "SIFEN submission requires a dictionary payload."
             )
-        attachment_model = self.env["fiscal.attachment"].sudo()
-        existing = attachment_model.search([
-            ("document_id", "=", document.id),
-            ("attachment_type", "=", "paraguay_payload_json"),
-        ], limit=1)
-        if existing:
-            return existing
-        return attachment_model.create_json_payload_attachment(
-            document,
-            "paraguay_payload_json",
-            f"{document.uuid}-paraguay-payload.json",
-            payload,
+        return self.source_artifact_service.persist_payload(
+            document=document,
+            payload=payload,
         )
 
     def _create_pending_transmission(self, *, document, started_at):

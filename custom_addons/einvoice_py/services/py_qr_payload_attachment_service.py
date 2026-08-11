@@ -16,7 +16,17 @@ class PyQrPayloadAttachmentService:
     def __init__(self, env):
         self.env = env
 
-    def persist(self, *, document, qr_payload, qr_hash, filename=None):
+    def persist(
+        self,
+        *,
+        document,
+        qr_payload,
+        qr_hash,
+        filename=None,
+        signed_attachment_id=None,
+        signed_xml_sha256=None,
+        digest_value=None,
+    ):
         document.ensure_one()
         self._lock_document(document)
         content = self._validated_content(document, qr_payload, qr_hash)
@@ -34,6 +44,9 @@ class PyQrPayloadAttachmentService:
             "artifact_status": "current",
             "cdc": document.py_cdc or document.country_identifier,
             "qr_hash": qr_hash,
+            "signed_attachment_id": signed_attachment_id,
+            "signed_xml_sha256": signed_xml_sha256,
+            "digest_value": digest_value,
         }
         if previous:
             metadata["supersedes_attachment_id"] = previous.id
@@ -160,6 +173,9 @@ class PyQrPayloadAttachmentService:
             "artifact_status",
             "cdc",
             "qr_hash",
+            "signed_attachment_id",
+            "signed_xml_sha256",
+            "digest_value",
             "superseded_by_attachment_id",
             "supersedes_attachment_id",
         )

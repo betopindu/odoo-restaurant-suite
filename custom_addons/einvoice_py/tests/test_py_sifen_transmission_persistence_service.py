@@ -77,6 +77,9 @@ class _CredentialProviderStub:
 class TestPySifenTransmissionPersistenceService(TransactionCase):
     CDC = "01444444017001001001452822017012515873260988"
 
+    def _payload(self):
+        return {"cdc": self.CDC, "document": {"py_cdc": self.CDC}, "payload": "fixture"}
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -140,7 +143,7 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
     def _submit_and_persist(self):
         return self.service.submit_and_persist(
             document=self.document,
-            payload={"payload": "fixture"},
+            payload=self._payload(),
             certificate_bytes=b"certificate-secret-fixture",
             private_key_bytes=b"private-key-secret-fixture",
             private_key_password="password-secret-fixture",
@@ -260,7 +263,7 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
 
         service.submit_and_persist(
             document=self.document,
-            payload={"payload": "fixture"},
+            payload=self._payload(),
             certificate_bytes=b"certificate-secret-fixture",
             private_key_bytes=b"private-key-secret-fixture",
             private_key_password="password-secret-fixture",
@@ -285,7 +288,7 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
 
         service.submit_and_persist(
             document=self.document,
-            payload={"payload": "fixture"},
+            payload=self._payload(),
             signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
         )
 
@@ -310,7 +313,7 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
         with self.assertRaises(PySifenCredentialConfigurationError):
             service.submit_and_persist(
                 document=self.document,
-                payload={"payload": "fixture"},
+                payload=self._payload(),
                 signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
             )
 
@@ -330,7 +333,7 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
 
         service.submit_and_persist(
             document=self.document,
-            payload={"payload": "fixture"},
+            payload=self._payload(),
             signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
             credentials=credentials,
         )
@@ -348,7 +351,7 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
 
         service.submit_and_persist(
             document=self.document,
-            payload={"payload": "fixture"},
+            payload=self._payload(),
             certificate_bytes=b"certificate-secret-fixture",
             private_key_bytes=b"private-key-secret-fixture",
             private_key_password="password-secret-fixture",

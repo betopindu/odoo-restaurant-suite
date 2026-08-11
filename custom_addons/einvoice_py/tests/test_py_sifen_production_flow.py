@@ -197,7 +197,11 @@ class TestPySifenProductionFlow(TransactionCase):
         )
 
         submission_kwargs = {
-            "payload": {"payload": "fixture"},
+            "payload": {
+                "cdc": self.CDC,
+                "document": {"py_cdc": self.CDC},
+                "payload": "fixture",
+            },
             "signing_timestamp": self.NOW,
         }
         first = persistence.submit_and_persist(

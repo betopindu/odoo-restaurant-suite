@@ -1,7 +1,3 @@
-import base64
-import hashlib
-import json
-
 from odoo import fields
 from odoo.exceptions import ValidationError
 
@@ -15,6 +11,7 @@ from odoo.addons.einvoice_py.services.cdc_service import PyCdcService
 from odoo.addons.einvoice_py.services.numbering_service import PyNumberingService
 from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder
 from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import PyUnsignedXmlBuilder
+from odoo.addons.einvoice_py.services.py_source_artifact_service import PySourceArtifactService
 
 
 class PyFakeAdapter(FakeAdapter):
@@ -182,63 +179,27 @@ class PyFakeAdapter(FakeAdapter):
         )
 
     def _ensure_paraguay_payload_attachment(self, document):
-        existing = self.env["fiscal.attachment"].sudo().search(
-            [
-                ("document_id", "=", document.id),
-                ("attachment_type", "=", "paraguay_payload_json"),
-            ],
-            limit=1,
-        )
-        if existing:
-            return existing
         payload = PyPayloadBuilder(self.env).build(document)
-        return self.env["fiscal.attachment"].sudo().create_json_payload_attachment(
-            document,
-            "paraguay_payload_json",
-            f"{document.uuid}-paraguay-payload.json",
-            payload,
+        return PySourceArtifactService(self.env).persist_payload(
+            document=document, payload=payload
         )
 
     def _ensure_unsigned_xml_attachment(self, document):
-        existing = self.env["fiscal.attachment"].sudo().search(
-            [
-                ("document_id", "=", document.id),
-                ("attachment_type", "=", "paraguay_xml_unsigned"),
-            ],
-            limit=1,
-        )
-        if existing:
-            return existing
         payload_attachment = self._ensure_paraguay_payload_attachment(document)
-        payload = self._read_payload_attachment(payload_attachment)
+        _payload_attachment, payload = PySourceArtifactService(
+            self.env
+        ).read_current_payload(document=document)
         try:
             content_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
         except ValidationError:
             # XML draft generation is intentionally stricter than fake acceptance.
             # Keep the existing fake adapter flow usable for incomplete admin/debug payloads.
             return self.env["fiscal.attachment"]
-        filename = f"{document.uuid}-paraguay-unsigned.xml"
-        ir_attachment = self.env["ir.attachment"].sudo().create({
-            "name": filename,
-            "datas": base64.b64encode(content_bytes),
-            "mimetype": "application/xml",
-            "res_model": "fiscal.document",
-            "res_id": document.id,
-        })
-        return self.env["fiscal.attachment"].sudo().create({
-            "name": filename,
-            "document_id": document.id,
-            "attachment_type": "paraguay_xml_unsigned",
-            "mimetype": "application/xml",
-            "filename": filename,
-            "ir_attachment_id": ir_attachment.id,
-            "sha256": hashlib.sha256(content_bytes).hexdigest(),
-            "is_sensitive": True,
-        })
-
-    def _read_payload_attachment(self, attachment):
-        content = base64.b64decode(attachment.ir_attachment_id.datas or b"")
-        return json.loads(content.decode("utf-8"))
+        return PySourceArtifactService(self.env).persist_unsigned_xml(
+            document=document,
+            unsigned_xml_bytes=content_bytes,
+            payload_attachment=payload_attachment,
+        )
 
     def _message_from_outcome(self, outcome):
         return {

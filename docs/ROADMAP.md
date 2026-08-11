@@ -99,6 +99,7 @@
 [x] Safe SIFEN authority-incident observability and guarded manual retry
 [x] Secure recipient delivery of current accepted Paraguay rDE and KuDE artifacts
 [x] Non-authoritative, ephemeral Paraguay KuDE Preview separated from delivery
+[x] Paraguay retry signing freshness and payload/unsigned artifact provenance hardening
 
 ## Current Baseline
 
@@ -126,6 +127,7 @@ limited to the exercised invoice profile.
 [x] Resolve the B2B TEST receiver-data gate using a DNIT-published electronic taxpayer
 [x] Prepare and validate a fresh two-item B2B FE offline (document `17894`)
 [ ] Submit the fresh B2B FE once under separate controlled authorization
+[ ] Resume controlled live diagnostics only after the external SIFEN TEST PKI incident clears
 [ ] Execute it live only under separate authorization
 [ ] Complete the authority-defined TEST homologation case matrix
 [ ] Apply further interoperability corrections only when supported by authority evidence

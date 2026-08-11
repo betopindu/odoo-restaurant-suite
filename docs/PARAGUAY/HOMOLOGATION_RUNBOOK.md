@@ -91,16 +91,11 @@ correlative numbers and must be reported by day 15 of the following month.
 Ambiguous inutilization records are evidence and must not be duplicated.
 
 ```python
-from odoo import fields
-from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder
 from odoo.addons.einvoice_py.services.py_sifen_manual_retry_service import PySifenManualRetryService
 
 document = env["fiscal.document"].browse(DOCUMENT_ID).exists()
-payload = PyPayloadBuilder(env).build(document)
 result = PySifenManualRetryService(env).retry(
     document=document,
-    payload=payload,
-    signing_timestamp=fields.Datetime.now(),
 )
 print({"transmission_id": result["transmission_id"], "status": result["result"].get("submission_status")})
 ```
@@ -123,6 +118,16 @@ the current controlled procedure is insufficient.
 
 After the first accepted DE, execute the official homologation cases. Do not
 enable production, cron, or unattended retry as part of the first request.
+
+Retry requires one unique current payload. A single legacy payload is accepted
+only after scope, SHA-256 and CDC validation; multiple unmarked payloads need a
+separate audited migration. The retry service always supplies a fresh signing
+instant and regenerates the complete unsigned/signed/QR/rDE chain. Never copy
+historical `signing_time` into a retry command.
+
+The observed `0100 - Error Inesperado(PKI)` remains an external SIFEN TEST
+blocker. Cancellation, inutilization and receiver events remain partial until
+the outstanding eligibility, received-DTE and official-XSD gaps are closed.
 
 ## Expected accepted response
 

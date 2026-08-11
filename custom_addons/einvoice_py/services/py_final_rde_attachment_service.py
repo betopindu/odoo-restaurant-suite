@@ -13,7 +13,18 @@ class PyFinalRdeAttachmentService:
     def __init__(self, env):
         self.env = env
 
-    def persist(self, *, document, final_xml_bytes, cdc, filename=None):
+    def persist(
+        self,
+        *,
+        document,
+        final_xml_bytes,
+        cdc,
+        filename=None,
+        signed_attachment_id=None,
+        signed_xml_sha256=None,
+        qr_attachment_id=None,
+        qr_sha256=None,
+    ):
         document.ensure_one()
         self._lock_document(document)
         if isinstance(final_xml_bytes, str):
@@ -25,7 +36,14 @@ class PyFinalRdeAttachmentService:
             self._mark_current(identical, attachments - identical)
             return identical
         previous = attachments[:1]
-        metadata = {"artifact_status": "current", "cdc": cdc}
+        metadata = {
+            "artifact_status": "current",
+            "cdc": cdc,
+            "signed_attachment_id": signed_attachment_id,
+            "signed_xml_sha256": signed_xml_sha256,
+            "qr_attachment_id": qr_attachment_id,
+            "qr_sha256": qr_sha256,
+        }
         if previous:
             metadata["supersedes_attachment_id"] = previous.id
         filename = filename or f"{document.uuid}-paraguay-rde.xml"
@@ -99,6 +117,10 @@ class PyFinalRdeAttachmentService:
         allowed = (
             "artifact_status",
             "cdc",
+            "signed_attachment_id",
+            "signed_xml_sha256",
+            "qr_attachment_id",
+            "qr_sha256",
             "superseded_by_attachment_id",
             "supersedes_attachment_id",
         )

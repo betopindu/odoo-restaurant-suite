@@ -209,6 +209,10 @@ class TestPySifenSubmissionPipelineService(TransactionCase):
             ("attachment_type", "=", "paraguay_qr_payload"),
         ])
         self.assertEqual(len(qr_attachment), 1)
+        qr_metadata = json.loads(qr_attachment.metadata_json)
+        self.assertEqual(qr_metadata["signed_attachment_id"], self.signed_attachment.id)
+        self.assertEqual(qr_metadata["signed_xml_sha256"], result["signed_xml_sha256"])
+        self.assertEqual(qr_metadata["digest_value"], self.DIGEST_VALUE)
         self.assertEqual(result["submission_status"], "accepted")
         self.assertEqual(result["authority_code"], "0260")
         self.assertEqual(result["authority_message"], "Aprobado")
@@ -384,6 +388,15 @@ class TestPySifenSubmissionPipelineService(TransactionCase):
         )
         self.assertEqual(final_attachment.attachment_type, "paraguay_rde_final")
         self.assertEqual(final_bytes, self.submission.calls[0]["final_xml_bytes"])
+        metadata = json.loads(final_attachment.metadata_json)
+        qr_attachment = self.env["fiscal.attachment"].search([
+            ("document_id", "=", self.document.id),
+            ("attachment_type", "=", "paraguay_qr_payload"),
+        ], order="id desc", limit=1)
+        self.assertEqual(metadata["signed_attachment_id"], self.signed_attachment.id)
+        self.assertEqual(metadata["signed_xml_sha256"], hashlib.sha256(self.signed_xml).hexdigest())
+        self.assertEqual(metadata["qr_attachment_id"], qr_attachment.id)
+        self.assertEqual(metadata["qr_sha256"], qr_attachment.sha256)
 
     def test_final_rde_is_idempotent_and_changed_content_is_versioned(self):
         first = self._submit()

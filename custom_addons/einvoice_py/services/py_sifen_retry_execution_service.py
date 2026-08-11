@@ -1,16 +1,14 @@
-import base64
-import binascii
-import json
-from datetime import datetime
-
 from odoo import fields
 from odoo.exceptions import ValidationError
 
 from odoo.addons.einvoice_py.services.py_sifen_retry_scheduler_service import (
     PySifenRetrySchedulerService,
 )
-from odoo.addons.einvoice_py.services.py_signed_xml_attachment_service import (
-    PySignedXmlAttachmentService,
+from odoo.addons.einvoice_py.services.py_source_artifact_service import (
+    PySourceArtifactService,
+)
+from odoo.addons.einvoice_py.services.py_sifen_retry_signing_time_service import (
+    PySifenRetrySigningTimeService,
 )
 from odoo.addons.einvoice_py.services.py_sifen_transmission_persistence_service import (
     PySifenTransmissionPersistenceService,
@@ -27,6 +25,8 @@ class PySifenRetryExecutionService:
         retry_scheduler_service=None,
         transmission_persistence_service=None,
         now_provider=None,
+        source_artifact_service=None,
+        signing_time_service=None,
     ):
         self.env = env
         self.retry_scheduler_service = (
@@ -37,6 +37,12 @@ class PySifenRetryExecutionService:
             or PySifenTransmissionPersistenceService(env)
         )
         self.now_provider = now_provider or fields.Datetime.now
+        self.source_artifact_service = (
+            source_artifact_service or PySourceArtifactService(env)
+        )
+        self.signing_time_service = signing_time_service or PySifenRetrySigningTimeService(
+            env, now_provider=self.now_provider
+        )
 
     def ready_transmissions(self, *, limit=None):
         return self.env["fiscal.transmission"].sudo().search(
@@ -109,67 +115,17 @@ class PySifenRetryExecutionService:
 
     def _submission_kwargs(self, *, document, submission_kwargs):
         values = dict(submission_kwargs)
-        if "payload" not in values:
-            values["payload"] = self._stored_payload(document)
-        if "signing_timestamp" not in values:
-            values["signing_timestamp"] = self._stored_signing_timestamp(document)
+        values["payload"] = self._stored_payload(document)
+        values["signing_timestamp"] = self.signing_time_service.fresh(
+            document=document
+        )
         return values
 
     def _stored_payload(self, document):
-        attachment = self._attachment(document, "paraguay_payload_json")
-        if not attachment or not attachment.ir_attachment_id:
-            raise ValidationError(
-                "SIFEN retry requires a stored Paraguay payload attachment."
-            )
-        try:
-            content = base64.b64decode(
-                attachment.ir_attachment_id.datas or b"",
-                validate=True,
-            )
-            payload = json.loads(content.decode("utf-8"))
-        except (binascii.Error, TypeError, UnicodeDecodeError, ValueError):
-            raise ValidationError(
-                "Stored Paraguay retry payload is invalid."
-            ) from None
-        if not isinstance(payload, dict):
-            raise ValidationError("Stored Paraguay retry payload is invalid.")
-        return payload
-
-    def _stored_signing_timestamp(self, document):
-        attachment = self._attachment(document, "paraguay_xml_signed")
-        if not attachment:
-            raise ValidationError(
-                "SIFEN retry requires stored Paraguay signing metadata."
-            )
-        try:
-            metadata = json.loads(attachment.metadata_json or "")
-            signing_time = metadata.get("signing_time")
-            parsed_signing_time = datetime.strptime(
-                signing_time,
-                "%Y-%m-%dT%H:%M:%S",
-            )
-        except (AttributeError, TypeError, ValueError):
-            raise ValidationError(
-                "Stored Paraguay retry signing metadata is invalid."
-            ) from None
-        if not signing_time or parsed_signing_time is None:
-            raise ValidationError(
-                "Stored Paraguay retry signing metadata is invalid."
-            )
-        return signing_time
-
-    def _attachment(self, document, attachment_type):
-        if attachment_type == "paraguay_xml_signed":
-            return PySignedXmlAttachmentService(self.env).current(
-                document=document
-            )
-        return self.env["fiscal.attachment"].sudo().search(
-            [
-                ("document_id", "=", document.id),
-                ("attachment_type", "=", attachment_type),
-            ],
-            limit=1,
+        _attachment, payload = self.source_artifact_service.read_current_payload(
+            document=document
         )
+        return payload
 
     def _is_due(self, transmission):
         return (

@@ -174,6 +174,9 @@ class PySifenSubmissionPipelineService:
                 document=document,
                 qr_payload=result["qr_payload"],
                 qr_hash=result["qr_hash"],
+                signed_attachment_id=signing_result.get("signed_attachment_id"),
+                signed_xml_sha256=result["signed_xml_sha256"],
+                digest_value=signing_result.get("digest_value"),
             ),
         )
         if qr_attachment is None:
@@ -222,6 +225,10 @@ class PySifenSubmissionPipelineService:
                 document=document,
                 final_xml_bytes=final_xml_bytes,
                 cdc=result["cdc"],
+                signed_attachment_id=signing_result.get("signed_attachment_id"),
+                signed_xml_sha256=result["signed_xml_sha256"],
+                qr_attachment_id=qr_attachment.id,
+                qr_sha256=qr_attachment.sha256,
             ),
         )
         if final_attachment is None:

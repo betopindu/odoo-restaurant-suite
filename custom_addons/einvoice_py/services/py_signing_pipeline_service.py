@@ -9,6 +9,9 @@ from odoo.addons.einvoice_py.services.py_signed_xml_preparation_service import (
 from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import (
     PyUnsignedXmlBuilder,
 )
+from odoo.addons.einvoice_py.services.py_source_artifact_service import (
+    PySourceArtifactService,
+)
 from odoo.addons.einvoice_py.services.py_xml_signature_service import (
     PyXmlSignatureService,
 )
@@ -20,8 +23,11 @@ from odoo.addons.einvoice_py.services.py_xml_signature_verification_service impo
 class PySigningPipelineService:
     """Coordinate the Paraguay signing pipeline without duplicating stage logic."""
 
-    def __init__(self, env):
+    def __init__(self, env, *, source_artifact_service=None):
         self.env = env
+        self.source_artifact_service = (
+            source_artifact_service or PySourceArtifactService(env)
+        )
 
     def sign(
         self,
@@ -35,7 +41,16 @@ class PySigningPipelineService:
         filename=None,
     ):
         document.ensure_one()
+        payload_attachment = self.source_artifact_service.persist_payload(
+            document=document,
+            payload=payload,
+        )
         unsigned_xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        unsigned_attachment = self.source_artifact_service.persist_unsigned_xml(
+            document=document,
+            unsigned_xml_bytes=unsigned_xml_bytes,
+            payload_attachment=payload_attachment,
+        )
         preparation_result = PySignedXmlPreparationService().prepare(
             document,
             unsigned_xml_bytes,
@@ -69,6 +84,10 @@ class PySigningPipelineService:
                     "certificate_fingerprint_sha256"
                 ),
                 "signing_time": preparation_result.get("signing_time"),
+                "payload_attachment_id": payload_attachment.id,
+                "payload_sha256": payload_attachment.sha256,
+                "unsigned_attachment_id": unsigned_attachment.id,
+                "unsigned_sha256": unsigned_attachment.sha256,
             },
         )
         return {
@@ -78,5 +97,7 @@ class PySigningPipelineService:
                 "certificate_fingerprint_sha256"
             ),
             "signed_attachment_id": attachment.id,
+            "payload_attachment_id": payload_attachment.id,
+            "unsigned_attachment_id": unsigned_attachment.id,
             "verification_result": verification_result,
         }

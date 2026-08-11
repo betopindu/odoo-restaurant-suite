@@ -60,6 +60,11 @@ class TestPySifenManualRetryService(TransactionCase):
         self.service = PySifenManualRetryService(
             self.env, persistence_service=self.persistence
         )
+        self.payload = {
+            "cdc": self.CDC,
+            "document": {"py_cdc": self.CDC},
+            "safe": "payload",
+        }
         self._transmission(code="0100", message="Error Inesperado(PKI).")
 
     def _transmission(self, *, code, message, state="rejected", metadata="{}"):
@@ -93,7 +98,7 @@ class TestPySifenManualRetryService(TransactionCase):
     def test_explicit_rejection_can_delegate_controlled_retry(self):
         result = self.service.retry(
             document=self.document,
-            payload={"safe": "payload"},
+            payload=self.payload,
             signing_timestamp=datetime(2026, 8, 7, 14, 0, 0),
         )
         self.assertEqual(result["transmission_id"], 999)
@@ -131,7 +136,7 @@ class TestPySifenManualRetryService(TransactionCase):
         with self.assertRaisesRegex(ValidationError, "fresh signing timestamp"):
             self.service.retry(
                 document=self.document,
-                payload={"safe": "payload"},
+                payload=self.payload,
                 signing_timestamp=signing_timestamp,
             )
         self.assertEqual(self.persistence.calls, [])

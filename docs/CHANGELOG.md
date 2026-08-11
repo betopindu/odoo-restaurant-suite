@@ -1,5 +1,16 @@
 # Documentation Changelog
 
+## 2026-08-11 — Paraguay retry provenance hardening
+
+* Replaced historical signing-time reuse with an injectable retry-time policy
+  using the existing Paraguay timezone and 60-second margin.
+* Added current/superseded lifecycle, hash and CDC validation for Paraguay
+  payload and unsigned XML artifacts, including fail-closed legacy resolution.
+* Linked payload, unsigned XML, signed XML, QR and final rDE versions through
+  safe attachment IDs and SHA-256 provenance without deleting history.
+* Kept the cron disabled and the SIFEN TEST PKI incident external; cancellation,
+  inutilization and receiver events remain partial pending audit gaps.
+
 ## 2026-08-10 — Paraguay KuDE presentation
 
 * Redesigned the shared Paraguay KuDE presentation with compact bordered

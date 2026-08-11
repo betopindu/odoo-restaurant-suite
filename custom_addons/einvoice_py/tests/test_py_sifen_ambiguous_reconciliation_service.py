@@ -779,7 +779,11 @@ class TestPySifenAmbiguousSubmissionReconciliationService(TransactionCase):
     def _submit(self, service, document):
         return service.submit_and_persist(
             document=document,
-            payload={"payload": "fixture"},
+            payload={
+                "cdc": self.CDC,
+                "document": {"py_cdc": self.CDC},
+                "payload": "fixture",
+            },
             certificate_bytes=b"certificate",
             private_key_bytes=b"private-key",
             private_key_password=b"password",

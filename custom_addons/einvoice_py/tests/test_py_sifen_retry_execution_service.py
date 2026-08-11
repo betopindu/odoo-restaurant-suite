@@ -14,6 +14,7 @@ from odoo.addons.einvoice_py.services.py_sifen_retry_scheduler_service import (
 from odoo.addons.einvoice_py.services.py_sifen_transmission_persistence_service import (
     PySifenTransmissionPersistenceService,
 )
+from odoo.addons.einvoice_py.services.py_sifen_datetime_service import PySifenDatetimeService
 
 
 class _SubmissionPipelineStub:
@@ -78,6 +79,7 @@ class TestPySifenRetryExecutionService(TransactionCase):
             transmission_persistence_service=persistence,
             now_provider=lambda: self.NOW,
         )
+        self._create_payload_attachment(self._payload("fixture"))
 
     def _accepted_result(self, hash_seed):
         return {
@@ -154,7 +156,7 @@ class TestPySifenRetryExecutionService(TransactionCase):
     def _execute(self, transmission):
         return self.service.execute_retry(
             transmission,
-            payload={"payload": "fixture"},
+            payload=self._payload("fixture"),
             certificate_bytes=b"certificate-secret-fixture",
             private_key_bytes=b"private-key-secret-fixture",
             private_key_password="password-secret-fixture",
@@ -171,12 +173,18 @@ class TestPySifenRetryExecutionService(TransactionCase):
         }
 
     def _create_payload_attachment(self, payload=None):
-        return self.env["fiscal.attachment"].sudo().create_json_payload_attachment(
-            self.document,
-            "paraguay_payload_json",
-            "retry-payload.json",
-            payload or {"payload": "stored-fixture"},
+        from odoo.addons.einvoice_py.services.py_source_artifact_service import PySourceArtifactService
+        return PySourceArtifactService(self.env).persist_payload(
+            document=self.document,
+            payload=payload or self._payload("stored-fixture"),
         )
+
+    def _payload(self, marker):
+        return {
+            "cdc": self.CDC,
+            "document": {"py_cdc": self.CDC},
+            "payload": marker,
+        }
 
     def _create_signing_metadata_attachment(self, metadata_json=None):
         return self.env["fiscal.attachment"].sudo().create({
@@ -187,7 +195,7 @@ class TestPySifenRetryExecutionService(TransactionCase):
             "filename": "retry-signed.xml",
             "is_sensitive": True,
             "metadata_json": metadata_json or json.dumps({
-                "signing_time": "2026-07-05T11:30:00",
+                "signing_time": "2026-07-05T07:30:00",
             }),
         })
 
@@ -203,16 +211,35 @@ class TestPySifenRetryExecutionService(TransactionCase):
 
         self.assertEqual(result["execution_status"], "executed")
         self.assertEqual(self.pipeline.calls[0][1]["payload"], {
+            "cdc": self.CDC,
+            "document": {"py_cdc": self.CDC},
             "payload": "stored-fixture",
         })
         self.assertEqual(
             self.pipeline.calls[0][1]["signing_timestamp"],
-            "2026-07-05T11:30:00",
+            self.NOW,
+        )
+        self.assertEqual(
+            PySifenDatetimeService.format_signing_datetime(
+                self.pipeline.calls[0][1]["signing_timestamp"]
+            ),
+            "2026-07-05T08:59:00",
         )
 
-    def test_explicit_retry_inputs_bypass_attachment_reconstruction(self):
+    def test_retry_never_accepts_a_preformatted_historical_signing_time(self):
+        self._create_payload_attachment()
         transmission = self._scheduled_transmission()
-        payload = {"payload": "explicit-fixture"}
+        with self.assertRaisesRegex(ValidationError, "fresh instant"):
+            self.service.signing_time_service.fresh(
+                document=self.document,
+                reference_instant="2026-07-05T08:59:00",
+            )
+        self.assertEqual(self.pipeline.calls, [])
+
+    def test_explicit_retry_inputs_cannot_override_current_payload_or_clock(self):
+        transmission = self._scheduled_transmission()
+        self._create_payload_attachment(self._payload("current-fixture"))
+        payload = self._payload("explicit-fixture")
         signing_timestamp = datetime(2026, 7, 5, 10, 0, 0)
 
         self.service.execute_retry(
@@ -222,16 +249,20 @@ class TestPySifenRetryExecutionService(TransactionCase):
             **self._explicit_credential_kwargs(),
         )
 
-        self.assertIs(self.pipeline.calls[0][1]["payload"], payload)
-        self.assertIs(
-            self.pipeline.calls[0][1]["signing_timestamp"],
-            signing_timestamp,
+        self.assertEqual(
+            self.pipeline.calls[0][1]["payload"],
+            self._payload("current-fixture"),
         )
+        self.assertEqual(self.pipeline.calls[0][1]["signing_timestamp"], self.NOW)
 
     def test_missing_payload_attachment_fails_safely_before_submission(self):
+        self.env["fiscal.attachment"].search([
+            ("document_id", "=", self.document.id),
+            ("attachment_type", "=", "paraguay_payload_json"),
+        ]).unlink()
         transmission = self._scheduled_transmission()
 
-        with self.assertRaisesRegex(ValidationError, "stored Paraguay payload"):
+        with self.assertRaisesRegex(ValidationError, "cannot be resolved safely"):
             self.service.execute_retry(
                 transmission,
                 **self._explicit_credential_kwargs(),
@@ -253,21 +284,19 @@ class TestPySifenRetryExecutionService(TransactionCase):
             )
 
         message = str(raised.exception)
-        self.assertEqual(message, "Stored Paraguay retry payload is invalid.")
+        self.assertEqual(message, "Current Paraguay source artifact integrity check failed.")
         self.assertNotIn("secret malformed payload", message)
         self.assertEqual(self.pipeline.calls, [])
 
-    def test_missing_signing_attachment_fails_safely_before_submission(self):
+    def test_missing_signing_attachment_uses_fresh_clock(self):
         self._create_payload_attachment()
         transmission = self._scheduled_transmission()
 
-        with self.assertRaisesRegex(ValidationError, "stored Paraguay signing metadata"):
-            self.service.execute_retry(
-                transmission,
-                **self._explicit_credential_kwargs(),
-            )
-
-        self.assertEqual(self.pipeline.calls, [])
+        self.service.execute_retry(
+            transmission,
+            **self._explicit_credential_kwargs(),
+        )
+        self.assertEqual(self.pipeline.calls[0][1]["signing_timestamp"], self.NOW)
 
     def test_malformed_signing_metadata_fails_without_parser_details(self):
         self._create_payload_attachment()
@@ -411,7 +440,7 @@ class TestPySifenRetryExecutionService(TransactionCase):
         )
 
         results = self.service.execute_ready(
-            payload={"payload": "fixture"},
+            payload=self._payload("fixture"),
             certificate_bytes=b"certificate-secret-fixture",
             private_key_bytes=b"private-key-secret-fixture",
             private_key_password="password-secret-fixture",

@@ -18,6 +18,27 @@ from odoo.addons.einvoice_py.services.py_signing_pipeline_service import (
 from odoo.addons.einvoice_py.services.py_xml_signature_verification_service import (
     PyXmlSignatureVerificationService,
 )
+from odoo.addons.einvoice_py.services.py_sifen_submission_pipeline_service import (
+    PySifenSubmissionPipelineService,
+)
+
+
+class _OfflineSubmission:
+    def __init__(self):
+        self.calls = []
+
+    def submit_final_xml(self, **kwargs):
+        self.calls.append(kwargs)
+        return {
+            "outcome": "rejected",
+            "authority_status_code": "OFFLINE",
+            "authority_message": "Offline dry run",
+            "request_hash": "1" * 64,
+            "response_hash": "2" * 64,
+            "http_status": 0,
+            "duration_ms": 0,
+            "metadata_json": {},
+        }
 
 
 class TestPySigningPipelineService(TransactionCase):
@@ -249,6 +270,18 @@ class TestPySigningPipelineService(TransactionCase):
             report["certificate_fingerprint_sha256"],
         )
         self.assertEqual(metadata["signing_time"], "2026-06-18T09:33:56")
+        payload_attachment = self.env["fiscal.attachment"].browse(
+            report["payload_attachment_id"]
+        )
+        unsigned_attachment = self.env["fiscal.attachment"].browse(
+            report["unsigned_attachment_id"]
+        )
+        unsigned_metadata = json.loads(unsigned_attachment.metadata_json)
+        self.assertEqual(metadata["payload_attachment_id"], payload_attachment.id)
+        self.assertEqual(metadata["payload_sha256"], payload_attachment.sha256)
+        self.assertEqual(metadata["unsigned_attachment_id"], unsigned_attachment.id)
+        self.assertEqual(metadata["unsigned_sha256"], unsigned_attachment.sha256)
+        self.assertEqual(unsigned_metadata["payload_attachment_id"], payload_attachment.id)
 
     def test_preparation_failure_aborts_pipeline(self):
         with self.assertRaises(ValidationError):
@@ -324,6 +357,65 @@ class TestPySigningPipelineService(TransactionCase):
         self.assertEqual(
             json.loads(second_attachment.metadata_json)["artifact_status"],
             "current",
+        )
+
+    def test_offline_retry_chain_has_single_current_coherent_provenance(self):
+        csc = self.env["fiscal.py.csc"].create({
+            "name": "Offline chain CSC",
+            "id_csc": "0001",
+            "csc_value": "offline-only-csc-fixture",
+            "tenant_id": self.tenant.id,
+            "company_id": self.env.company.id,
+            "environment": "test",
+        })
+        self.document.py_csc_id = csc
+        first = self._run_pipeline()
+        offline = _OfflineSubmission()
+        pipeline = PySifenSubmissionPipelineService(
+            self.env,
+            signing_pipeline_service=self.service,
+            submission_service=offline,
+        )
+        result = pipeline.submit_test(
+            document=self.document,
+            payload=self._payload(),
+            certificate_bytes=self._certificate_bytes(),
+            private_key_bytes=self._private_key_bytes(),
+            signing_timestamp=self.SIGNING_TIMESTAMP + timedelta(minutes=1),
+            endpoint_url="https://offline.invalid/sifen",
+            mutual_tls_credential=False,
+        )
+        self.assertEqual(len(offline.calls), 1)
+        self.assertEqual(result["cdc"], self.CDC)
+        current_signed = self.env["fiscal.attachment"].browse(
+            result.get("signed_attachment_id") or 0
+        )
+        if not current_signed:
+            current_signed = self.env["fiscal.attachment"].browse(
+                self.env["fiscal.attachment"].search([
+                    ("document_id", "=", self.document.id),
+                    ("attachment_type", "=", "paraguay_xml_signed"),
+                ], order="id desc", limit=1).id
+            )
+        self.assertNotEqual(current_signed.id, first["signed_attachment_id"])
+        qr = self.env["fiscal.attachment"].search([
+            ("document_id", "=", self.document.id),
+            ("attachment_type", "=", "paraguay_qr_payload"),
+        ], order="id desc", limit=1)
+        final_rde = self.env["fiscal.attachment"].browse(result["final_xml_attachment_id"])
+        signed_metadata = json.loads(current_signed.metadata_json)
+        qr_metadata = json.loads(qr.metadata_json)
+        rde_metadata = json.loads(final_rde.metadata_json)
+        self.assertEqual(qr_metadata["signed_attachment_id"], current_signed.id)
+        self.assertEqual(qr_metadata["digest_value"], signed_metadata["digest_value"])
+        self.assertEqual(rde_metadata["signed_attachment_id"], current_signed.id)
+        self.assertEqual(rde_metadata["qr_attachment_id"], qr.id)
+        self.assertEqual(rde_metadata["qr_sha256"], qr.sha256)
+        self.assertEqual(
+            json.loads(
+                self.env["fiscal.attachment"].browse(first["signed_attachment_id"]).metadata_json
+            )["artifact_status"],
+            "superseded",
         )
 
     def test_unsigned_attachment_remains_unchanged(self):

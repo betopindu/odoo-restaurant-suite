@@ -5,34 +5,55 @@ from odoo.exceptions import ValidationError
 from odoo.addons.einvoice_py.services.py_sifen_authority_incident_service import (
     PySifenAuthorityIncidentService,
 )
-from odoo.addons.einvoice_py.services.py_sifen_datetime_service import (
-    PySifenDatetimeService,
+from odoo.addons.einvoice_py.services.py_sifen_retry_signing_time_service import (
+    PySifenRetrySigningTimeService,
+)
+from odoo.addons.einvoice_py.services.py_source_artifact_service import (
+    PySourceArtifactService,
 )
 from odoo.addons.einvoice_py.services.py_sifen_transmission_persistence_service import (
     PySifenTransmissionPersistenceService,
-)
-from odoo.addons.einvoice_py.services.py_signed_xml_attachment_service import (
-    PySignedXmlAttachmentService,
 )
 
 
 class PySifenManualRetryService:
     """Guard and execute an explicitly authorized SIFEN manual retry."""
 
-    def __init__(self, env, *, persistence_service=None, incident_service=None):
+    def __init__(
+        self,
+        env,
+        *,
+        persistence_service=None,
+        incident_service=None,
+        signing_time_service=None,
+        source_artifact_service=None,
+    ):
         self.env = env
         self.persistence_service = persistence_service or PySifenTransmissionPersistenceService(env)
         self.incident_service = incident_service or PySifenAuthorityIncidentService()
+        self.signing_time_service = signing_time_service or PySifenRetrySigningTimeService(env)
+        self.source_artifact_service = source_artifact_service or PySourceArtifactService(env)
 
-    def retry(self, *, document, payload, signing_timestamp):
+    def retry(self, *, document, payload=None, signing_timestamp=None):
+        fresh_timestamp = self.signing_time_service.fresh(
+            document=document,
+            reference_instant=signing_timestamp,
+        )
         self.validate(
             document=document,
-            signing_timestamp=signing_timestamp,
+            signing_timestamp=fresh_timestamp,
+        )
+        if payload is not None:
+            self.source_artifact_service.persist_payload(
+                document=document, payload=payload
+            )
+        _current_attachment, current_payload = (
+            self.source_artifact_service.read_current_payload(document=document)
         )
         return self.persistence_service.submit_and_persist(
             document=document,
-            payload=payload,
-            signing_timestamp=signing_timestamp,
+            payload=current_payload,
+            signing_timestamp=fresh_timestamp,
         )
 
     def validate(self, *, document, signing_timestamp):
@@ -57,7 +78,10 @@ class PySifenManualRetryService:
         )
         if not classification.manual_retry_allowed:
             raise ValidationError("The SIFEN authority result is not eligible for manual retry.")
-        self._validate_fresh_signature(document, signing_timestamp)
+        self.signing_time_service.fresh(
+            document=document,
+            reference_instant=signing_timestamp,
+        )
         return classification
 
     def _scope(self, document, cdc):
@@ -78,18 +102,3 @@ class PySifenManualRetryService:
         except (TypeError, ValueError):
             return False
         return bool(metadata.get("ambiguous"))
-
-    def _validate_fresh_signature(self, document, signing_timestamp):
-        current = PySignedXmlAttachmentService(self.env).current(document=document)
-        if not current:
-            return
-        try:
-            metadata = json.loads(current.metadata_json or "{}")
-        except (TypeError, ValueError):
-            metadata = {}
-        previous = str(metadata.get("signing_time") or "")
-        candidate = PySifenDatetimeService.format_signing_datetime(signing_timestamp)
-        if previous and candidate <= previous:
-            raise ValidationError(
-                "SIFEN manual retry requires a fresh signing timestamp and signed artifact."
-            )

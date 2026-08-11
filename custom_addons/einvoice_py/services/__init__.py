@@ -26,6 +26,8 @@ from . import py_sifen_test_readiness_service
 from . import py_sifen_transmission_persistence_service
 from . import py_signed_xml_attachment_service
 from . import py_signed_xml_preparation_service
+from . import py_source_artifact_service
+from . import py_sifen_retry_signing_time_service
 from . import py_unsigned_xml_builder
 from . import py_xml_signature_service
 from . import py_xml_signature_verification_service
