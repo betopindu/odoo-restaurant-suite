@@ -140,3 +140,17 @@ class TestPySifenManualRetryService(TransactionCase):
                 signing_timestamp=signing_timestamp,
             )
         self.assertEqual(self.persistence.calls, [])
+
+    def test_proven_not_posted_attempt_does_not_hide_last_authority_rejection(self):
+        self._transmission(
+            code="",
+            message="SIFEN POST was not started for this durable attempt.",
+            state="failed_final",
+        ).write({"error_code": "pre_post_not_attempted"})
+
+        classification = self.service.validate(
+            document=self.document,
+            signing_timestamp=datetime(2026, 8, 7, 14, 0, 0),
+        )
+
+        self.assertTrue(classification.manual_retry_allowed)

@@ -34,6 +34,11 @@ class _SigningPipelineStub:
             "digest_value": TestPySifenSubmissionPipelineService.DIGEST_VALUE,
             "certificate_fingerprint_sha256": "a" * 64,
             "signed_attachment_id": self.attachment_id,
+            "payload_attachment_id": 101,
+            "payload_sha256": "1" * 64,
+            "unsigned_attachment_id": 102,
+            "unsigned_sha256": "2" * 64,
+            "signing_time": "2026-07-04T07:59:00",
         }
 
 
@@ -83,6 +88,17 @@ class _SubmissionStub:
         self.calls.append(kwargs)
         if self.error:
             raise self.error
+        if kwargs.get("before_post"):
+            document = kwargs["document"]
+            kwargs["before_post"]({
+                "document_id": document.id,
+                "tenant_id": document.tenant_id.id,
+                "company_id": document.company_id.id,
+                "environment": document.environment,
+                "cdc": TestPySifenSubmissionPipelineService.CDC,
+                "endpoint_url": kwargs["endpoint_url"],
+                "request_hash": "c" * 64,
+            })
         if self.result is not None:
             return dict(self.result)
         return {
@@ -145,17 +161,19 @@ class TestPySifenSubmissionPipelineService(TransactionCase):
             submission_service=self.submission,
         )
 
-    def _submit(self):
-        return self._service().submit_test(
-            document=self.document,
-            payload={"payload": "fixture"},
-            certificate_bytes=b"certificate-secret-fixture",
-            private_key_bytes=b"private-key-secret-fixture",
-            private_key_password="password-secret-fixture",
-            signing_timestamp=self.SIGNING_TIMESTAMP,
-            endpoint_url="https://sifen-test.example.test/de",
-            mutual_tls_credential=False,
-        )
+    def _submit(self, **overrides):
+        values = {
+            "document": self.document,
+            "payload": {"payload": "fixture"},
+            "certificate_bytes": b"certificate-secret-fixture",
+            "private_key_bytes": b"private-key-secret-fixture",
+            "private_key_password": "password-secret-fixture",
+            "signing_timestamp": self.SIGNING_TIMESTAMP,
+            "endpoint_url": "https://sifen-test.example.test/de",
+            "mutual_tls_credential": False,
+        }
+        values.update(overrides)
+        return self._service().submit_test(**values)
 
     def _signed_attachment(self, signed_xml):
         filename = f"{self.document.uuid}-signed.xml"
@@ -226,6 +244,24 @@ class TestPySifenSubmissionPipelineService(TransactionCase):
         self.assertNotIn("private-key-secret-fixture", serialized)
         self.assertNotIn("certificate-secret-fixture", serialized)
         self.assertNotIn("password-secret-fixture", serialized)
+
+    def test_pre_post_evidence_contains_complete_artifact_provenance(self):
+        captured = []
+        result = self._submit(pre_post_callback=captured.append)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(captured), 1)
+        evidence = captured[0]
+        qr = self.env["fiscal.attachment"].browse(evidence["qr_attachment_id"])
+        rde = self.env["fiscal.attachment"].browse(evidence["rde_attachment_id"])
+        self.assertEqual(evidence["request_hash"], "c" * 64)
+        self.assertEqual(evidence["payload_attachment_id"], 101)
+        self.assertEqual(evidence["unsigned_xml_attachment_id"], 102)
+        self.assertEqual(evidence["signed_xml_attachment_id"], self.signed_attachment.id)
+        self.assertEqual(evidence["signed_xml_sha256"], self.signed_attachment.sha256)
+        self.assertEqual(evidence["qr_sha256"], qr.sha256)
+        self.assertEqual(evidence["rde_sha256"], rde.sha256)
+        self.assertEqual(evidence["signing_time"], "2026-07-04T07:59:00")
 
     def test_http_5xx_failure_has_scheduler_retry_category(self):
         self.submission.result = {

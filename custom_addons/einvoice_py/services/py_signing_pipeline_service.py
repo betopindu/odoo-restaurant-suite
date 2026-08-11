@@ -96,8 +96,11 @@ class PySigningPipelineService:
             "certificate_fingerprint_sha256": verification_result.get(
                 "certificate_fingerprint_sha256"
             ),
+            "signing_time": preparation_result.get("signing_time"),
             "signed_attachment_id": attachment.id,
             "payload_attachment_id": payload_attachment.id,
+            "payload_sha256": payload_attachment.sha256,
             "unsigned_attachment_id": unsigned_attachment.id,
+            "unsigned_sha256": unsigned_attachment.sha256,
             "verification_result": verification_result,
         }

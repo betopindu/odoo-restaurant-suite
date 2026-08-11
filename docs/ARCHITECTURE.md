@@ -26,8 +26,8 @@ This is evidence of interoperability for the tested invoice profile, not
 production certification or coverage of every authority scenario. The suite at
 current delivery baseline reports 589 counted tests across 523 test methods.
 
-Stage 8.24B durable pre-POST persistence, production preflight, cron activation,
-monitoring, and production go-live remain pending.
+Production preflight, cron activation, monitoring, and production go-live
+remain pending.
 
 Homologation corrections remain Paraguay-local. `PySifenDatetimeService`
 interprets naive Odoo datetimes as UTC instants, converts them through the IANA
@@ -65,6 +65,17 @@ concurrent generators. This boundary is recorded in
 Stage 8.22 makes the existing TEST-only `verify_document_connection()` operation suitable for a manual live mTLS preflight. It resolves the document credential through the existing provider and role bindings, creates the normal client-certificate SSL context, and performs only an HTTPS `HEAD`. Results distinguish configuration, credential, DNS, TCP, TLS, client-certificate rejection, server-certificate trust, endpoint reachability, and HTTP response outcomes. A non-2xx HTTP response is successful connectivity evidence because it can occur only after reaching the HTTP layer. The adapter stores only a timestamped safe summary under `metadata_json["sifen_test_mtls_preflight"]`; endpoints, secret references, environment-variable names, certificate bytes, passwords, and exception text are excluded.
 
 Stage 8.24A adds a TEST-only ambiguous-submission lifecycle without changing transaction durability. A timeout after a synchronous POST is normalized as ambiguous and persisted for manual review. While such a submission exists, `PySifenTransmissionPersistenceService` blocks every new POST for the same tenant, company, and CDC. The boundary is exposed as `PySifenDocumentQueryService` and `PySifenReconciliationService`; the original Stage 8.24A names remain aliases. Consulta DE sends the official SOAP 1.2 `rEnviConsDeRequest` (`dId`, `dCDC`) through the existing sandbox transport, mTLS material, and credential provider. Every attempt creates a separate `status_query` transmission with safe endpoint, duration, HTTP status, hashes, normalized result, authority timestamp and links to prior submissions; response XML and secrets are not copied into fiscal storage.
+
+Paraguay DE submission now has a durable pre-POST boundary. A narrowly scoped
+independent cursor commits a `pending` attempt before caller-owned artifact
+work. Once SOAP bytes exist, the same attempt is committed as `sent` with the
+request SHA-256 and payload/unsigned/signed/QR/rDE provenance immediately before
+transport. The normalized result is committed independently on that attempt.
+The caller cursor is never committed, so unrelated business changes remain
+transactional. Surviving `sent` evidence is ambiguous and requires Consulta DE;
+a `pending` attempt proves the POST marker did not run but still requires
+explicit operator abandonment. See
+[ADR-017](ADR/ADR-017-sifen-durable-pre-post-boundary.md).
 
 `0422` confirms remote approval: the document becomes accepted, `authority_status` and `accepted_at` are set, and `dProtAut` is copied only when returned. The original submission remains immutable; reconciliation evidence lives in the query transmission. Official Consulta DE exposes no distinct confirmed-rejection result. `0420` means only “not found or not approved”, is recorded as `reconciliation_not_found`, keeps the document in manual review and does not authorize resend. Timeout, HTTP/TLS failure, SOAP Fault, malformed content, unsupported codes, and CDC mismatch also remain unresolved. A row lock serializes reconciliation, accepted documents never regress, identical completed results are idempotent, and explicit diagnostics require a prior submission. No scheduler, automatic resend, independent cursor, explicit commit or outbox is introduced.
 

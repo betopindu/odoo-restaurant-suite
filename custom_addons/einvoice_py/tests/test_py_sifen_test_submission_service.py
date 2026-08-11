@@ -176,6 +176,37 @@ class TestPySifenTestSubmissionService(TransactionCase):
         self.assertEqual(len(result["request_hash"]), 64)
         self.assertEqual(len(result["response_hash"]), 64)
 
+    def test_pre_post_callback_receives_request_hash_before_transport(self):
+        order = []
+
+        def before_post(evidence):
+            order.append("durable")
+            self.assertEqual(evidence["cdc"], self.CDC)
+            self.assertEqual(len(evidence["request_hash"]), 64)
+            self.assertEqual(
+                evidence["endpoint_url"],
+                "https://sifen-test.example.test/de",
+            )
+
+        service = self._service()
+        original_transport = service.transport
+
+        def transport(**kwargs):
+            order.append("transport")
+            return original_transport(**kwargs)
+
+        service.transport = transport
+        result = service.submit_final_xml(
+            document=self.document,
+            final_xml_bytes=self._final_xml(),
+            endpoint_url="https://sifen-test.example.test/de",
+            mutual_tls_credential=self.mutual_tls_credential,
+            before_post=before_post,
+        )
+
+        self.assertEqual(result["outcome"], "accepted")
+        self.assertEqual(order, ["durable", "transport"])
+
     def test_synchronous_lot_code_is_not_accepted(self):
         result = self._submit(
             response={
@@ -437,6 +468,7 @@ class TestPySifenTestSubmissionService(TransactionCase):
 
         self.assertEqual(result["outcome"], "failed_retryable")
         self.assertTrue(result["retryable"])
+        self.assertTrue(result["ambiguous"])
         self.assertEqual(result["response_hash"], "")
         self.assertEqual(
             result["authority_message"],
@@ -479,6 +511,8 @@ class TestPySifenTestSubmissionService(TransactionCase):
             mutual_tls_credential=self.mutual_tls_credential,
         )
 
+        self.assertTrue(result["ambiguous"])
+
         self.assertEqual(result["outcome"], "failed_retryable")
         self.assertEqual(
             result["metadata_json"]["transport_error_category"],
@@ -495,6 +529,8 @@ class TestPySifenTestSubmissionService(TransactionCase):
             endpoint_url="https://sifen-test.example.test/de",
             mutual_tls_credential=self.mutual_tls_credential,
         )
+
+        self.assertTrue(result["ambiguous"])
 
         self.assertEqual(
             result["metadata_json"]["transport_error_category"],

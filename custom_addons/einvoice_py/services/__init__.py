@@ -62,6 +62,7 @@ from .py_sifen_authority_incident_service import (
     PySifenAuthorityIncidentService,
 )
 from .py_sifen_manual_retry_service import PySifenManualRetryService
+from .py_sifen_durable_attempt_service import PySifenDurableAttemptService
 from .py_sifen_ambiguous_reconciliation_service import (
     PySifenAmbiguousSubmissionReconciliationService,
     PySifenReconciliationService,

@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from psycopg2 import errors
 from odoo.exceptions import ValidationError
@@ -12,6 +13,10 @@ from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
 from odoo.addons.einvoice_py.services.py_sifen_transmission_persistence_service import (
     PySifenTransmissionPersistenceService,
 )
+from odoo.addons.einvoice_py.services.py_sifen_durable_attempt_service import (
+    PySifenDurableAttemptService,
+)
+from odoo.addons.einvoice_py.services import py_sifen_durable_attempt_service
 
 
 class _SubmissionPipelineStub:
@@ -21,11 +26,41 @@ class _SubmissionPipelineStub:
 
     def submit_test(self, **kwargs):
         self.calls.append(("test", kwargs))
+        self._mark_pre_post(kwargs)
         return dict(self.result)
 
     def submit_production(self, **kwargs):
         self.calls.append(("production", kwargs))
+        self._mark_pre_post(kwargs)
         return dict(self.result)
+
+    def _mark_pre_post(self, kwargs):
+        callback = kwargs.get("pre_post_callback")
+        if callback is None or not self.result.get("request_hash"):
+            return
+        document = kwargs["document"]
+        callback({
+            "document_id": document.id,
+            "tenant_id": document.tenant_id.id,
+            "company_id": document.company_id.id,
+            "environment": document.environment,
+            "cdc": self.result["cdc"],
+            "endpoint_url": kwargs.get("endpoint_url") or self.result["endpoint_url"],
+            "request_hash": self.result["request_hash"],
+            "payload_attachment_id": 1,
+            "payload_sha256": "1" * 64,
+            "unsigned_xml_attachment_id": 2,
+            "unsigned_xml_sha256": "2" * 64,
+            "signed_xml_attachment_id": 3,
+            "signed_xml_sha256": self.result["signed_xml_sha256"],
+            "qr_attachment_id": 4,
+            "qr_sha256": "4" * 64,
+            "qr_hash": self.result["qr_hash"],
+            "rde_attachment_id": 5,
+            "rde_sha256": "5" * 64,
+            "signing_time": "2026-07-04T07:59:00",
+            "digest_value": self.result["digest_value"],
+        })
 
 
 class _InspectingSubmissionPipelineStub(_SubmissionPipelineStub):
@@ -62,6 +97,56 @@ class _FakeCursor:
 
     def fetchone(self):
         return (self.locked_id,) if self.locked_id else None
+
+
+class _IndependentCursor(_FakeCursor):
+    def __init__(self):
+        super().__init__(locked_id=1)
+        self.commit_count = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
+    def commit(self):
+        self.commit_count += 1
+
+
+class _FakeTransmissionModel:
+    def __init__(self):
+        self.created = []
+
+    def sudo(self):
+        return self
+
+    def create(self, values):
+        self.created.append(values)
+        return SimpleNamespace(id=991)
+
+
+class _FakeDocumentModel:
+    def __init__(self, document):
+        self.document = document
+
+    def browse(self, document_id):
+        if document_id != self.document.id:
+            return SimpleNamespace(exists=lambda: False)
+        return SimpleNamespace(exists=lambda: self.document)
+
+
+class _FakeDurableEnvironment:
+    def __init__(self, document):
+        self.transmissions = _FakeTransmissionModel()
+        self.documents = _FakeDocumentModel(document)
+
+    def __getitem__(self, model_name):
+        if model_name == "fiscal.transmission":
+            return self.transmissions
+        if model_name == "fiscal.document":
+            return self.documents
+        raise AssertionError(model_name)
 
 
 class _CredentialProviderStub:
@@ -151,6 +236,14 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
             endpoint_url="https://sifen-test.example.test/de",
         )
 
+    def _expect_runtime_error(self, operation, message):
+        try:
+            operation()
+        except RuntimeError as error:
+            self.assertIn(message, str(error))
+        else:
+            self.fail(f"Expected RuntimeError containing {message!r}.")
+
     def test_successful_persistence(self):
         result = self._submit_and_persist()
         transmission = self.env["fiscal.transmission"].browse(result["transmission_id"])
@@ -174,6 +267,11 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
         self.assertEqual(len(self.pipeline.calls), 1)
         self.assertEqual(self.pipeline.calls[0][0], "test")
         metadata = json.loads(transmission.metadata_json)
+        self.assertEqual(metadata["durability_phase"], "completed")
+        self.assertTrue(metadata["post_started"])
+        self.assertEqual(metadata["payload_attachment_id"], 1)
+        self.assertEqual(metadata["signed_xml_attachment_id"], 3)
+        self.assertEqual(metadata["rde_attachment_id"], 5)
         self.assertEqual(metadata["authority_receipt_ref"], "12345")
         self.assertEqual(self.document.state, "accepted")
         self.assertEqual(self.document.authority_status, "0260")
@@ -186,6 +284,270 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
         ])
         self.assertEqual(len(response), 1)
         self.assertTrue(response.is_sensitive)
+
+    def test_production_boundary_uses_independent_cursor_and_commit(self):
+        cursor = _IndependentCursor()
+        fake_env = _FakeDurableEnvironment(self.document)
+        service = PySifenDurableAttemptService(
+            self.env,
+            cursor_factory=lambda: cursor,
+        )
+        with patch.object(py_sifen_durable_attempt_service.module, "current_test", None), \
+                patch.object(service, "_environment", return_value=fake_env), \
+                patch.object(service, "_lock_document"), \
+                patch.object(service, "_validate_no_active_attempt"), \
+                patch.object(service, "_next_attempt_number", return_value=7):
+            transmission_id = service.prepare(
+                document=self.document,
+                endpoint_url="https://sifen-test.example.test/de",
+            )
+
+        self.assertEqual(transmission_id, 991)
+        self.assertEqual(cursor.commit_count, 1)
+        self.assertEqual(fake_env.transmissions.created[0]["state"], "pending")
+        self.assertEqual(fake_env.transmissions.created[0]["attempt_number"], 7)
+
+    def test_failure_before_durable_prepare_creates_no_attempt(self):
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            failure_injector=lambda point: (
+                (_ for _ in ()).throw(RuntimeError("before durable"))
+                if point == "before_durable_prepare"
+                else None
+            ),
+        )
+        self._expect_runtime_error(lambda: service.submit_and_persist(
+                document=self.document,
+                payload=self._payload(),
+                signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+                endpoint_url="https://sifen-test.example.test/de",
+            ), "before durable")
+        self.assertFalse(self.document.transmission_ids)
+        self.assertEqual(self.pipeline.calls, [])
+
+    def test_failure_after_durable_prepare_leaves_pending_attempt(self):
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            failure_injector=lambda point: (
+                (_ for _ in ()).throw(RuntimeError("after durable"))
+                if point == "after_durable_prepare"
+                else None
+            ),
+        )
+        self._expect_runtime_error(lambda: service.submit_and_persist(
+                document=self.document,
+                payload=self._payload(),
+                signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+                endpoint_url="https://sifen-test.example.test/de",
+            ), "after durable")
+        attempt = self.document.transmission_ids
+        self.assertEqual(attempt.state, "pending")
+        self.assertEqual(json.loads(attempt.metadata_json)["durability_phase"], "prepared")
+        self.assertEqual(
+            PySifenDurableAttemptService(self.env).recovery_status(attempt),
+            "prepared_not_posted",
+        )
+        self.assertEqual(self.pipeline.calls, [])
+
+    def test_failure_after_pre_post_boundary_leaves_ambiguous_attempt(self):
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            failure_injector=lambda point: (
+                (_ for _ in ()).throw(RuntimeError("before transport"))
+                if point == "after_durable_post_started"
+                else None
+            ),
+        )
+        self._expect_runtime_error(lambda: service.submit_and_persist(
+                document=self.document,
+                payload=self._payload(),
+                signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+                endpoint_url="https://sifen-test.example.test/de",
+            ), "before transport")
+        attempt = self.document.transmission_ids
+        metadata = json.loads(attempt.metadata_json)
+        self.assertEqual(attempt.state, "sent")
+        self.assertEqual(attempt.request_hash, "d" * 64)
+        self.assertEqual(attempt.error_code, "ambiguous_submission")
+        self.assertTrue(metadata["post_started"])
+        self.assertEqual(metadata["durability_phase"], "post_started")
+        self.assertEqual(
+            PySifenDurableAttemptService(self.env).recovery_status(attempt),
+            "outcome_unknown",
+        )
+
+    def test_failure_after_http_result_keeps_post_started_attempt(self):
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            failure_injector=lambda point: (
+                (_ for _ in ()).throw(RuntimeError("after response"))
+                if point == "after_pipeline_result"
+                else None
+            ),
+        )
+        self._expect_runtime_error(lambda: service.submit_and_persist(
+                document=self.document,
+                payload=self._payload(),
+                signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+                endpoint_url="https://sifen-test.example.test/de",
+            ), "after response")
+        attempt = self.document.transmission_ids
+        self.assertEqual(attempt.state, "sent")
+        self.assertEqual(attempt.request_hash, "d" * 64)
+        self.assertFalse(attempt.response_hash)
+
+    def test_failure_after_durable_outcome_keeps_terminal_attempt(self):
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            failure_injector=lambda point: (
+                (_ for _ in ()).throw(RuntimeError("after final evidence"))
+                if point == "after_durable_finalize"
+                else None
+            ),
+        )
+        self._expect_runtime_error(lambda: service.submit_and_persist(
+                document=self.document,
+                payload=self._payload(),
+                signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+                endpoint_url="https://sifen-test.example.test/de",
+            ), "after final evidence")
+        attempt = self.document.transmission_ids
+        self.assertEqual(attempt.state, "accepted")
+        self.assertEqual(attempt.response_hash, "e" * 64)
+        self.assertEqual(json.loads(attempt.metadata_json)["durability_phase"], "completed")
+
+    def test_unresolved_durable_attempt_blocks_resubmission(self):
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            failure_injector=lambda point: (
+                (_ for _ in ()).throw(RuntimeError("after durable"))
+                if point == "after_durable_prepare"
+                else None
+            ),
+        )
+        self._expect_runtime_error(lambda: service.submit_and_persist(
+                document=self.document,
+                payload=self._payload(),
+                signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+                endpoint_url="https://sifen-test.example.test/de",
+            ), "after durable")
+        attempt = self.env["fiscal.transmission"].search([
+            ("document_id", "=", self.document.id),
+        ])
+        self.assertEqual(attempt.state, "pending")
+        self.assertEqual(attempt.country_identifier, self.CDC)
+        self.assertEqual(attempt.country_code, "PY")
+        with self.assertRaisesRegex(ValidationError, "unresolved|ambiguous"):
+            self._submit_and_persist()
+
+    def test_operator_can_abandon_only_proven_pre_post_attempt(self):
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            failure_injector=lambda point: (
+                (_ for _ in ()).throw(RuntimeError("after durable"))
+                if point == "after_durable_prepare"
+                else None
+            ),
+        )
+        self._expect_runtime_error(lambda: service.submit_and_persist(
+            document=self.document,
+            payload=self._payload(),
+            signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+            endpoint_url="https://sifen-test.example.test/de",
+        ), "after durable")
+        prepared = self.document.transmission_ids
+        PySifenDurableAttemptService(self.env).abandon_prepared_not_posted(prepared)
+        prepared.invalidate_recordset()
+        self.assertEqual(prepared.state, "failed_final")
+        self.assertEqual(prepared.error_code, "pre_post_not_attempted")
+        self.assertEqual(
+            json.loads(prepared.metadata_json)["resolution_status"],
+            "post_not_started",
+        )
+        completed = self._submit_and_persist()
+        second = self.env["fiscal.transmission"].browse(completed["transmission_id"])
+        self.assertEqual(second.attempt_number, prepared.attempt_number + 1)
+
+    def test_ambiguous_transport_finalizes_same_attempt_for_reconciliation(self):
+        self.pipeline.result = dict(self._accepted_result(), **{
+            "ok": False,
+            "failed_stage": "test_submission",
+            "submission_status": "",
+            "authority_code": "",
+            "authority_message": "",
+            "response_hash": "",
+            "ambiguous": True,
+            "retryable": False,
+        })
+        persisted = self._submit_and_persist()
+        attempt = self.env["fiscal.transmission"].browse(persisted["transmission_id"])
+        self.assertEqual(attempt.state, "manual_review")
+        self.assertEqual(attempt.error_code, "ambiguous_submission")
+        self.assertTrue(json.loads(attempt.metadata_json)["ambiguous"])
+
+    def test_attempt_numbers_remain_monotonic_across_explicit_rejections(self):
+        self.pipeline.result = dict(self._accepted_result(), **{
+            "ok": False,
+            "failed_stage": "test_submission",
+            "submission_status": "rejected",
+            "authority_code": "1300",
+            "authority_message": "Explicit fixture rejection",
+        })
+        first = self._submit_and_persist()
+        second = self._submit_and_persist()
+        attempts = self.env["fiscal.transmission"].browse([
+            first["transmission_id"], second["transmission_id"]
+        ]).sorted("attempt_number")
+        self.assertEqual(attempts.mapped("attempt_number"), [1, 2])
+
+    def test_unresolved_attempt_from_another_tenant_does_not_cross_scope(self):
+        other_tenant = self.env["fiscal.tenant"].create({
+            "name": "Other durable boundary tenant",
+            "code": f"other-{self.id()}",
+            "company_id": self.env.company.id,
+        })
+        other_document = self.env["fiscal.document"].create({
+            "name": "Other tenant same CDC",
+            "tenant_id": other_tenant.id,
+            "company_id": self.env.company.id,
+            "document_type": "invoice",
+            "country_code": "PY",
+            "environment": "test",
+            "adapter_code": "py_fake",
+            "customer_name": "Other tenant customer",
+            "amount_total": 100,
+            "idempotency_key": f"other-{self.id()}",
+            "py_cdc": self.CDC,
+            "py_cdc_dv": self.CDC[-1],
+            "country_identifier": self.CDC,
+        })
+        self.env["fiscal.transmission"].create({
+            "document_id": other_document.id,
+            "transmission_type": "submit",
+            "state": "pending",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": self.CDC,
+            "metadata_json": json.dumps({
+                "durability_phase": "prepared",
+                "post_started": False,
+            }),
+        })
+
+        persisted = self._submit_and_persist()
+
+        transmission = self.env["fiscal.transmission"].browse(
+            persisted["transmission_id"]
+        )
+        self.assertEqual(transmission.document_id, self.document)
+        self.assertEqual(transmission.state, "accepted")
 
     def test_pki_incident_is_manual_only_and_response_artifact_is_redacted(self):
         self.pipeline.result = dict(self._accepted_result(), **{

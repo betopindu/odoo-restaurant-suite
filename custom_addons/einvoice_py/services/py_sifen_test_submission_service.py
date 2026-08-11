@@ -397,6 +397,7 @@ class PySifenSubmissionService:
         soap_action=None,
         timeout_seconds=None,
         mutual_tls_credential=None,
+        before_post=None,
     ):
         document.ensure_one()
         self._validate_submission_inputs(document, final_xml_bytes, endpoint_url)
@@ -413,6 +414,16 @@ class PySifenSubmissionService:
             )
 
         request_xml = self.build_soap_envelope(final_xml_bytes, document=document)
+        if before_post is not None:
+            before_post({
+                "document_id": document.id,
+                "tenant_id": document.tenant_id.id,
+                "company_id": document.company_id.id,
+                "environment": environment,
+                "cdc": cdc,
+                "endpoint_url": endpoint_url,
+                "request_hash": hashlib.sha256(request_xml).hexdigest(),
+            })
         started = time.monotonic()
         try:
             http_response = self._transport()(
@@ -660,10 +671,9 @@ class PySifenSubmissionService:
             "outcome": "failed_retryable",
             "retryable": True,
             "retry_after_seconds": 300,
-            "ambiguous": (
-                environment == "test"
-                and isinstance(error, PySifenTimeoutError)
-            ),
+            # Once the durable POST marker is committed, a transport exception
+            # cannot prove that no request bytes reached the authority.
+            "ambiguous": True,
             "metadata_json": {
                 "environment": environment,
                 "service": self.SERVICE_NAME,

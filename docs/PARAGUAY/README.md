@@ -991,7 +991,13 @@ An authority result of `0422` confirms remote approval and marks the fiscal docu
 
 Each query persists a separate `status_query` audit record: sanitized HTTPS endpoint, HTTP status, duration, request/response SHA-256, authority code/message/time, safe result category, query time and links to the relevant submission attempts. Raw response XML, CSC, certificate, key and password material are excluded. Automatic reconciliation is limited to ambiguous/manual-review submissions; an operator diagnostic is allowed only after a real prior submission. Accepted documents and never-submitted drafts are not queried automatically.
 
-This recovery does not change the current Odoo transaction durability model. It uses neither explicit commits nor independent cursors, outbox records, or a new queue. It also does not support the production environment.
+DE submission now commits a narrowly scoped durable attempt independently of
+the caller transaction. `pending` means local preparation began but the
+pre-POST marker did not run; `sent` means request SHA-256 and complete artifact
+provenance were committed immediately before transport and the remote outcome
+must be treated as unknown until a result or Consulta DE resolves it. The
+caller cursor is never explicitly committed. Consulta DE itself retains its
+existing transaction behavior and remains TEST-only.
 
 ## Cancellation and number inutilization
 
@@ -1234,7 +1240,7 @@ for the tested certificate, CSC, fiscal configuration, and invoice profile.
 Still pending:
 
 * remaining official SIFEN TEST homologation cases
-* Stage 8.24B durable pre-POST persistence, postponed until authority evidence justifies it
+* adoption of the durable pre-POST primitive by emitter/receiver events and queries
 * production connection preflight
 * retry cron activation
 * operational monitoring and production go-live

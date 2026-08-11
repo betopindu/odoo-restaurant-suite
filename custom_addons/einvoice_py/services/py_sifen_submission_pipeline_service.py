@@ -106,6 +106,7 @@ class PySifenSubmissionPipelineService:
         timeout_seconds=None,
         filename=None,
         credentials=None,
+        pre_post_callback=None,
     ):
         document.ensure_one()
         self._validate_environment(document, expected_environment)
@@ -235,6 +236,25 @@ class PySifenSubmissionPipelineService:
             return result
         result["final_xml_attachment_id"] = final_attachment.id
 
+        def before_post(request_evidence):
+            if pre_post_callback is None:
+                return
+            pre_post_callback(dict(request_evidence, **{
+                "payload_attachment_id": signing_result.get("payload_attachment_id"),
+                "payload_sha256": signing_result.get("payload_sha256"),
+                "unsigned_xml_attachment_id": signing_result.get("unsigned_attachment_id"),
+                "unsigned_xml_sha256": signing_result.get("unsigned_sha256"),
+                "signed_xml_attachment_id": signing_result.get("signed_attachment_id"),
+                "signed_xml_sha256": result["signed_xml_sha256"],
+                "qr_attachment_id": qr_attachment.id,
+                "qr_sha256": qr_attachment.sha256,
+                "qr_hash": result["qr_hash"],
+                "rde_attachment_id": final_attachment.id,
+                "rde_sha256": final_attachment.sha256,
+                "signing_time": signing_result.get("signing_time"),
+                "digest_value": signing_result.get("digest_value"),
+            }))
+
         submission_result = self._run_stage(
             result,
             self._submission_stage(document.environment),
@@ -245,6 +265,7 @@ class PySifenSubmissionPipelineService:
                 soap_action=soap_action,
                 timeout_seconds=timeout_seconds,
                 mutual_tls_credential=mutual_tls_credential,
+                before_post=before_post,
             ),
         )
         if submission_result is None:

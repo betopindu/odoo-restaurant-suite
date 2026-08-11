@@ -131,7 +131,7 @@ limited to the exercised invoice profile.
 [ ] Execute it live only under separate authorization
 [ ] Complete the authority-defined TEST homologation case matrix
 [ ] Apply further interoperability corrections only when supported by authority evidence
-[ ] Stage 8.24B durable pre-POST persistence, explicitly postponed until homologation evidence justifies it
+[x] Durable Paraguay DE pre-POST attempt and request-provenance persistence
 [ ] Production connection preflight
 [ ] Paraguay adapter integration
 [ ] Retry cron activation after operational approval

@@ -1,5 +1,17 @@
 # Documentation Changelog
 
+## 2026-08-11 — Durable Paraguay DE outbound evidence
+
+* Added an independent-cursor boundary that commits one submit attempt before
+  artifact work and its exact request identity before HTTP POST.
+* Persisted payload, unsigned XML, signed XML, QR, final rDE and SOAP hashes/IDs
+  without storing fiscal XML, CSC or credential material.
+* Made post-started transport errors ambiguous and blocked blind resend until
+  reconciliation.
+* Added explicit recovery for definitely-not-posted `pending` attempts;
+  cancellation, inutilization, receiver events and Consulta DE remain outside
+  this durability boundary.
+
 ## 2026-08-11 — Paraguay retry provenance hardening
 
 * Replaced historical signing-time reuse with an injectable retry-time policy

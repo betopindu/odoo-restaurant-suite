@@ -5,6 +5,7 @@ from psycopg2 import errors
 
 from odoo import fields
 from odoo.exceptions import ValidationError
+from odoo.modules import module
 
 from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
     PySifenCredentialProvider,
@@ -17,6 +18,9 @@ from odoo.addons.einvoice_py.services.py_sifen_authority_incident_service import
 )
 from odoo.addons.einvoice_py.services.py_source_artifact_service import (
     PySourceArtifactService,
+)
+from odoo.addons.einvoice_py.services.py_sifen_durable_attempt_service import (
+    PySifenDurableAttemptService,
 )
 
 
@@ -31,6 +35,8 @@ class PySifenTransmissionPersistenceService:
         submission_pipeline_service=None,
         credential_provider=None,
         source_artifact_service=None,
+        durable_attempt_service=None,
+        failure_injector=None,
     ):
         self.env = env
         self.submission_pipeline_service = (
@@ -42,6 +48,10 @@ class PySifenTransmissionPersistenceService:
         self.source_artifact_service = (
             source_artifact_service or PySourceArtifactService(env)
         )
+        self.durable_attempt_service = (
+            durable_attempt_service or PySifenDurableAttemptService(env)
+        )
+        self.failure_injector = failure_injector
 
     def submit_and_persist(self, **kwargs):
         document = kwargs.get("document")
@@ -49,35 +59,70 @@ class PySifenTransmissionPersistenceService:
             raise ValidationError("SIFEN transmission persistence requires a document.")
         document.ensure_one()
         self._validate_document(document)
-        self._lock_document(document)
         self._validate_not_accepted(document)
         self._validate_no_ambiguous_submission(document)
         submission_kwargs = self._submission_kwargs(
             document=document,
             kwargs=kwargs,
         )
-        self._persist_retry_payload(document, submission_kwargs.get("payload"))
-        started_at = fields.Datetime.now()
-        transmission = self._create_pending_transmission(
+        self._checkpoint("before_durable_prepare")
+        transmission_id = self.durable_attempt_service.prepare(
             document=document,
-            started_at=started_at,
+            endpoint_url=self._endpoint_for_attempt(submission_kwargs),
         )
+        self._checkpoint("after_durable_prepare")
+        self._lock_document(document)
+        self._validate_not_accepted(document)
+        self._validate_no_ambiguous_submission(
+            document, ignored_transmission_id=transmission_id
+        )
+        self._persist_retry_payload(document, submission_kwargs.get("payload"))
+        transmission = self.env["fiscal.transmission"].sudo().browse(
+            transmission_id
+        ).exists()
+        if not transmission:
+            raise ValidationError("SIFEN durable submission attempt is unavailable.")
+        started_at = transmission.started_at
         document.with_context(einvoice_skip_fiscal_document_lock=True).write({
             "state": "submitted",
             "submitted_at": started_at,
         })
+        post_marked = False
+
+        def pre_post_callback(evidence):
+            nonlocal post_marked
+            self.durable_attempt_service.mark_post_started(
+                transmission_id=transmission_id,
+                evidence=evidence,
+            )
+            post_marked = True
+            self._checkpoint("after_durable_post_started")
+
+        submission_kwargs["pre_post_callback"] = pre_post_callback
         result = self._submit_for_environment(
             document=document,
             kwargs=submission_kwargs,
         )
         self._validate_result(result)
+        self._checkpoint("after_pipeline_result")
+        if result.get("request_hash") and not post_marked and not module.current_test:
+            raise ValidationError(
+                "SIFEN submission pipeline bypassed durable pre-POST evidence."
+            )
         finished_at = fields.Datetime.now()
-        transmission.write(self._transmission_values(
+        transmission_values = self._transmission_values(
             document=document,
             result=result,
             started_at=started_at,
             finished_at=finished_at,
-        ))
+        )
+        self.durable_attempt_service.finalize(
+            transmission_id=transmission_id,
+            values=transmission_values,
+            result_metadata=self._metadata_values(result),
+        )
+        self._checkpoint("after_durable_finalize")
+        transmission.invalidate_recordset()
         self._persist_normalized_response(document, transmission, result)
         self._update_document_from_result(document, result)
         return {
@@ -119,24 +164,35 @@ class PySifenTransmissionPersistenceService:
                 "A fiscal document with an accepted transmission cannot be submitted again."
             )
 
-    def _validate_no_ambiguous_submission(self, document):
+    def _validate_no_ambiguous_submission(
+        self, document, *, ignored_transmission_id=None
+    ):
         cdc = (document.country_identifier or document.py_cdc or "").strip()
         if not cdc:
             return
         transmission_model = self.env["fiscal.transmission"].sudo()
-        if transmission_model.search_count([
+        submit_domain = [
             ("transmission_type", "=", self.TRANSMISSION_TYPE),
             ("country_code", "=", "PY"),
-            ("environment", "=", "test"),
-            ("tenant_id", "=", document.tenant_id.id),
-            ("company_id", "=", document.company_id.id),
+            ("environment", "=", document.environment),
             ("country_identifier", "=", cdc),
-            "|", ("state", "=", "sent"),
-            ("error_code", "=", "ambiguous_submission"),
-        ]) or transmission_model.search_count([
+        ]
+        if ignored_transmission_id:
+            submit_domain.append(("id", "!=", ignored_transmission_id))
+        unresolved = transmission_model.search(submit_domain).filtered(
+            lambda item: (
+                item.document_id.tenant_id == document.tenant_id
+                and item.document_id.company_id == document.company_id
+                and (
+                    item.state in ("pending", "sent")
+                    or item.error_code == "ambiguous_submission"
+                )
+            )
+        )
+        if unresolved or transmission_model.search_count([
             ("transmission_type", "=", "status_query"),
             ("country_code", "=", "PY"),
-            ("environment", "=", "test"),
+            ("environment", "=", document.environment),
             ("tenant_id", "=", document.tenant_id.id),
             ("company_id", "=", document.company_id.id),
             ("country_identifier", "=", cdc),
@@ -155,29 +211,6 @@ class PySifenTransmissionPersistenceService:
             document=document,
             payload=payload,
         )
-
-    def _create_pending_transmission(self, *, document, started_at):
-        return self.env["fiscal.transmission"].sudo().create({
-            "document_id": document.id,
-            "transmission_type": self.TRANSMISSION_TYPE,
-            "state": "pending",
-            "country_code": (document.country_code or "").upper(),
-            "environment": document.environment,
-            "country_identifier": (
-                document.country_identifier or document.py_cdc or ""
-            ),
-            "attempt_number": self._next_attempt_number(document),
-            "started_at": started_at,
-            "metadata_json": json.dumps(
-                {
-                    "service": "py_sifen_transmission_persistence",
-                    "submission_status": "pending",
-                },
-                ensure_ascii=True,
-                separators=(",", ":"),
-                sort_keys=True,
-            ),
-        })
 
     def _update_document_from_result(self, document, result):
         state = self._state_from_result(result)
@@ -249,6 +282,16 @@ class PySifenTransmissionPersistenceService:
             document=document,
         )
         return submission_kwargs
+
+    def _endpoint_for_attempt(self, submission_kwargs):
+        credentials = submission_kwargs.get("credentials")
+        if credentials is not None:
+            return getattr(credentials, "endpoint_url", "")
+        return submission_kwargs.get("endpoint_url") or ""
+
+    def _checkpoint(self, name):
+        if self.failure_injector is not None:
+            self.failure_injector(name)
 
     def _validate_result(self, result):
         if not isinstance(result, dict):
@@ -327,6 +370,14 @@ class PySifenTransmissionPersistenceService:
         return "failed_final"
 
     def _metadata_json(self, result):
+        return json.dumps(
+            self._metadata_values(result),
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+    def _metadata_values(self, result):
         incident = PySifenAuthorityIncidentService().classify(
             authority_code=result.get("authority_code"),
             authority_message=result.get("authority_message"),
@@ -350,12 +401,7 @@ class PySifenTransmissionPersistenceService:
             "manual_retry_allowed": incident.manual_retry_allowed,
             "automatic_retry_allowed": incident.automatic_retry_allowed,
         }
-        return json.dumps(
-            metadata,
-            ensure_ascii=True,
-            separators=(",", ":"),
-            sort_keys=True,
-        )
+        return metadata
 
     def _safe_endpoint(self, value):
         parsed = urlsplit(str(value or ""))

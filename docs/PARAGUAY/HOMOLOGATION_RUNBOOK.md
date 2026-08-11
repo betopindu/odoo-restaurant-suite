@@ -112,9 +112,19 @@ response, accepted, rejected, duplicate, or unknown authority code. HTTP 200
 alone is not acceptance.
 
 Record undocumented authority behavior as evidence. Make only focused
-interoperability corrections supported by that evidence. Stage 8.24B durable
-pre-POST persistence remains postponed until homologation demonstrates that
-the current controlled procedure is insufficient.
+interoperability corrections supported by that evidence. DE submission now
+creates durable `pending` evidence before preparation and commits `sent`
+request identity immediately before POST.
+
+After a restart, never infer resend safety from empty response fields:
+
+* `pending` plus `post_started=false` means the POST callback did not run. It
+  still blocks submission until an operator explicitly records
+  `pre_post_not_attempted` through the durable-attempt service.
+* `sent` plus `post_started=true` is ambiguous even without HTTP evidence and
+  requires Consulta DE before any retry.
+* accepted or rejected durable outcomes remain terminal evidence even if the
+  caller document update rolled back.
 
 After the first accepted DE, execute the official homologation cases. Do not
 enable production, cron, or unattended retry as part of the first request.
@@ -225,9 +235,8 @@ credential references; none was hardcoded into the localization.
 * CSC plaintext storage remains an acknowledged MVP limitation in
   `fiscal.py.csc`; migrate through an approved secret boundary without changing
   QR consumers.
-* Stage 8.24B durable pre-POST persistence remains intentionally postponed.
-  Ordinary Odoo rollback cannot prove whether a remote POST was accepted after
-  a worker crash; ambiguous outcomes must continue through Consulta DE.
+* Cancellation, inutilization, receiver events, and Consulta DE do not yet use
+  the DE durable pre-POST primitive; their adoption requires separate review.
 * Payload monetary calculations use Decimal internally but the normalized
   payload currently carries numeric floats before deterministic XML
   quantization. Broader currency/precision profiles should be validated before

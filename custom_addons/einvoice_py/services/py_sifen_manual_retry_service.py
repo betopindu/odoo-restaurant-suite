@@ -69,7 +69,9 @@ class PySifenManualRetryService:
             raise ValidationError("An accepted SIFEN document cannot be retried.")
         if transmissions.filtered(self._is_ambiguous):
             raise ValidationError("An ambiguous SIFEN submission requires reconciliation before retry.")
-        previous = transmissions[:1]
+        previous = transmissions.filtered(
+            lambda item: item.error_code != "pre_post_not_attempted"
+        )[:1]
         if not previous or previous.state != "rejected":
             raise ValidationError("SIFEN manual retry requires an explicit authority rejection.")
         classification = self.incident_service.classify(
