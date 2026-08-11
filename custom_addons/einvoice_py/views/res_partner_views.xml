@@ -1,0 +1,24 @@
+<odoo>
+    <record id="view_partner_form_paraguay_sifen" model="ir.ui.view">
+        <field name="name">res.partner.form.paraguay.sifen</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Paraguay SIFEN">
+                    <group>
+                        <field name="py_sifen_receiver_profile"/>
+                        <field name="py_sifen_taxpayer_type" invisible="py_sifen_receiver_profile != 'taxpayer'"/>
+                        <field name="py_sifen_house_number"/>
+                        <field name="py_sifen_department_code"/>
+                        <field name="py_sifen_department_name"/>
+                        <field name="py_sifen_district_code"/>
+                        <field name="py_sifen_district_name"/>
+                        <field name="py_sifen_city_code"/>
+                        <field name="py_sifen_city_name"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

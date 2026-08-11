@@ -1423,3 +1423,28 @@ Normative references: [Manual Técnico v150](https://www.dnit.gov.py/documents/2
 * [ADR-011 Paraguay Digital Signature Strategy](../ADR/ADR-011-paraguay-digital-signature-strategy.md)
 * [ADR-012 Paraguay Qualified Certificate Lifecycle](../ADR/ADR-012-paraguay-qualified-certificate-lifecycle.md)
 * [Paraguay Processing Diagram](../diagrams/paraguay-processing.mmd)
+## Odoo Accounting integration
+
+Posted customer invoices can be prepared explicitly with **Prepare Electronic
+Invoice**:
+
+```text
+account.move -> neutral snapshot -> fiscal.document
+             -> Paraguay numbering/CDC/payload -> KuDE Preview
+```
+
+Preparation does not submit, sign, create a fiscal QR, or manufacture authority
+evidence. Each `account.tax` requires an explicit SIFEN treatment (IVA 10%, IVA
+5% or Exempt); names are never parsed. The current boundary accepts PYG and one
+tax-inclusive percentage mapping per line, failing closed otherwise.
+
+Partners use an explicit receiver profile. B2B requires a Paraguay RUC in
+`base-DV` form, taxpayer type, address and exact official geographic codes and
+descriptions. B2C unnamed consumers use the official Innominado projection.
+Missing values are never synthesized.
+
+Source identity, Odoo line IDs, values, taxes, totals and a snapshot hash are
+preserved. Repeated preparation returns the same document. Once snapshotted,
+fiscal source edits, reset and cancellation are blocked pending an explicit
+correction workflow. See
+[ADR-018](../ADR/ADR-018-account-move-fiscal-snapshot-boundary.md).

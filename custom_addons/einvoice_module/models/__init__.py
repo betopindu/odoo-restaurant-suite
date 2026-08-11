@@ -9,3 +9,4 @@ from . import fiscal_adapter_config
 from . import fiscal_credential
 from . import fiscal_adapter_credential_binding
 from . import res_users
+from . import account_move

@@ -9,6 +9,9 @@
 
 ## Completed
 
+- [x] Posted Odoo customer invoices enter through a neutral immutable fiscal
+  snapshot, explicit Paraguay mappings and offline KuDE Preview.
+
 [x] Core workflow
 [x] Fiscal events
 [x] Attachments
@@ -162,3 +165,5 @@ limited to the exercised invoice profile.
 
 * [Paraguay Documentation](PARAGUAY/README.md)
 * [Architecture](ARCHITECTURE.md)
+- [ ] Extend accounting integration to credit/debit notes, tax-exclusive prices
+  and explicit fiscal correction workflows.

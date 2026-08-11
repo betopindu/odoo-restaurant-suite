@@ -2,6 +2,10 @@ import secrets
 
 from odoo.exceptions import ValidationError
 
+from odoo.addons.einvoice_py.services.py_sifen_datetime_service import (
+    PySifenDatetimeService,
+)
+
 
 class PyCdcService:
     DOCUMENT_TYPE_CODES = {
@@ -97,7 +101,10 @@ class PyCdcService:
         return cdc
 
     def _compose_base(self, document, cod_seg):
-        issue_date = document.issue_datetime.strftime("%Y%m%d")
+        issue_date = PySifenDatetimeService.format_fiscal_datetime(
+            document.issue_datetime,
+            field_label="Paraguay CDC emission timestamp",
+        )[:10].replace("-", "")
         return "".join(
             [
                 self.DOCUMENT_TYPE_CODES[document.document_type],

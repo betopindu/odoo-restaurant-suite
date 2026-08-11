@@ -12,3 +12,6 @@ from . import fiscal_document_line
 from . import fiscal_attachment
 from . import fiscal_transmission
 from . import py_sifen_retry_runner
+from . import account_move
+from . import account_tax
+from . import res_partner

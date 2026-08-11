@@ -104,6 +104,7 @@ from .py_qr_generation_service import (
 )
 from .py_kude_service import PyKudeResult, PyKudeService
 from .py_kude_preview_service import PyKudePreviewResult, PyKudePreviewService
+from .py_account_move_integration_service import PyFiscalDocumentFromAccountMoveService
 from .py_qr_payload_attachment_service import PyQrPayloadAttachmentService
 from .py_xml_signature_service import (
     PyXmlSignatureResult,

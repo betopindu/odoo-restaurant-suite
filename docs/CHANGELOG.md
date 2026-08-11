@@ -162,3 +162,13 @@
   not production authorization or completion of the homologation matrix.
 * Registered remaining technical debt and evidence gates before considering
   cross-country abstractions for Costa Rica.
+## 2026-08-11 — Odoo invoice fiscal snapshot integration
+
+- Added the neutral posted `account.move` to `fiscal.document` snapshot service,
+  relational/source provenance and database-backed idempotency.
+- Added explicit Paraguay IVA 10%, IVA 5% and exempt mappings plus validated
+  B2B taxpayer and unnamed B2C receiver profiles.
+- Added invoice preparation/status UI and offline KuDE Preview integration;
+  preparation never calls SIFEN.
+- Protected snapshotted invoices against unsafe source edits, reset or
+  cancellation and aligned CDC dates with Paraguay civil time.

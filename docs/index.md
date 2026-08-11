@@ -78,6 +78,8 @@ Use ADRs to understand why the platform is shaped the way it is.
 * [ADR-014 Paraguay TEST Timbrado Profile](ADR/ADR-014-paraguay-test-timbrado-profile.md): separate TEST homologation configuration from production electronic timbrado.
 * [ADR-015 Paraguay KuDE From Persisted Payload](ADR/ADR-015-paraguay-kude-from-persisted-payload.md): generate and version deterministic KuDE PDFs from persisted payload and exact QR artifacts.
 * [ADR-016 Paraguay SIFEN Emitter Events](ADR/ADR-016-paraguay-sifen-emitter-events.md): isolate cancellation and number inutilization from DE submission.
+* [ADR-017 SIFEN Durable Pre-POST Boundary](ADR/ADR-017-sifen-durable-pre-post-boundary.md): preserve outbound evidence independently of the caller transaction.
+* [ADR-018 Odoo Invoice Fiscal Snapshot Boundary](ADR/ADR-018-account-move-fiscal-snapshot-boundary.md): convert posted accounting invoices into immutable neutral fiscal snapshots.
 
 ## Country Implementations
 

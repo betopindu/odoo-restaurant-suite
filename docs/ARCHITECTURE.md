@@ -339,3 +339,17 @@ later events and are never retried automatically.
 
 * [ADR-001 Country Addons](ADR/ADR-001-country-addons.md)
 * [Diagrams Hub](diagrams/README.md)
+## Accounting invoice snapshot boundary
+
+Normal Odoo invoicing enters through an explicit neutral boundary:
+
+```text
+posted account.move
+  -> FiscalDocumentFromAccountMoveService
+  -> fiscal.document plus source snapshot
+  -> country composition (Paraguay payload/CDC/Preview)
+```
+
+The core owns source locking, scope, provenance and uniqueness. Localizations
+own national configuration and mappings. No authority transport is invoked.
+See [ADR-018](ADR/ADR-018-account-move-fiscal-snapshot-boundary.md).

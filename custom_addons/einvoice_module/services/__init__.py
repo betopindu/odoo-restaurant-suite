@@ -7,3 +7,4 @@ from . import credential_provider
 from . import pkcs12_material_provider
 from . import validation
 from . import orchestrator
+from . import account_move_integration

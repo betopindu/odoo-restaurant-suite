@@ -76,6 +76,13 @@ class FiscalDocument(models.Model):
     source_res_id = fields.Integer(index=True)
     source_external_id = fields.Char(index=True)
     source_reference = fields.Char(index=True)
+    account_move_id = fields.Many2one(
+        "account.move",
+        string="Source Invoice",
+        ondelete="restrict",
+        index=True,
+        copy=False,
+    )
     idempotency_key = fields.Char(copy=False, index=True)
 
     fiscal_number = fields.Char(index=True)
@@ -106,6 +113,14 @@ class FiscalDocument(models.Model):
     transmission_ids = fields.One2many("fiscal.transmission", "document_id")
     attachment_ids = fields.One2many("fiscal.attachment", "document_id")
     metadata_json = fields.Text()
+
+    _sql_constraints = [
+        (
+            "account_move_adapter_uniq",
+            "unique(account_move_id, adapter_config_id)",
+            "A fiscal document already exists for this invoice and fiscal adapter.",
+        ),
+    ]
 
     @api.model_create_multi
     def create(self, vals_list):
