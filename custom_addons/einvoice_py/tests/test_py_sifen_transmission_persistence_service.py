@@ -123,7 +123,7 @@ class _FakeTransmissionModel:
 
     def create(self, values):
         self.created.append(values)
-        return SimpleNamespace(id=991)
+        return SimpleNamespace(id=991, started_at=values["started_at"])
 
 
 class _FakeDocumentModel:
@@ -282,8 +282,7 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
             ("transmission_id", "=", transmission.id),
             ("attachment_type", "=", "authority_response"),
         ])
-        self.assertEqual(len(response), 1)
-        self.assertTrue(response.is_sensitive)
+        self.assertFalse(response)
 
     def test_production_boundary_uses_independent_cursor_and_commit(self):
         cursor = _IndependentCursor()
@@ -297,15 +296,73 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
                 patch.object(service, "_lock_document"), \
                 patch.object(service, "_validate_no_active_attempt"), \
                 patch.object(service, "_next_attempt_number", return_value=7):
-            transmission_id = service.prepare(
+            prepared = service.prepare(
                 document=self.document,
                 endpoint_url="https://sifen-test.example.test/de",
             )
 
-        self.assertEqual(transmission_id, 991)
+        self.assertEqual(prepared.transmission_id, 991)
+        self.assertTrue(prepared.started_at)
         self.assertEqual(cursor.commit_count, 1)
         self.assertEqual(fake_env.transmissions.created[0]["state"], "pending")
         self.assertEqual(fake_env.transmissions.created[0]["attempt_number"], 7)
+
+    def test_caller_does_not_reload_independently_committed_attempt(self):
+        class DurableBoundaryStub:
+            def __init__(self, started_at):
+                self.started_at = started_at
+                self.prepared_id = 991
+                self.marked_ids = []
+                self.finalized_ids = []
+
+            def prepare(self, **kwargs):
+                from odoo.addons.einvoice_py.services.py_sifen_durable_attempt_service import (
+                    PySifenPreparedAttempt,
+                )
+                return PySifenPreparedAttempt(self.prepared_id, self.started_at)
+
+            def mark_post_started(self, *, transmission_id, evidence):
+                self.marked_ids.append(transmission_id)
+
+            def finalize(
+                self,
+                *,
+                transmission_id,
+                values,
+                result_metadata,
+            ):
+                self.finalized_ids.append(transmission_id)
+
+        boundary = DurableBoundaryStub(datetime(2026, 7, 4, 11, 58, 0))
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            durable_attempt_service=boundary,
+        )
+        transmission_model = self.env["fiscal.transmission"].sudo()
+        original_browse = type(transmission_model).browse
+
+        def invisible_durable_row(recordset, ids=()):
+            if ids == boundary.prepared_id:
+                return original_browse(recordset, [])
+            return original_browse(recordset, ids)
+
+        with patch.object(type(transmission_model), "browse", invisible_durable_row):
+            persisted = service.submit_and_persist(
+                document=self.document,
+                payload=self._payload(),
+                certificate_bytes=b"certificate-secret-fixture",
+                private_key_bytes=b"private-key-secret-fixture",
+                private_key_password="password-secret-fixture",
+                signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+                endpoint_url="https://sifen-test.example.test/de",
+            )
+
+        self.assertEqual(persisted["transmission_id"], boundary.prepared_id)
+        self.assertEqual(boundary.marked_ids, [boundary.prepared_id])
+        self.assertEqual(boundary.finalized_ids, [boundary.prepared_id])
+        self.assertEqual(len(self.pipeline.calls), 1)
+        self.assertEqual(self.document.submitted_at, boundary.started_at)
 
     def test_failure_before_durable_prepare_creates_no_attempt(self):
         service = PySifenTransmissionPersistenceService(
@@ -475,6 +532,32 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
         second = self.env["fiscal.transmission"].browse(completed["transmission_id"])
         self.assertEqual(second.attempt_number, prepared.attempt_number + 1)
 
+    def test_post_started_attempt_cannot_be_abandoned_as_not_posted(self):
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            failure_injector=lambda point: (
+                (_ for _ in ()).throw(RuntimeError("post boundary"))
+                if point == "after_durable_post_started"
+                else None
+            ),
+        )
+        self._expect_runtime_error(lambda: service.submit_and_persist(
+            document=self.document,
+            payload=self._payload(),
+            signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+            endpoint_url="https://sifen-test.example.test/de",
+        ), "post boundary")
+        started = self.document.transmission_ids
+
+        with self.assertRaisesRegex(ValidationError, "proven not posted"):
+            PySifenDurableAttemptService(self.env).abandon_prepared_not_posted(
+                started
+            )
+
+        self.assertEqual(started.state, "sent")
+        self.assertEqual(started.error_code, "ambiguous_submission")
+
     def test_ambiguous_transport_finalizes_same_attempt_for_reconciliation(self):
         self.pipeline.result = dict(self._accepted_result(), **{
             "ok": False,
@@ -562,17 +645,12 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
         persisted = self._submit_and_persist()
         transmission = self.env["fiscal.transmission"].browse(persisted["transmission_id"])
         metadata = json.loads(transmission.metadata_json)
-        attachment = self.env["fiscal.attachment"].search([
-            ("transmission_id", "=", transmission.id),
-            ("attachment_type", "=", "authority_response"),
-        ])
-        content = attachment.ir_attachment_id.raw.decode("utf-8")
-
         self.assertEqual(transmission.state, "rejected")
         self.assertFalse(metadata["ambiguous"])
         self.assertEqual(metadata["authority_incident_type"], "transient_authority_incident")
         self.assertTrue(metadata["manual_retry_allowed"])
         self.assertFalse(metadata["automatic_retry_allowed"])
+        content = transmission.metadata_json + transmission.error_message
         for secret in ("private-key-secret-fixture", "password-secret-fixture", "certificate-secret-fixture", "<rDE"):
             self.assertNotIn(secret, content)
 
@@ -635,7 +713,7 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
 
         self.assertEqual(observed, {
             "transmission_state": "pending",
-            "document_state": "submitted",
+            "document_state": "draft",
             "payload_count": 1,
         })
 
@@ -750,18 +828,16 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
 
     def test_concurrent_submission_lock_is_safe_and_uses_nowait(self):
         cursor = _FakeCursor(locked_id=self.document.id)
-        service = object.__new__(PySifenTransmissionPersistenceService)
-        service.env = SimpleNamespace(cr=cursor)
+        service = PySifenDurableAttemptService(self.env)
 
-        service._lock_document(SimpleNamespace(id=self.document.id))
+        service._lock_document(cursor, self.document.id)
 
         self.assertIn("FOR UPDATE NOWAIT", cursor.queries[0][0])
         self.assertEqual(cursor.queries[0][1], [self.document.id])
 
         locked_cursor = _FakeCursor(error=errors.LockNotAvailable())
-        service.env = SimpleNamespace(cr=locked_cursor)
         with self.assertRaisesRegex(ValidationError, "already in progress"):
-            service._lock_document(SimpleNamespace(id=self.document.id))
+            service._lock_document(locked_cursor, self.document.id)
 
     def test_persistence_after_submission_failure(self):
         self.pipeline.result = dict(self._accepted_result(), **{

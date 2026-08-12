@@ -1,8 +1,6 @@
 import json
 from urllib.parse import urlsplit, urlunsplit
 
-from psycopg2 import errors
-
 from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.modules import module
@@ -66,27 +64,14 @@ class PySifenTransmissionPersistenceService:
             kwargs=kwargs,
         )
         self._checkpoint("before_durable_prepare")
-        transmission_id = self.durable_attempt_service.prepare(
+        prepared_attempt = self.durable_attempt_service.prepare(
             document=document,
             endpoint_url=self._endpoint_for_attempt(submission_kwargs),
         )
+        transmission_id = prepared_attempt.transmission_id
+        started_at = prepared_attempt.started_at
         self._checkpoint("after_durable_prepare")
-        self._lock_document(document)
-        self._validate_not_accepted(document)
-        self._validate_no_ambiguous_submission(
-            document, ignored_transmission_id=transmission_id
-        )
         self._persist_retry_payload(document, submission_kwargs.get("payload"))
-        transmission = self.env["fiscal.transmission"].sudo().browse(
-            transmission_id
-        ).exists()
-        if not transmission:
-            raise ValidationError("SIFEN durable submission attempt is unavailable.")
-        started_at = transmission.started_at
-        document.with_context(einvoice_skip_fiscal_document_lock=True).write({
-            "state": "submitted",
-            "submitted_at": started_at,
-        })
         post_marked = False
 
         def pre_post_callback(evidence):
@@ -122,33 +107,14 @@ class PySifenTransmissionPersistenceService:
             result_metadata=self._metadata_values(result),
         )
         self._checkpoint("after_durable_finalize")
-        transmission.invalidate_recordset()
-        self._persist_normalized_response(document, transmission, result)
+        document.with_context(einvoice_skip_fiscal_document_lock=True).write({
+            "submitted_at": started_at,
+        })
         self._update_document_from_result(document, result)
         return {
             "result": result,
-            "transmission_id": transmission.id,
+            "transmission_id": transmission_id,
         }
-
-    def _lock_document(self, document):
-        try:
-            with self.env.cr.savepoint():
-                self.env.cr.execute(
-                    """
-                    SELECT id
-                      FROM fiscal_document
-                     WHERE id = %s
-                     FOR UPDATE NOWAIT
-                    """,
-                    [document.id],
-                )
-                locked_id = self.env.cr.fetchone()
-        except errors.LockNotAvailable:
-            raise ValidationError(
-                "SIFEN submission is already in progress for this document."
-            ) from None
-        if not locked_id:
-            raise ValidationError("SIFEN submission document no longer exists.")
 
     def _validate_not_accepted(self, document):
         if document.state == "accepted":

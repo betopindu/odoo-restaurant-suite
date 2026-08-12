@@ -1,6 +1,8 @@
 import json
 import re
 from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import datetime
 from urllib.parse import urlsplit, urlunsplit
 
 from psycopg2 import errors
@@ -8,6 +10,14 @@ from psycopg2 import errors
 from odoo import SUPERUSER_ID, api, fields
 from odoo.exceptions import ValidationError
 from odoo.modules import module
+
+
+@dataclass(frozen=True)
+class PySifenPreparedAttempt:
+    """Identity committed by the durable transaction before caller work resumes."""
+
+    transmission_id: int
+    started_at: datetime
 
 
 class PySifenDurableAttemptService:
@@ -65,10 +75,13 @@ class PySifenDurableAttemptService:
                     "resolution_status": "pre_post_incomplete",
                 }),
             })
-            transmission_id = transmission.id
+            prepared = PySifenPreparedAttempt(
+                transmission_id=transmission.id,
+                started_at=transmission.started_at,
+            )
             if independent:
                 cr.commit()
-        return transmission_id
+        return prepared
 
     def mark_post_started(self, *, transmission_id, evidence):
         """Commit exact request identity immediately before transport invocation."""
@@ -101,7 +114,13 @@ class PySifenDurableAttemptService:
             if independent:
                 cr.commit()
 
-    def finalize(self, *, transmission_id, values, result_metadata):
+    def finalize(
+        self,
+        *,
+        transmission_id,
+        values,
+        result_metadata,
+    ):
         """Commit normalized transport/authority evidence on the same attempt."""
         safe_values = self._final_values(values)
         with self._cursor() as (cr, independent):
