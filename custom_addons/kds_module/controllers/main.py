@@ -3,11 +3,12 @@ from datetime import datetime, timedelta, timezone
 
 from odoo import http
 from odoo.http import request
+from werkzeug.exceptions import Forbidden, NotFound
 
 
 class KitchenDisplay(http.Controller):
 
-    def _get_kds_config(self, config_id=None):
+    def _get_kds_config_record(self, config_id=None, allow_fallback=False):
         config_model = request.env["pos.config"].sudo()
         config = config_model.browse([])
 
@@ -16,9 +17,22 @@ class KitchenDisplay(http.Controller):
                 config = config_model.browse(int(config_id)).exists()
             except (TypeError, ValueError):
                 config = config_model.browse([])
+        elif allow_fallback:
+            config = config_model.search([
+                ("company_id", "in", request.env.companies.ids),
+                ("active", "=", True),
+            ], limit=1)
 
-        if not config:
-            config = config_model.search([], limit=1)
+        if not config or not config.active:
+            return config_model.browse([])
+
+        if config.company_id and config.company_id not in request.env.companies:
+            return config_model.browse([])
+
+        return config
+
+    def _get_kds_config(self, config_id=None):
+        config = self._get_kds_config_record(config_id=config_id, allow_fallback=True)
 
         grid_url = "/kitchen/display/grid"
         if config:
@@ -34,6 +48,38 @@ class KitchenDisplay(http.Controller):
             "sound": bool(config.kds_enable_sound) if config else True,
             "done_visible_minutes": config.kds_done_visible_minutes if config else 180,
         }
+
+    def _kds_order_domain(self, config):
+        return [
+            ("pos_config_id", "=", config.id),
+            ("pos_config_id.company_id", "in", request.env.companies.ids),
+        ]
+
+    def _json_response(self, payload, status=200):
+        response = request.make_response(
+            json.dumps(payload),
+            headers=[("Content-Type", "application/json")],
+        )
+        response.status_code = status
+        return response
+
+    def _assert_config_record(self, config_id):
+        config = self._get_kds_config_record(config_id=config_id)
+        if not config:
+            raise NotFound()
+        return config
+
+    def _assert_line_in_config(self, line, config):
+        if not line or line.order_id.pos_config_id != config:
+            raise Forbidden()
+        if line.order_id.pos_config_id.company_id not in request.env.companies:
+            raise Forbidden()
+
+    def _assert_order_in_config(self, order, config):
+        if not order or order.pos_config_id != config:
+            raise Forbidden()
+        if order.pos_config_id.company_id not in request.env.companies:
+            raise Forbidden()
 
     def _priority_rank(self, order):
         rank_map = {
@@ -74,10 +120,19 @@ class KitchenDisplay(http.Controller):
         return activity_dt >= (now - timedelta(minutes=done_visible_minutes))
 
     def _build_display_values(self, config_id=None):
-        orders = request.env["kitchen.order"].sudo().search([], order="created_at asc, id asc")
         kds = self._get_kds_config(config_id=config_id)
+        config = self._get_kds_config_record(config_id=kds["config_id"])
+        if not config:
+            raise NotFound()
+
+        orders = request.env["kitchen.order"].sudo().search(
+            self._kds_order_domain(config),
+            order="created_at asc, id asc",
+        )
         cancellation_totals = {}
         cancellation_lines = request.env["kitchen.order.line"].sudo().search([
+            ("order_id.pos_config_id", "=", config.id),
+            ("order_id.pos_config_id.company_id", "in", request.env.companies.ids),
             ("is_cancellation", "=", True),
             ("original_line_id", "!=", False),
         ])
@@ -147,25 +202,23 @@ class KitchenDisplay(http.Controller):
 
     @http.route("/kitchen/display/line/<int:line_id>/next", auth="user", type="http", methods=["POST"], csrf=False)
     def kitchen_display_line_next(self, line_id, **kwargs):
+        config = self._assert_config_record(kwargs.get("config_id"))
         line = request.env["kitchen.order.line"].sudo().browse(line_id).exists()
-        if line:
-            if line.order_id.event_type == "change" and line.state == "new":
-                line.order_id.action_move_lines_from_state("new")
-            else:
-                line.action_next_state()
+        self._assert_line_in_config(line, config)
 
-        return request.make_response(
-            json.dumps({"ok": True}),
-            headers=[("Content-Type", "application/json")],
-        )
+        if line.order_id.event_type == "change" and line.state == "new":
+            line.order_id.action_move_lines_from_state("new")
+        else:
+            line.action_next_state()
+
+        return self._json_response({"ok": True})
 
     @http.route("/kitchen/display/order/<int:order_id>/move/<string:from_state>", auth="user", type="http", methods=["POST"], csrf=False)
     def kitchen_display_order_move(self, order_id, from_state, **kwargs):
+        config = self._assert_config_record(kwargs.get("config_id"))
         order = request.env["kitchen.order"].sudo().browse(order_id).exists()
-        if order:
-            order.action_move_lines_from_state(from_state)
+        self._assert_order_in_config(order, config)
 
-        return request.make_response(
-            json.dumps({"ok": True}),
-            headers=[("Content-Type", "application/json")],
-        )
+        order.action_move_lines_from_state(from_state)
+
+        return self._json_response({"ok": True})

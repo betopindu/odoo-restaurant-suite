@@ -1,6 +1,10 @@
 import json
+import logging
 
 from odoo import api, fields, models
+
+
+_logger = logging.getLogger(__name__)
 
 
 class PosOrder(models.Model):
@@ -26,6 +30,16 @@ class PosOrder(models.Model):
     def create_from_ui(self, orders, draft=False):
         result = super().create_from_ui(orders, draft=draft)
 
+        try:
+            self._sync_kds_from_ui_result(orders, result)
+        except Exception:
+            _logger.exception(
+                "KDS synchronization failed after POS order creation; preserving POS create_from_ui result."
+            )
+
+        return result
+
+    def _sync_kds_from_ui_result(self, orders, result):
         kitchen_order_model = self.env["kitchen.order"].sudo()
         kitchen_order_line_model = self.env["kitchen.order.line"].sudo()
         product_model = self.env["product.product"].sudo()
@@ -37,8 +51,6 @@ class PosOrder(models.Model):
             order_id = item.get("id")
             if pos_reference and order_id:
                 result_by_reference[pos_reference] = order_id
-
-        fallback_config = pos_config_model.search([], limit=1)
 
         for ui_order in orders:
             data = ui_order.get("data", {})
@@ -55,7 +67,12 @@ class PosOrder(models.Model):
             if not pos_order:
                 continue
 
-            pos_config = pos_order.config_id or fallback_config
+            pos_config = pos_order.config_id
+            if not pos_config:
+                pos_config = pos_config_model.search([
+                    ("company_id", "=", pos_order.company_id.id),
+                    ("active", "=", True),
+                ], limit=1)
             table_name = pos_order.table_id.name if pos_order.table_id else "Sin mesa"
 
             try:
@@ -210,5 +227,3 @@ class PosOrder(models.Model):
                         "state": "new",
                         "created_at": now,
                     })
-
-        return result

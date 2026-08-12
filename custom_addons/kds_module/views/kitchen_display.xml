@@ -7,6 +7,7 @@
             <div class="o_kitchen_display_page"
                  t-att-data-kds-refresh-seconds="kds['refresh']"
                  t-att-data-kds-grid-url="kds['grid_url']"
+                 t-att-data-kds-config-id="kds['config_id']"
                  t-att-data-kds-sound="'true' if kds['sound'] else 'false'">
 
                 <div class="o_kitchen_display_header">

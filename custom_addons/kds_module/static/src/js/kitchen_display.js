@@ -6,6 +6,7 @@
         refresh: 10000,
         sound: true,
         gridUrl: "/kitchen/display/grid",
+        configId: "",
     };
 
     function getCurrentNewIds() {
@@ -31,6 +32,7 @@
         kdsSettings.refresh = Math.max(refreshSeconds, 3) * 1000;
         kdsSettings.sound = soundEnabled;
         kdsSettings.gridUrl = root.dataset.kdsGridUrl || "/kitchen/display/grid";
+        kdsSettings.configId = root.dataset.kdsConfigId || "";
     }
 
     function restartAutoRefresh() {
@@ -120,7 +122,12 @@
     }
 
     async function postAndRefresh(url) {
-        await fetch(url, {
+        const actionUrl = new URL(url, window.location.origin);
+        if (kdsSettings.configId) {
+            actionUrl.searchParams.set("config_id", kdsSettings.configId);
+        }
+
+        await fetch(actionUrl.toString(), {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

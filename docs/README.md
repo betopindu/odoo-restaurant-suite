@@ -4,6 +4,7 @@
 -> [Architecture](ARCHITECTURE.md)
 -> [ADRs](index.md#adrs)
 -> [Paraguay](PARAGUAY/README.md)
+-> [KDS](KDS.md)
 -> [Diagrams](diagrams/README.md)
 
 ## Project Overview
@@ -26,6 +27,7 @@ Current country implementation:
 * [Roadmap](ROADMAP.md): completed, in-progress, next, and future work
 * [ADRs](ADR/ADR-001-country-addons.md): architectural decision records
 * [Paraguay Documentation](PARAGUAY/README.md): Paraguay-specific configuration and processing
+* [KDS Operational Notes](KDS.md): installing and validating KDS on an existing POS Restaurant database
 * [SIFEN TEST Configuration](PARAGUAY/CONFIGURATION.md): authoritative field and secret-reference checklist
 * [Homologation Runbook](PARAGUAY/HOMOLOGATION_RUNBOOK.md): controlled first-live-submission procedure
 * [SIFEN TEST Homologation Matrix](PARAGUAY/HOMOLOGATION_MATRIX.md): official minimum scope and repository capability
@@ -99,6 +101,7 @@ Current country implementation:
 ### Paraguay
 
 * [Paraguay Documentation](PARAGUAY/README.md)
+* [KDS Operational Notes](KDS.md)
 * [SIFEN TEST Configuration](PARAGUAY/CONFIGURATION.md)
 * [Homologation Runbook](PARAGUAY/HOMOLOGATION_RUNBOOK.md)
 * [Paraguay Processing Diagram](diagrams/paraguay-processing.mmd)
