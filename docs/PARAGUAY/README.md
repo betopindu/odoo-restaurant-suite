@@ -44,21 +44,25 @@ The first controlled real TEST transmission was accepted on 2026-08-06:
 * authority code: `0260`
 * authority result: `Autorización del DE satisfactoria`
 
-This is an auditable interoperability milestone for one invoice profile. It is
-not production authorization and does not replace the remaining official TEST
-cases. No operational identifier above is embedded in production services or
-test fixtures.
+The controlled B2B TEST profile was accepted on 2026-08-13:
 
-The subsequent controlled B2B pipeline is locally complete and structurally
-validated. Its first live TEST attempt was explicitly rejected with `1306`
-because the masked real receiver `380****-*` was not present in the SIFEN TEST
-Marangatu dataset. DNIT support confirmed that TEST is not synchronized with
-Production and instructed homologation participants to select receivers from
-the official published electronic-taxpayer list rather than trying arbitrary
-production RUCs. A fresh two-item B2B document (`17894`) now uses a
-DNIT-published electronic taxpayer and passes payload, XMLDSig, QR, rDE/XSD,
-SOAP 1.2, credential-readiness and KuDE validation offline. Its status is
-**REQUIRES LIVE TEST**; no submission has been made. See the
+* fiscal document: `17894`
+* receiver: `BANCO ITAÚ PARAGUAY S.A.`, RUC `80002201-7`
+* CDC: `01032224796001001000000622026080718002274817`
+* transmission: `31916`
+* authority code/protocol: `0260` / `49882799`
+* authority result: `Autorización del DE satisfactoria`
+* signing timestamp: `2026-08-13T13:11:04`
+* transport: HTTP `200`, `2150 ms`, non-ambiguous
+
+**Paraguay FE synchronous TEST is now validated live for both B2C and B2B
+profiles.** This remains an auditable interoperability milestone, not
+production authorization or completion of every official TEST case. The
+earlier B2B receiver `380****-*` remains preserved as evidence of the stale
+TEST taxpayer dataset. DNIT instructed homologation participants to use its
+published electronic-taxpayer list; the accepted B2B used a taxpayer from that
+list. No operational identifier is embedded in production services or test
+fixtures. See the
 [homologation matrix](HOMOLOGATION_MATRIX.md) and
 [runbook](HOMOLOGATION_RUNBOOK.md#handling-receiver-rejection-1306).
 

@@ -55,14 +55,16 @@ Status meanings:
   input is unavailable.
 * **REQUIRES LIVE TEST**: deterministic local coverage exists but authority
   behavior has not been exercised.
+* **LIVE-VALIDATED**: the exact profile has preserved successful SIFEN TEST
+  authority evidence; this does not imply production readiness.
 * **BLOCKED BY TEST AUTHORITY DATA**: current official input is available and
   structurally valid locally, but the authority has not provisioned the
   required taxpayer data in its TEST dataset.
 
 | Scenario | Status | Repository evidence and exact gap |
 | --- | --- | --- |
-| B2C FE, innominado, cash, IVA 10% | READY | Complete payload-to-persistence path; first live acceptance `0260`. The accepted FE had one item, so it is not by itself the guide's two-item/five-FE minimum. |
-| B2B FE to Paraguayan taxpayer | REQUIRES LIVE TEST | Document `17886` and transmission `18534` preserve rejection `1306` for a valid Production taxpayer absent from TEST. DNIT support confirmed the dataset difference and instructed use of taxpayers from its published electronic-taxpayer list. Fresh document `17894` uses a DNIT-published receiver and passes the complete offline two-item B2B pipeline; authority behavior remains untested. |
+| B2C FE, innominado, cash, IVA 10% | LIVE-VALIDATED | Complete payload-to-persistence path; document `16106`, transmission `17896`, accepted with `0260`. The accepted FE had one item, so it is not by itself the guide's two-item/five-FE minimum. |
+| B2B FE to Paraguayan taxpayer | LIVE-VALIDATED | DNIT-published receiver Banco Itaú Paraguay S.A. (`80002201-7`): document `17894`, CDC `01032224796001001000000622026080718002274817`, transmission `31916`, accepted with `0260`, protocol `49882799` on 2026-08-13. Historical document `17886` remains evidence that arbitrary valid Production taxpayers may be absent from TEST. |
 | IVA 10% | READY | Item/base/VAT/subtotal calculations, XML and focused tests exist; live accepted baseline. |
 | IVA 5% | REQUIRES LIVE TEST | Decimal calculations and XML/tests exist; no live authority evidence. |
 | Exempt item | REQUIRES LIVE TEST | Exempt bucket and XML/tests exist; no live authority evidence. |
@@ -83,8 +85,10 @@ Status meanings:
 | Synchronous SOAP, mTLS and response persistence | READY | SOAP 1.2, qualified PKCS#12, mTLS, parser and persistence are implemented and live-proven for FE. |
 | Retry freshness and artifact provenance | READY | Manual and scheduled retries resolve one current hash/CDC-validated payload, use a fresh centralized signing instant and persist a linked, versioned payload/unsigned/signed/QR/rDE chain. Cron remains disabled. |
 
-Live DE diagnostics remain blocked while SIFEN TEST returns `0100 - Error
-Inesperado(PKI)`. That incident is never eligible for automatic retry.
+The historical `0100 - Error Inesperado(PKI)` incident remains preserved but
+is no longer an active TEST blocker: controlled document `17886` again reached
+normal fiscal validation (`1306`) and document `17894` was subsequently
+accepted (`0260`). `0100` remains ineligible for automatic retry.
 
 Country-neutral core support does not imply Paraguay protocol support. In
 particular, a neutral `credit_note`, `debit_note` or `cancelled` value is not an
@@ -122,15 +126,13 @@ Paraguay S.A. appears in DNIT's [Resolution 06/18 electronic-taxpayer
 list](https://www.dnit.gov.py/web/portal-institucional/w/resolucion-general-n-06/18)
 and in the [published electronic-taxpayer list dated
 2024-10-31](https://ekuatia.set.gov.py/documents/20123/473596/Facturadores%2BElectr%C3%B3nicos%2Bal%2B31-10-2024.pdf/648ec052-1e3c-e897-c9c8-7af2762d1dcd?t=1730484481868).
-Fresh document `17894` uses that public authority evidence and is ready for one
-separately authorized live TEST submission. Never try generated, approximate
-or random taxpayer identifiers after `1306`.
+Document `17894` used that public authority evidence and was accepted by SIFEN
+TEST through transmission `31916`, code `0260`, protocol `49882799`. Never try
+generated, approximate or random taxpayer identifiers after `1306`.
 
 ## Live authorization gate
 
-Do not retry document `17886`; preserve it and transmission `18534` as authority
-evidence. Fresh document `17894` is the controlled live candidate and may be
-submitted once through
-`PySifenTransmissionPersistenceService.submit_and_persist()` only under
-separate authorization. Rejection `1306` was explicit and non-ambiguous, so
-Consulta DE is not required.
+Preserve document `17886` and its transmissions as authority evidence of both
+the stale receiver dataset and the resolved PKI incident. Document `17894` is
+now accepted and must not be submitted again. Any further live scenario
+requires a separate document, evidence-based scope and explicit authorization.

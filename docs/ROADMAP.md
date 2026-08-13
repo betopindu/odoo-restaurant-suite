@@ -107,14 +107,16 @@
 
 ## Current Baseline
 
-The repository has completed its first accepted live TEST submission. SIFEN
-accepted document 16106 through transmission 17896 with code `0260`
-(`Autorización del DE satisfactoria`). This validates the complete synchronous
-path for that invoice profile: qualified credential resolution, XMLDSig, QR,
-official XSD validation, SOAP 1.2, mTLS, response parsing, and persistence.
+The repository has live SIFEN TEST acceptance for synchronous FE in both B2C
+and B2B profiles. B2C document `16106`/transmission `17896` and B2B document
+`17894`/transmission `31916` were accepted with `0260`; the B2B authority
+protocol is `49882799`. This validates the exercised qualified-credential,
+XMLDSig, QR, XSD, SOAP 1.2, mTLS, parsing and persistence path.
 
 The result does not certify every SIFEN document type or business scenario and
-does not authorize production operation.
+does not authorize production operation. The `account.move` integration covers
+the current posted-invoice MVP boundary only; broader accounting correction and
+document-type workflows remain outside this milestone.
 
 ## Current Validation Status
 
@@ -130,9 +132,9 @@ limited to the exercised invoice profile.
 
 [x] Resolve the B2B TEST receiver-data gate using a DNIT-published electronic taxpayer
 [x] Prepare and validate a fresh two-item B2B FE offline (document `17894`)
-[ ] Submit the fresh B2B FE once under separate controlled authorization
-[ ] Resume controlled live diagnostics only after the external SIFEN TEST PKI incident clears
-[ ] Execute it live only under separate authorization
+[x] Submit the fresh B2B FE once under separate controlled authorization (`17894` / `31916` / `0260`)
+[x] Confirm normal fiscal validation resumed after the historical SIFEN TEST PKI incident (`17886` / `31903` / `1306`)
+[x] Paraguay FE synchronous TEST validated live for both B2C and B2B profiles
 [ ] Complete the authority-defined TEST homologation case matrix
 [ ] Apply further interoperability corrections only when supported by authority evidence
 [x] Durable Paraguay DE pre-POST attempt and request-provenance persistence

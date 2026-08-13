@@ -1,5 +1,19 @@
 # Documentation Changelog
 
+## 2026-08-13 — Paraguay B2B SIFEN TEST acceptance
+
+* Recorded live acceptance of B2B document `17894` for DNIT-published receiver
+  Banco Itaú Paraguay S.A. (`80002201-7`): CDC
+  `01032224796001001000000622026080718002274817`, transmission `31916`, code
+  `0260`, protocol `49882799`, HTTP `200` in `2150 ms`, non-ambiguous.
+* Recorded signing timestamp `2026-08-13T13:11:04` and preserved the exact
+  authority message `Autorización del DE satisfactoria`.
+* Closed the PKI incident as an active blocker after diagnostic document
+  `17886` again reached normal fiscal validation (`31903`, explicit `1306`).
+* Marked synchronous FE TEST live-validated for B2C and B2B only; NCE/NDE,
+  asynchronous batch, cancellation, inutilization, receiver events and
+  production readiness remain outstanding.
+
 ## 2026-08-13 — Guarded retry after SIFEN reconciliation not found
 
 * Added an explicit `reconciled_not_found_manual_retry_allowed` evidence state

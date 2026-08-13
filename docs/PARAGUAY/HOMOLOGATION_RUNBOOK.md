@@ -141,9 +141,11 @@ separate audited migration. The retry service always supplies a fresh signing
 instant and regenerates the complete unsigned/signed/QR/rDE chain. Never copy
 historical `signing_time` into a retry command.
 
-The observed `0100 - Error Inesperado(PKI)` remains an external SIFEN TEST
-blocker. Cancellation, inutilization and receiver events remain partial until
-the outstanding eligibility, received-DTE and official-XSD gaps are closed.
+The observed `0100 - Error Inesperado(PKI)` is retained as historical evidence,
+not an active blocker. Controlled document `17886` returned to normal fiscal
+validation with `1306`, and B2B document `17894` was then accepted with `0260`.
+Cancellation, inutilization and receiver events remain partial until their
+outstanding live/protocol validation gaps are closed.
 
 ## Expected accepted response
 
@@ -227,6 +229,8 @@ the document eligible for delivery.
 | `2501` | `IdCSC=0001` was paired with a non-official TEST CSC value. | Corrected operational TEST configuration; independently recalculated `cHashQR` from the exact final signed `DigestValue`. | QR algorithm and CSC lookup are environment/configuration driven. No secret or taxpayer literal was added to code. |
 | `0260` | Final request satisfied the authority contract. | Document `16106`, transmission `17896`, accepted with `Autorización del DE satisfactoria`. | Confirms composition of the generic Paraguay services for the tested profile. |
 | `1306` | A real receiver from a current Constancia de RUC and Cédula Tributaria was absent from the SIFEN TEST Marangatu dataset. | Document `17886` and transmission `18534` preserve the explicit, non-ambiguous rejection. The RUC/DV split, receiver type, name and official geography were verified in the exact signed XML. The case was escalated to DNIT for TEST provisioning or an authorized TEST receiver. | No code or local configuration correction was made: the authority dataset, rather than the B2B mapping, blocked the request. |
+| `1306` after historical `0100` | The controlled diagnostic receiver remains absent from TEST, while normal fiscal validation is available again. | Document `17886`, transmission `31903`, HTTP `200`, explicit non-ambiguous `1306` on 2026-08-13. | Separates authority availability from receiver-dataset validity without changing fiscal data. |
+| `0260` B2B | The DNIT-published receiver was present and the complete synchronous B2B FE satisfied SIFEN TEST. | Document `17894`, transmission `31916`, CDC `01032224796001001000000622026080718002274817`, protocol `49882799`, signing timestamp `2026-08-13T13:11:04`, HTTP `200` in `2150 ms`, non-ambiguous. | Live-validates the same generic pipeline with a taxpayer receiver; no receiver/document literal was added to code. |
 
 ### Closeout conclusions
 
@@ -261,15 +265,14 @@ serialization, a generic artifact-current/superseded lifecycle, secret-backed
 country parameters, and durable external-call orchestration. These are review
 candidates only, not approved abstractions or implementation work.
 
-## Next controlled scenario
+## Completed synchronous FE profiles
 
-The next selected profile is a synchronous B2B cash FE with a real Paraguayan
-taxpayer receiver. SIFEN TEST returned `1306` for masked receiver `380****-*`;
-DNIT support confirmed that TEST taxpayer data is not synchronized with
-Production and instructed use of RUCs from the official electronic-taxpayer
-list. Do not retry that rejected document. Fresh document `17894` uses a
-DNIT-published electronic taxpayer and has passed the complete offline pipeline.
-It is **REQUIRES LIVE TEST** pending separate authorization.
+Paraguay synchronous FE TEST is live-validated for both the B2C innominado
+baseline (`16106`/`17896`) and B2B taxpayer profile (`17894`/`31916`). Do not
+resubmit either accepted CDC. The next scenario must be chosen from the
+remaining matrix under separate authorization; NCE/NDE, asynchronous batch,
+cancellation, inutilization and receiver-event coverage are not completed by
+these acceptances.
 
 ## Handling receiver rejection 1306
 
