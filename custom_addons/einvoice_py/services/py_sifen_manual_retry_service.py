@@ -14,6 +14,9 @@ from odoo.addons.einvoice_py.services.py_source_artifact_service import (
 from odoo.addons.einvoice_py.services.py_sifen_transmission_persistence_service import (
     PySifenTransmissionPersistenceService,
 )
+from odoo.addons.einvoice_py.services.py_sifen_retry_eligibility_service import (
+    PySifenRetryEligibilityService,
+)
 
 
 class PySifenManualRetryService:
@@ -27,19 +30,23 @@ class PySifenManualRetryService:
         incident_service=None,
         signing_time_service=None,
         source_artifact_service=None,
+        retry_eligibility_service=None,
     ):
         self.env = env
         self.persistence_service = persistence_service or PySifenTransmissionPersistenceService(env)
         self.incident_service = incident_service or PySifenAuthorityIncidentService()
         self.signing_time_service = signing_time_service or PySifenRetrySigningTimeService(env)
         self.source_artifact_service = source_artifact_service or PySourceArtifactService(env)
+        self.retry_eligibility_service = (
+            retry_eligibility_service or PySifenRetryEligibilityService(env)
+        )
 
     def retry(self, *, document, payload=None, signing_timestamp=None):
         fresh_timestamp = self.signing_time_service.fresh(
             document=document,
             reference_instant=signing_timestamp,
         )
-        self.validate(
+        authorization = self.validate(
             document=document,
             signing_timestamp=fresh_timestamp,
         )
@@ -54,6 +61,12 @@ class PySifenManualRetryService:
             document=document,
             payload=current_payload,
             signing_timestamp=fresh_timestamp,
+            manual_retry_authorization=(
+                authorization
+                if getattr(authorization, "evidence_type", "")
+                == PySifenRetryEligibilityService.EVIDENCE_TYPE
+                else None
+            ),
         )
 
     def validate(self, *, document, signing_timestamp):
@@ -67,6 +80,15 @@ class PySifenManualRetryService:
         )
         if document.state == "accepted" or transmissions.filtered(lambda tx: tx.state == "accepted"):
             raise ValidationError("An accepted SIFEN document cannot be retried.")
+        reconciliation = self.retry_eligibility_service.classify(
+            document=document
+        )
+        if reconciliation.manual_retry_allowed:
+            self.signing_time_service.fresh(
+                document=document,
+                reference_instant=signing_timestamp,
+            )
+            return reconciliation
         if transmissions.filtered(self._is_ambiguous):
             raise ValidationError("An ambiguous SIFEN submission requires reconciliation before retry.")
         previous = transmissions.filtered(

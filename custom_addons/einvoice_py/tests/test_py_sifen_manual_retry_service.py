@@ -1,4 +1,5 @@
-from datetime import datetime
+import json
+from datetime import datetime, timedelta
 
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
@@ -154,3 +155,58 @@ class TestPySifenManualRetryService(TransactionCase):
         )
 
         self.assertTrue(classification.manual_retry_allowed)
+
+    def test_reconciled_0420_delegates_manual_retry_with_same_cdc_and_fresh_time(self):
+        ambiguous = self._transmission(
+            code="",
+            message="",
+            state="manual_review",
+            metadata=json.dumps({"ambiguous": True, "post_started": True}),
+        )
+        ambiguous.write({
+            "request_hash": "a" * 64,
+            "error_code": "ambiguous_submission",
+            "started_at": datetime(2026, 8, 7, 12, 0, 0),
+        })
+        query = self.env["fiscal.transmission"].create({
+            "document_id": self.document.id,
+            "transmission_type": "status_query",
+            "state": "manual_review",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": self.CDC,
+            "request_hash": "b" * 64,
+            "response_hash": "c" * 64,
+            "http_status": 200,
+            "authority_status_code": "0420",
+            "error_code": "reconciliation_not_found",
+            "started_at": ambiguous.started_at + timedelta(minutes=10),
+            "metadata_json": json.dumps({
+                "result_category": "not_approved",
+                "original_submission_ids": [ambiguous.id],
+                "normalized_response": {
+                    "authority_code": "0420",
+                    "approved": False,
+                    "not_found": True,
+                },
+            }),
+        })
+        reference = datetime(2026, 8, 7, 14, 0, 0)
+
+        result = self.service.retry(
+            document=self.document,
+            payload=self.payload,
+            signing_timestamp=reference,
+        )
+
+        self.assertEqual(result["transmission_id"], 999)
+        call = self.persistence.calls[0]
+        self.assertEqual(call["payload"]["cdc"], self.CDC)
+        self.assertEqual(call["document"].country_identifier, self.CDC)
+        self.assertTrue(call["manual_retry_authorization"].manual_retry_allowed)
+        self.assertFalse(call["manual_retry_authorization"].automatic_retry_allowed)
+        self.assertEqual(
+            call["manual_retry_authorization"].reconciliation_query_id,
+            query.id,
+        )
+        self.assertEqual(call["signing_timestamp"], reference)

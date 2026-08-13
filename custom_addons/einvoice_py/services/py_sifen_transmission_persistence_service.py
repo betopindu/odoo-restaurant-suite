@@ -20,6 +20,9 @@ from odoo.addons.einvoice_py.services.py_source_artifact_service import (
 from odoo.addons.einvoice_py.services.py_sifen_durable_attempt_service import (
     PySifenDurableAttemptService,
 )
+from odoo.addons.einvoice_py.services.py_sifen_retry_eligibility_service import (
+    PySifenRetryEligibilityService,
+)
 
 
 class PySifenTransmissionPersistenceService:
@@ -52,13 +55,20 @@ class PySifenTransmissionPersistenceService:
         self.failure_injector = failure_injector
 
     def submit_and_persist(self, **kwargs):
+        kwargs = dict(kwargs)
+        manual_retry_authorization = kwargs.pop(
+            "manual_retry_authorization", None
+        )
         document = kwargs.get("document")
         if not document:
             raise ValidationError("SIFEN transmission persistence requires a document.")
         document.ensure_one()
         self._validate_document(document)
         self._validate_not_accepted(document)
-        self._validate_no_ambiguous_submission(document)
+        self._validate_no_ambiguous_submission(
+            document,
+            manual_retry_authorization=manual_retry_authorization,
+        )
         submission_kwargs = self._submission_kwargs(
             document=document,
             kwargs=kwargs,
@@ -67,6 +77,7 @@ class PySifenTransmissionPersistenceService:
         prepared_attempt = self.durable_attempt_service.prepare(
             document=document,
             endpoint_url=self._endpoint_for_attempt(submission_kwargs),
+            manual_retry_authorization=manual_retry_authorization,
         )
         transmission_id = prepared_attempt.transmission_id
         started_at = prepared_attempt.started_at
@@ -131,7 +142,11 @@ class PySifenTransmissionPersistenceService:
             )
 
     def _validate_no_ambiguous_submission(
-        self, document, *, ignored_transmission_id=None
+        self,
+        document,
+        *,
+        ignored_transmission_id=None,
+        manual_retry_authorization=None,
     ):
         cdc = (document.country_identifier or document.py_cdc or "").strip()
         if not cdc:
@@ -155,7 +170,7 @@ class PySifenTransmissionPersistenceService:
                 )
             )
         )
-        if unresolved or transmission_model.search_count([
+        reconciliation_not_found = transmission_model.search_count([
             ("transmission_type", "=", "status_query"),
             ("country_code", "=", "PY"),
             ("environment", "=", document.environment),
@@ -163,7 +178,13 @@ class PySifenTransmissionPersistenceService:
             ("company_id", "=", document.company_id.id),
             ("country_identifier", "=", cdc),
             ("error_code", "=", "reconciliation_not_found"),
-        ]):
+        ])
+        if unresolved or reconciliation_not_found:
+            if PySifenRetryEligibilityService(self.env).validate_authorization(
+                document=document,
+                authorization=manual_retry_authorization,
+            ):
+                return
             raise ValidationError(
                 "SIFEN submission status is ambiguous; Consulta DE reconciliation is required."
             )

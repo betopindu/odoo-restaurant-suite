@@ -1,5 +1,16 @@
 # Documentation Changelog
 
+## 2026-08-13 — Guarded retry after SIFEN reconciliation not found
+
+* Added an explicit `reconciled_not_found_manual_retry_allowed` evidence state
+  for a successful `0420` Consulta DE linked to the same earlier ambiguous,
+  post-started synchronous submission and fiscal scope.
+* Allowed only an operator-triggered resend of the unchanged DE/CDC, using the
+  existing fresh-signing, artifact-provenance and durable pre-POST boundaries.
+* Kept `0420` outside rejection and automatic-retry classifications; later or
+  contradictory submission/query evidence, acceptance, incomplete hashes and
+  scope/CDC mismatches all fail closed without rewriting historical evidence.
+
 ## 2026-08-11 — Durable Paraguay DE outbound evidence
 
 * Added an independent-cursor boundary that commits one submit attempt before

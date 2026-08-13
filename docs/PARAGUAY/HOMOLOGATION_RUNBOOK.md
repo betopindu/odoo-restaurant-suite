@@ -56,11 +56,17 @@ Do not automatically retry after a timeout, connection loss after POST, or
 worker failure. Treat the outcome as ambiguous and use the existing Consulta
 DE reconciliation by CDC before any operator-authorized resend.
 
-Execute that recovery through `PySifenReconciliationService`, never by
-resending the DE. `0422` confirms acceptance. `0420` means only “not found or
-not approved”: persist `reconciliation_not_found`, retain the original
-submission unchanged, keep the CDC blocked, and require an operator/policy
-decision. Timeout, HTTP/TLS failure, SOAP Fault, malformed XML, unsupported
+Execute that recovery through `PySifenReconciliationService`, never by an
+immediate resend. `0422` confirms acceptance. `0420` means only “not found or
+not approved”; it is not a fiscal rejection. Persist
+`reconciliation_not_found` and retain the original submission unchanged. A
+manual resend of the same DE and CDC is allowed only when
+`PySifenRetryEligibilityService` proves that this successful, later `0420`
+query is linked to the same ambiguous, post-started synchronous submission and
+scope, with no acceptance, newer unresolved submission, newer contradictory
+query, or CDC change. The operator must trigger exactly one attempt through
+`PySifenManualRetryService`; automatic retry remains forbidden. Timeout,
+HTTP/TLS failure, SOAP Fault, malformed XML, unsupported
 codes, or CDC mismatch leaves the case unresolved. Explicit diagnostics are
 allowed only for a CDC with a prior submission; accepted documents and
 never-submitted drafts are excluded.

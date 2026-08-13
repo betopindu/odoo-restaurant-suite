@@ -28,6 +28,7 @@ from . import py_signed_xml_attachment_service
 from . import py_signed_xml_preparation_service
 from . import py_source_artifact_service
 from . import py_sifen_retry_signing_time_service
+from . import py_sifen_retry_eligibility_service
 from . import py_unsigned_xml_builder
 from . import py_xml_signature_service
 from . import py_xml_signature_verification_service
@@ -62,6 +63,10 @@ from .py_sifen_authority_incident_service import (
     PySifenAuthorityIncidentService,
 )
 from .py_sifen_manual_retry_service import PySifenManualRetryService
+from .py_sifen_retry_eligibility_service import (
+    PySifenRetryEligibility,
+    PySifenRetryEligibilityService,
+)
 from .py_sifen_durable_attempt_service import PySifenDurableAttemptService
 from .py_sifen_ambiguous_reconciliation_service import (
     PySifenAmbiguousSubmissionReconciliationService,

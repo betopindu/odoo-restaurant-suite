@@ -103,6 +103,7 @@
 [x] Secure recipient delivery of current accepted Paraguay rDE and KuDE artifacts
 [x] Non-authoritative, ephemeral Paraguay KuDE Preview separated from delivery
 [x] Paraguay retry signing freshness and payload/unsigned artifact provenance hardening
+[x] Guarded manual resend of the same DE/CDC after ambiguous POST and linked Consulta DE `0420`
 
 ## Current Baseline
 

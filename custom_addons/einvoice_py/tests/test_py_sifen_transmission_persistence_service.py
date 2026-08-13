@@ -16,6 +16,9 @@ from odoo.addons.einvoice_py.services.py_sifen_transmission_persistence_service 
 from odoo.addons.einvoice_py.services.py_sifen_durable_attempt_service import (
     PySifenDurableAttemptService,
 )
+from odoo.addons.einvoice_py.services.py_sifen_retry_eligibility_service import (
+    PySifenRetryEligibilityService,
+)
 from odoo.addons.einvoice_py.services import py_sifen_durable_attempt_service
 
 
@@ -574,6 +577,72 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
         self.assertEqual(attempt.state, "manual_review")
         self.assertEqual(attempt.error_code, "ambiguous_submission")
         self.assertTrue(json.loads(attempt.metadata_json)["ambiguous"])
+
+    def test_reconciled_0420_authorization_reaches_same_durable_path(self):
+        self.document.with_context(
+            einvoice_skip_fiscal_document_lock=True
+        ).write({"state": "manual_review"})
+        ambiguous = self.env["fiscal.transmission"].create({
+            "document_id": self.document.id,
+            "transmission_type": "submit",
+            "state": "manual_review",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": self.CDC,
+            "request_hash": "1" * 64,
+            "error_code": "ambiguous_submission",
+            "started_at": datetime(2026, 7, 4, 10, 0, 0),
+            "metadata_json": json.dumps({
+                "ambiguous": True,
+                "post_started": True,
+            }),
+        })
+        query = self.env["fiscal.transmission"].create({
+            "document_id": self.document.id,
+            "transmission_type": "status_query",
+            "state": "manual_review",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": self.CDC,
+            "request_hash": "2" * 64,
+            "response_hash": "3" * 64,
+            "http_status": 200,
+            "authority_status_code": "0420",
+            "error_code": "reconciliation_not_found",
+            "started_at": datetime(2026, 7, 4, 10, 10, 0),
+            "metadata_json": json.dumps({
+                "result_category": "not_approved",
+                "original_submission_ids": [ambiguous.id],
+                "normalized_response": {
+                    "authority_code": "0420",
+                    "approved": False,
+                    "not_found": True,
+                },
+            }),
+        })
+        authorization = PySifenRetryEligibilityService(self.env).classify(
+            document=self.document
+        )
+
+        result = self.service.submit_and_persist(
+            document=self.document,
+            payload=self._payload(),
+            certificate_bytes=b"certificate-secret-fixture",
+            private_key_bytes=b"private-key-secret-fixture",
+            private_key_password="password-secret-fixture",
+            signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+            endpoint_url="https://sifen-test.example.test/de",
+            manual_retry_authorization=authorization,
+        )
+
+        retry = self.env["fiscal.transmission"].browse(result["transmission_id"])
+        metadata = json.loads(retry.metadata_json)
+        self.assertEqual(retry.state, "accepted")
+        self.assertEqual(metadata["manual_retry_evidence_type"], authorization.evidence_type)
+        self.assertEqual(metadata["reconciled_submission_id"], ambiguous.id)
+        self.assertEqual(metadata["reconciliation_query_id"], query.id)
+        self.assertEqual(ambiguous.state, "manual_review")
+        self.assertEqual(query.error_code, "reconciliation_not_found")
 
     def test_attempt_numbers_remain_monotonic_across_explicit_rejections(self):
         self.pipeline.result = dict(self._accepted_result(), **{

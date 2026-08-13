@@ -12,6 +12,7 @@ from . import test_py_sifen_retry_execution_service
 from . import test_py_sifen_retry_runner
 from . import test_py_sifen_retry_scheduler_service
 from . import test_py_sifen_manual_retry_service
+from . import test_py_sifen_retry_eligibility_service
 from . import test_py_sifen_rde_assembler
 from . import test_py_sifen_sandbox_transport
 from . import test_py_sifen_soap_envelope_builder

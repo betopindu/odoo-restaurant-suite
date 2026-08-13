@@ -11,6 +11,10 @@ from odoo import SUPERUSER_ID, api, fields
 from odoo.exceptions import ValidationError
 from odoo.modules import module
 
+from odoo.addons.einvoice_py.services.py_sifen_retry_eligibility_service import (
+    PySifenRetryEligibilityService,
+)
+
 
 @dataclass(frozen=True)
 class PySifenPreparedAttempt:
@@ -39,7 +43,13 @@ class PySifenDurableAttemptService:
         with self.cursor_factory() as cr:
             yield cr, True
 
-    def prepare(self, *, document, endpoint_url=""):
+    def prepare(
+        self,
+        *,
+        document,
+        endpoint_url="",
+        manual_retry_authorization=None,
+    ):
         """Create and commit an attempt before caller-owned artifact work."""
         document.ensure_one()
         identity = self._document_identity(document)
@@ -54,7 +64,17 @@ class PySifenDurableAttemptService:
                 )
             self._validate_document(durable_document, identity)
             self._lock_document(cr, durable_document.id)
-            self._validate_no_active_attempt(durable_env, durable_document, identity)
+            self._validate_no_active_attempt(
+                durable_env,
+                durable_document,
+                identity,
+                manual_retry_authorization=manual_retry_authorization,
+            )
+            retry_metadata = self._manual_retry_metadata(
+                durable_env,
+                durable_document,
+                manual_retry_authorization,
+            )
             transmission = durable_env["fiscal.transmission"].sudo().create({
                 "document_id": durable_document.id,
                 "transmission_type": self.TRANSMISSION_TYPE,
@@ -73,6 +93,7 @@ class PySifenDurableAttemptService:
                     "post_started": False,
                     "ambiguous": False,
                     "resolution_status": "pre_post_incomplete",
+                    **retry_metadata,
                 }),
             })
             prepared = PySifenPreparedAttempt(
@@ -258,7 +279,14 @@ class PySifenDurableAttemptService:
         if not locked:
             raise ValidationError("SIFEN durable submission document no longer exists.")
 
-    def _validate_no_active_attempt(self, env, document, identity):
+    def _validate_no_active_attempt(
+        self,
+        env,
+        document,
+        identity,
+        *,
+        manual_retry_authorization=None,
+    ):
         transmissions = env["fiscal.transmission"].sudo()
         scope = [
             ("transmission_type", "=", self.TRANSMISSION_TYPE),
@@ -274,9 +302,28 @@ class PySifenDurableAttemptService:
             raise ValidationError("An accepted SIFEN document cannot be submitted again.")
         active = transmissions.search(scope + [("state", "in", ("pending", "sent", "manual_review"))])
         if active.filtered(self._is_unresolved):
+            if PySifenRetryEligibilityService(env).validate_authorization(
+                document=document,
+                authorization=manual_retry_authorization,
+            ):
+                return
             raise ValidationError(
                 "SIFEN submission has unresolved durable evidence; reconciliation is required."
             )
+
+    def _manual_retry_metadata(self, env, document, authorization):
+        if authorization is None:
+            return {}
+        if not PySifenRetryEligibilityService(env).validate_authorization(
+            document=document,
+            authorization=authorization,
+        ):
+            return {}
+        return {
+            "manual_retry_evidence_type": authorization.evidence_type,
+            "reconciled_submission_id": authorization.ambiguous_submission_id,
+            "reconciliation_query_id": authorization.reconciliation_query_id,
+        }
 
     def _is_unresolved(self, transmission):
         metadata = self._metadata(transmission)
@@ -448,6 +495,9 @@ class PySifenDurableAttemptService:
             "rde_sha256",
             "signing_time",
             "digest_value",
+            "manual_retry_evidence_type",
+            "reconciled_submission_id",
+            "reconciliation_query_id",
         )
         return json.dumps(
             {key: metadata[key] for key in allowed if metadata.get(key) not in (None, "")},
