@@ -8,6 +8,7 @@
         "python": ["reportlab"],
     },
     "data": [
+        "security/py_sifen_operator_security.xml",
         "security/ir.model.access.csv",
         "security/fiscal_py_security_rules.xml",
         "data/py_sifen_retry_cron.xml",
@@ -20,6 +21,7 @@
         "views/fiscal_py_sequence_views.xml",
         "views/fiscal_document_views.xml",
         "views/account_move_views.xml",
+        "views/py_sifen_operator_wizard_views.xml",
         "views/account_tax_views.xml",
         "views/res_partner_views.xml",
         "views/einvoice_py_menus.xml",

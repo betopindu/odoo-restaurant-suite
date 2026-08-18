@@ -1,0 +1,7 @@
+<odoo>
+    <record id="group_py_fiscal_operator" model="res.groups">
+        <field name="name">Paraguay Fiscal Operator</field>
+        <field name="comment">May explicitly submit Paraguay fiscal documents and run guarded Consulta DE recovery.</field>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+</odoo>

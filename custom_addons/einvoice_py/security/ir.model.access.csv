@@ -8,3 +8,4 @@ access_fiscal_py_csc_user,access.fiscal.py.csc.user,model_fiscal_py_csc,base.gro
 access_fiscal_py_sequence_user,access.fiscal.py.sequence.user,model_fiscal_py_sequence,base.group_user,1,1,1,1
 access_fiscal_py_inutilization_user,access.fiscal.py.inutilization.user,model_fiscal_py_inutilization,base.group_user,1,1,1,0
 access_fiscal_py_receiver_event_user,access.fiscal.py.receiver.event.user,model_fiscal_py_receiver_event,base.group_user,1,1,1,0
+access_py_sifen_operator_wizard,access.py.sifen.operator.wizard,model_py_sifen_operator_wizard,group_py_fiscal_operator,1,1,1,1

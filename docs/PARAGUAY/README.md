@@ -34,6 +34,28 @@ Current implemented Paraguay stages:
 * fiscal data enrichment for receiver, operation, payment, and tax details
 * administrative UI stabilization for validation/support workflows
 * accepted synchronous SIFEN TEST interoperability baseline
+* operator-controlled submission and Consulta DE recovery from Odoo
+
+## Operator-controlled Odoo workflow
+
+Posted customer invoices can be prepared as immutable fiscal snapshots and
+inspected through KuDE Preview. A member of **Paraguay Fiscal Operator** may
+then open an explicit confirmation dialog from either `account.move` or the
+linked `fiscal.document`. Confirmation invokes the existing durable submission
+service; it does not duplicate payload, signature, transport or persistence
+logic.
+
+The fiscal document shows its latest transmission, authority code/message,
+protocol, HTTP status, duration and ambiguity indicator. An ambiguous POST
+exposes **Consulta DE Recovery** instead of resend. A guarded manual retry is
+shown only when the existing retry services prove eligible evidence, including
+the narrow linked `0420` transition. Incomplete readiness, credentials,
+provenance or contradictory evidence fails closed. Preview remains
+non-authoritative and never unlocks accepted-document delivery.
+
+Opening either action performs no network operation. The operator must confirm
+the transient wizard before one service call is made. There is no automatic
+submission, automatic reconciliation or enabled retry cron.
 
 ## Homologation status
 

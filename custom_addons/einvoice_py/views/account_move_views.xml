@@ -8,6 +8,10 @@
                 <button name="action_prepare_paraguay_fiscal_document" type="object"
                         string="Prepare Electronic Invoice" class="btn-secondary"
                         invisible="move_type != 'out_invoice' or state != 'posted' or fiscal_document_count != 0"/>
+                <button name="action_open_paraguay_sifen_submission" type="object"
+                        string="Submit Electronic Invoice" class="btn-primary"
+                        groups="einvoice_py.group_py_fiscal_operator"
+                        invisible="move_type != 'out_invoice' or py_fiscal_document_state not in ('ready', 'rejected', 'failed_retryable', 'manual_review')"/>
             </xpath>
             <xpath expr="//field[@name='invoice_date']" position="after">
                 <field name="py_fiscal_environment" invisible="move_type != 'out_invoice'"/>
@@ -15,6 +19,8 @@
                 <field name="py_fiscal_establishment_id" invisible="move_type != 'out_invoice'"/>
                 <field name="py_fiscal_point_of_issue_id" invisible="move_type != 'out_invoice'"/>
                 <field name="py_sale_condition_code" invisible="move_type != 'out_invoice'"/>
+                <field name="py_fiscal_document_id" readonly="1" invisible="move_type != 'out_invoice'"/>
+                <field name="py_fiscal_document_state" readonly="1" invisible="move_type != 'out_invoice'"/>
             </xpath>
         </field>
     </record>

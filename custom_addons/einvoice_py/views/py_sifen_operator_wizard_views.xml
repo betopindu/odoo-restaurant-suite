@@ -1,0 +1,20 @@
+<odoo>
+    <record id="view_py_sifen_operator_wizard_form" model="ir.ui.view">
+        <field name="name">py.sifen.operator.wizard.form</field>
+        <field name="model">py.sifen.operator.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Confirm SIFEN Operation">
+                <group>
+                    <field name="document_id"/>
+                    <field name="operation"/>
+                    <field name="warning" nolabel="1"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object" string="Confirm and Execute"
+                            class="btn-primary" groups="einvoice_py.group_py_fiscal_operator"/>
+                    <button string="Cancel" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

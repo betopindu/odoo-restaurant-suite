@@ -29,6 +29,22 @@ cases. Acceptance of one DE is not production authorization.
 
 ## Before each controlled live submission
 
+### Odoo operator workflow
+
+Assign the dedicated **Paraguay Fiscal Operator** group only to personnel
+authorized to contact SIFEN. On a prepared Paraguay fiscal document, review the
+readiness and latest-attempt panel, choose **Submit to SIFEN**, and read the
+confirmation text before selecting **Confirm and Execute**. Opening the action
+alone is offline. The confirmed action uses the durable pre-POST boundary and
+must never be double-clicked or repeated after an uncertain response.
+
+When the panel reports **Consulta DE Required**, use only **Consulta DE
+Recovery**. It queries the unchanged CDC through the reconciliation service and
+does not resend the DE. When it reports **Manual Retry Allowed**, the submit
+action delegates to the guarded manual-retry service and regenerates the signed
+artifact chain with a fresh signature time. Any blocked or contradictory state
+requires investigation; do not bypass the UI by calling transport directly.
+
 1. Complete the [SIFEN TEST configuration](CONFIGURATION.md).
 2. Install the qualified taxpayer PKCS#12 outside source control.
 3. Validate certificate structure, chain information, validity, RSA key,

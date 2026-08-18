@@ -29,6 +29,7 @@ from . import py_signed_xml_preparation_service
 from . import py_source_artifact_service
 from . import py_sifen_retry_signing_time_service
 from . import py_sifen_retry_eligibility_service
+from . import py_sifen_operator_service
 from . import py_unsigned_xml_builder
 from . import py_xml_signature_service
 from . import py_xml_signature_verification_service
@@ -82,6 +83,7 @@ from .py_sifen_test_submission_service import (
     PySifenTestSubmissionService,
 )
 from .py_sifen_test_readiness_service import PySifenTestReadinessService
+from .py_sifen_operator_service import PySifenOperatorService
 from .py_sifen_rde_assembler import (
     PySifenRdeAssembler,
     PySifenRdeAssemblyResult,

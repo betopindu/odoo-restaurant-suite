@@ -15,3 +15,4 @@ from . import py_sifen_retry_runner
 from . import account_move
 from . import account_tax
 from . import res_partner
+from . import py_sifen_operator_wizard

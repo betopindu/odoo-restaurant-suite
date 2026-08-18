@@ -34,4 +34,5 @@ from . import test_py_xml_signature_service
 from . import test_py_xml_signature_verification_service
 from . import test_runtime_dependencies
 from . import test_py_account_move_integration_service
+from . import test_py_sifen_operator_ui
 from . import test_py_xsd_validation_service

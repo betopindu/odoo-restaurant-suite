@@ -66,6 +66,16 @@ Stage 8.22 makes the existing TEST-only `verify_document_connection()` operation
 
 Stage 8.24A adds a TEST-only ambiguous-submission lifecycle without changing transaction durability. A timeout after a synchronous POST is normalized as ambiguous and persisted for manual review. While such a submission exists, `PySifenTransmissionPersistenceService` blocks every new POST for the same tenant, company, and CDC. The boundary is exposed as `PySifenDocumentQueryService` and `PySifenReconciliationService`; the original Stage 8.24A names remain aliases. Consulta DE sends the official SOAP 1.2 `rEnviConsDeRequest` (`dId`, `dCDC`) through the existing sandbox transport, mTLS material, and credential provider. Every attempt creates a separate `status_query` transmission with safe endpoint, duration, HTTP status, hashes, normalized result, authority timestamp and links to prior submissions; response XML and secrets are not copied into fiscal storage.
 
+The Paraguay operator UI is a confirmation and authorization boundary, not a
+second fiscal pipeline. `PySifenOperatorService` delegates initial submission
+to `PySifenTransmissionPersistenceService`, guarded retries to
+`PySifenManualRetryService`, and ambiguous recovery to
+`PySifenReconciliationService`. Opening a button creates only a transient
+confirmation wizard; network access begins only after an authorized member of
+`einvoice_py.group_py_fiscal_operator` confirms. Document locks and the existing
+durable pre-POST, CDC, provenance, acceptance and ambiguity guards remain the
+source of truth. Automatic submission and the retry cron remain disabled.
+
 Paraguay DE submission now has a durable pre-POST boundary. A narrowly scoped
 independent cursor commits a `pending` attempt before caller-owned artifact
 work. Once SOAP bytes exist, the same attempt is committed as `sent` with the

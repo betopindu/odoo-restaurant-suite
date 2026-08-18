@@ -11,6 +11,8 @@
 
 - [x] Posted Odoo customer invoices enter through a neutral immutable fiscal
   snapshot, explicit Paraguay mappings and offline KuDE Preview.
+- [x] Authorized operators can explicitly submit prepared FE and invoke guarded
+  Consulta DE recovery through confirmation dialogs in Odoo.
 
 [x] Core workflow
 [x] Fiscal events
@@ -121,7 +123,7 @@ document-type workflows remain outside this milestone.
 ## Current Validation Status
 
 After accepted-document delivery validation, the full `einvoice_py` suite
-reports **548 counted tests across 484 test methods**. Automated coverage is
+reports **680 counted checks across 604 test methods**. Automated coverage is
 network-free.
 It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
 1.2 wrapping, mocked mTLS transport, response classification, readiness, and
@@ -135,6 +137,7 @@ limited to the exercised invoice profile.
 [x] Submit the fresh B2B FE once under separate controlled authorization (`17894` / `31916` / `0260`)
 [x] Confirm normal fiscal validation resumed after the historical SIFEN TEST PKI incident (`17886` / `31903` / `1306`)
 [x] Paraguay FE synchronous TEST validated live for both B2C and B2B profiles
+[x] Operator-controlled FE submission/recovery UI with dedicated permissions
 [ ] Complete the authority-defined TEST homologation case matrix
 [ ] Apply further interoperability corrections only when supported by authority evidence
 [x] Durable Paraguay DE pre-POST attempt and request-provenance persistence
@@ -145,6 +148,7 @@ limited to the exercised invoice profile.
 [ ] Production go-live
 [ ] Operational KuDE delivery to receivers
 [ ] KuDE profiles for additional SIFEN DTE types
+[ ] NCE end-to-end accounting and SIFEN flow
 
 ## Future
 

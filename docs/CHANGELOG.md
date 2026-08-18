@@ -1,5 +1,19 @@
 # Documentation Changelog
 
+## 2026-08-18 — Operator-controlled Paraguay SIFEN workflow
+
+* Added explicit, confirmation-gated Odoo actions for initial FE submission,
+  guarded manual retry and Consulta DE recovery.
+* Added the dedicated **Paraguay Fiscal Operator** group and enforced it in
+  both views and the server-side orchestration boundary.
+* Reused readiness, durable transmission, current artifact provenance, manual
+  retry and reconciliation services without adding automatic submission or
+  relaxing CDC/ambiguity protections.
+* Exposed safe latest-attempt, authority, protocol, HTTP, duration and ambiguity
+  status on fiscal documents and linked the workflow from `account.move`.
+* Recorded that the live `29963` → `30867` (`0420`) → `31903` (`1306`)
+  sequence validates the guarded same-CDC reconciliation transition.
+
 ## 2026-08-13 — Paraguay B2B SIFEN TEST acceptance
 
 * Recorded live acceptance of B2B document `17894` for DNIT-published receiver

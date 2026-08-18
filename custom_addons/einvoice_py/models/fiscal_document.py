@@ -1,4 +1,7 @@
-from odoo import fields, models
+import json
+
+from odoo import api, fields, models
+from odoo.exceptions import AccessError, ValidationError
 
 
 class FiscalDocument(models.Model):
@@ -267,6 +270,143 @@ class FiscalDocument(models.Model):
         copy=False,
         help="Payment currency code used in the Paraguay payload. Default is PYG.",
     )
+    py_last_transmission_id = fields.Many2one(
+        "fiscal.transmission", compute="_compute_py_operator_status", string="Last SIFEN Attempt"
+    )
+    py_last_authority_code = fields.Char(compute="_compute_py_operator_status")
+    py_last_authority_message = fields.Text(compute="_compute_py_operator_status")
+    py_last_http_status = fields.Integer(compute="_compute_py_operator_status")
+    py_last_duration_ms = fields.Integer(compute="_compute_py_operator_status")
+    py_last_ambiguous = fields.Boolean(compute="_compute_py_operator_status")
+    py_operator_action_state = fields.Selection(
+        [
+            ("submit_ready", "Ready for Submission"),
+            ("consulta_required", "Consulta DE Required"),
+            ("manual_retry_allowed", "Manual Retry Allowed"),
+            ("blocked", "Blocked"),
+        ],
+        compute="_compute_py_operator_status",
+    )
+    py_operator_guidance = fields.Char(compute="_compute_py_operator_status")
+
+    @api.depends(
+        "state",
+        "country_code",
+        "country_identifier",
+        "transmission_ids.state",
+        "transmission_ids.authority_status_code",
+        "transmission_ids.authority_message",
+        "transmission_ids.error_code",
+        "transmission_ids.metadata_json",
+    )
+    def _compute_py_operator_status(self):
+        from odoo.addons.einvoice_py.services.py_sifen_operator_service import (
+            PySifenOperatorService,
+        )
+
+        service = PySifenOperatorService(self.env)
+        for document in self:
+            latest = document.transmission_ids.sorted(
+                key=lambda item: (
+                    item.started_at
+                    or fields.Datetime.from_string("1970-01-01 00:00:00"),
+                    item.id,
+                ),
+                reverse=True,
+            )[:1]
+            document.py_last_transmission_id = latest
+            document.py_last_authority_code = latest.authority_status_code if latest else False
+            document.py_last_authority_message = latest.authority_message if latest else False
+            document.py_last_http_status = latest.http_status if latest else 0
+            document.py_last_duration_ms = latest.duration_ms if latest else 0
+            document.py_last_ambiguous = self._py_transmission_is_ambiguous(latest)
+            if (document.country_code or "").upper() == "PY":
+                state, guidance = service.guidance(document=document)
+            else:
+                state, guidance = "blocked", "Not a Paraguay fiscal document."
+            document.py_operator_action_state = state
+            document.py_operator_guidance = guidance
+
+    @staticmethod
+    def _py_transmission_is_ambiguous(transmission):
+        if not transmission:
+            return False
+        try:
+            metadata = json.loads(transmission.metadata_json or "{}")
+        except (TypeError, ValueError):
+            metadata = {}
+        return bool(
+            transmission.error_code == "ambiguous_submission"
+            or metadata.get("ambiguous") is True
+        )
+
+    def _py_require_operator(self):
+        if not self.env.user.has_group("einvoice_py.group_py_fiscal_operator"):
+            raise AccessError("Only an authorized fiscal operator may contact SIFEN.")
+
+    def _py_operator_wizard(self, operation):
+        self.ensure_one()
+        self._py_require_operator()
+        if operation == "submit":
+            if self.py_operator_action_state not in ("submit_ready", "manual_retry_allowed"):
+                raise ValidationError("This document is not eligible for operator submission.")
+            warning = (
+                "This confirmation performs exactly one SIFEN submission. "
+                "It does not enable automatic submission or retry."
+            )
+        elif operation == "reconcile":
+            if self.py_operator_action_state != "consulta_required":
+                raise ValidationError("This document is not eligible for Consulta DE recovery.")
+            warning = (
+                "This confirmation performs exactly one Consulta DE for the current CDC. "
+                "It does not resend the electronic document."
+            )
+        else:
+            raise ValidationError("Unsupported SIFEN operator operation.")
+        wizard = self.env["py.sifen.operator.wizard"].create({
+            "document_id": self.id,
+            "operation": operation,
+            "warning": warning,
+        })
+        return {
+            "type": "ir.actions.act_window",
+            "name": "Confirm SIFEN Operation",
+            "res_model": "py.sifen.operator.wizard",
+            "view_mode": "form",
+            "res_id": wizard.id,
+            "target": "new",
+        }
+
+    def action_open_py_sifen_submission(self):
+        return self._py_operator_wizard("submit")
+
+    def action_open_py_sifen_reconciliation(self):
+        return self._py_operator_wizard("reconcile")
+
+    def action_check_py_sifen_readiness(self):
+        from odoo.addons.einvoice_py.services.py_sifen_test_readiness_service import (
+            PySifenTestReadinessService,
+        )
+
+        self.ensure_one()
+        self._py_require_operator()
+        report = PySifenTestReadinessService(self.env).check(document=self)
+        if report.get("ready"):
+            message = "Fiscal configuration, credential scope and certificate are ready."
+            notification_type = "success"
+        else:
+            message = " ".join(report.get("errors") or ["Readiness validation failed."])
+            notification_type = "warning"
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": f"SIFEN readiness: {report.get('status') or 'unknown'}",
+                "message": message,
+                "type": notification_type,
+                "sticky": not bool(report.get("ready")),
+            },
+        }
 
     def action_download_paraguay_kude(self):
         self.ensure_one()

@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from cryptography import x509
@@ -19,6 +19,7 @@ from odoo.addons.einvoice_py.services.py_sifen_event_service import (
     PySifenReceiverEventService,
 )
 from odoo.addons.einvoice_py.services.py_sifen_event_signature_service import PySifenEventSignatureService
+from odoo.addons.einvoice_py.services.py_sifen_datetime_service import PySifenDatetimeService
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import PySifenTimeoutError
 
 
@@ -439,10 +440,13 @@ class TestPySifenEventService(TransactionCase):
         return document
 
     def _inutilization_kwargs(self, start, end):
+        paraguay_today = datetime.now(timezone.utc).astimezone(
+            PySifenDatetimeService.PARAGUAY_TIMEZONE
+        ).date()
         return {
             "adapter": self.adapter, "timbrado": self.timbrado, "establishment": self.establishment,
             "point_of_issue": self.point, "document_type": "invoice", "number_from": start,
-            "number_to": end, "reason": "Unused numbering range", "occurred_on": fields.Date.today(),
+            "number_to": end, "reason": "Unused numbering range", "occurred_on": paraguay_today,
         }
 
     def _response(self, code, message):
