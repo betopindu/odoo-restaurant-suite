@@ -404,7 +404,7 @@ class FiscalDocument(models.Model):
                 "title": f"SIFEN readiness: {report.get('status') or 'unknown'}",
                 "message": message,
                 "type": notification_type,
-                "sticky": not bool(report.get("ready")),
+                "sticky": True,
             },
         }
 

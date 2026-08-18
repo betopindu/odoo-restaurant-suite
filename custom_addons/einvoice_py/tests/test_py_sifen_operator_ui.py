@@ -164,6 +164,21 @@ class TestPySifenOperatorUi(TransactionCase):
             action = document.action_check_py_sifen_readiness()
         check.assert_called_once_with(document=document)
         self.assertEqual(action["params"]["type"], "success")
+        self.assertTrue(action["params"]["sticky"])
+        self.assertEqual(len(document.transmission_ids), 0)
+
+    def test_readiness_action_keeps_actionable_failure_visible(self):
+        document = self._document().with_user(self.operator)
+        report = {
+            "ready": False,
+            "status": "not_ready",
+            "errors": ["Credential scope is not ready."],
+        }
+        with patch.object(PySifenTestReadinessService, "check", return_value=report):
+            action = document.action_check_py_sifen_readiness()
+        self.assertEqual(action["params"]["type"], "warning")
+        self.assertEqual(action["params"]["message"], "Credential scope is not ready.")
+        self.assertTrue(action["params"]["sticky"])
         self.assertEqual(len(document.transmission_ids), 0)
 
     def test_readiness_failure_is_closed_before_persistence(self):
