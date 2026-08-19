@@ -126,9 +126,10 @@ class TestPySifenOperatorUi(TransactionCase):
     def test_initial_submission_uses_existing_persistence_boundary_once(self):
         document = self._document()
         persistence = _Persistence(document)
-        result = self._service(document, persistence=persistence).submit(
-            document=document.with_user(self.operator)
-        )
+        service = self._service(document, persistence=persistence)
+        with patch.object(service, "_lock") as caller_lock:
+            result = service.submit(document=document.with_user(self.operator))
+        caller_lock.assert_not_called()
         self.assertEqual(persistence.calls, 1)
         self.assertEqual(result["authority_code"], "0260")
         self.assertEqual(document.state, "accepted")
@@ -137,6 +138,23 @@ class TestPySifenOperatorUi(TransactionCase):
                 document=document.with_user(self.operator)
             )
         self.assertEqual(persistence.calls, 1)
+
+    def test_reconciliation_keeps_the_caller_transaction_lock(self):
+        document = self._document(state="manual_review")
+        self.env["fiscal.transmission"].sudo().create({
+            "document_id": document.id,
+            "transmission_type": "submit",
+            "state": "manual_review",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": document.py_cdc,
+            "error_code": "ambiguous_submission",
+            "metadata_json": json.dumps({"ambiguous": True, "post_started": True}),
+        })
+        service = self._service(document)
+        with patch.object(service, "_lock", wraps=service._lock) as caller_lock:
+            service.reconcile(document=document.with_user(self.operator))
+        caller_lock.assert_called_once()
 
     def test_permission_is_checked_by_action_and_service(self):
         document = self._document()

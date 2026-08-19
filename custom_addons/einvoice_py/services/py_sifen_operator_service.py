@@ -53,7 +53,9 @@ class PySifenOperatorService:
 
     def submit(self, *, document):
         self._require_operator()
-        self._lock(document)
+        # Submission concurrency belongs to the durable pre-POST transaction.
+        # Holding this caller-transaction row lock would make the independent
+        # durable cursor conflict with the same legitimate request.
         mode = self.submission_mode(document=document)
         readiness = self.readiness_service.check(document=document)
         if not readiness.get("ready"):
