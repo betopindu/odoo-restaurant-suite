@@ -470,6 +470,30 @@ class TestPySifenSubmissionPipelineService(TransactionCase):
         self.assertFalse(self.xsd.calls)
         self.assertFalse(self.submission.calls)
 
+    def test_signing_schema_failure_persists_only_allowlisted_diagnostic(self):
+        self.signing.error = ValidationError(
+            "Cannot build Paraguay unsigned XML; payload is not schema-ready: "
+            "receiver city code; receiver city name"
+        )
+
+        result = self._submit()
+
+        self.assertEqual(result["diagnostic_code"], "payload_schema_not_ready")
+        self.assertEqual(
+            result["diagnostic_detail"],
+            "receiver city code; receiver city name",
+        )
+        self.assertFalse(self.submission.calls)
+
+    def test_signing_failure_does_not_persist_untrusted_exception_detail(self):
+        self.signing.error = ValidationError("password=do-not-persist")
+
+        result = self._submit()
+
+        self.assertEqual(result["diagnostic_code"], "signing_validation_failed")
+        self.assertFalse(result["diagnostic_detail"])
+        self.assertNotIn("do-not-persist", json.dumps(result))
+
     def test_qr_failure_stops_before_xsd_and_submission(self):
         self.qr.error = ValidationError("qr failure")
 

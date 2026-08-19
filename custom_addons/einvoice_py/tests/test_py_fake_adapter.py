@@ -1293,6 +1293,37 @@ class TestPyFakeAdapter(TransactionCase):
         with self.assertRaisesRegex(ValidationError, "receiver ID number"):
             PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
 
+    def test_unsigned_xml_innominado_does_not_require_optional_geography(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        payload = self._payload_for_xml(document)
+        payload["receiver"].update({
+            "nature_code": "2",
+            "taxpayer_type": None,
+            "ruc_or_document": None,
+            "ruc_dv": None,
+            "id_type": "5",
+            "id_type_description": "Innominado",
+            "id_number": "0",
+            "house_number": None,
+            "department_code": None,
+            "department_name": None,
+            "district_code": None,
+            "district_name": None,
+            "city_code": None,
+            "city_name": None,
+        })
+
+        xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        root = ET.fromstring(xml_bytes)
+
+        self.assertIsNone(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/cDepRec"))
+        self.assertEqual(
+            self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dNumIDRec"),
+            "0",
+        )
+
     def test_unsigned_xml_receiver_readiness_blocks_unknown_nature_and_type(self):
         self._create_config()
         document = self._create_document()

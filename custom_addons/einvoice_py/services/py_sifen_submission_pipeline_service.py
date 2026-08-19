@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import re
 
 from lxml import etree
 
@@ -356,15 +357,42 @@ class PySifenSubmissionPipelineService:
             "http_status": 0,
             "duration_ms": 0,
             "response_category": "",
+            "diagnostic_code": "",
+            "diagnostic_detail": "",
             "final_xml_attachment_id": 0,
         }
 
     def _run_stage(self, result, stage, operation):
         try:
             return operation()
-        except ValidationError:
+        except ValidationError as error:
             self._fail(result, stage, self._stage_failure_message(stage))
+            result.update(self._safe_validation_diagnostic(stage, error))
             return None
+
+    def _safe_validation_diagnostic(self, stage, error):
+        """Return allow-listed technical evidence without fiscal/secret data."""
+        message = str(error or "")
+        schema_prefix = (
+            "Cannot build Paraguay unsigned XML; payload is not schema-ready: "
+        )
+        if stage == "signing" and message.startswith(schema_prefix):
+            labels = [
+                label.strip()
+                for label in message[len(schema_prefix):].split(";")
+            ]
+            if labels and all(
+                label and re.fullmatch(r"[A-Za-z0-9 ()_-]{1,80}", label)
+                for label in labels
+            ):
+                return {
+                    "diagnostic_code": "payload_schema_not_ready",
+                    "diagnostic_detail": "; ".join(labels)[:500],
+                }
+        return {
+            "diagnostic_code": f"{stage}_validation_failed",
+            "diagnostic_detail": "",
+        }
 
     def _fail(self, result, stage, message, xsd_report=None):
         result["ok"] = False

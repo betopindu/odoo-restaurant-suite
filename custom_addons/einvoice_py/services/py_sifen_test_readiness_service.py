@@ -1,7 +1,15 @@
 from urllib.parse import urlsplit
 
+from odoo.exceptions import ValidationError
+
 from odoo.addons.einvoice_py.services.py_qualified_certificate_installation_service import (
     PyQualifiedCertificateInstallationValidationService,
+)
+from odoo.addons.einvoice_py.services.py_source_artifact_service import (
+    PySourceArtifactService,
+)
+from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import (
+    PyUnsignedXmlBuilder,
 )
 
 
@@ -15,14 +23,25 @@ class PySifenTestReadinessService:
     STATUS_CERTIFICATE_MISSING = "certificate_reference_missing"
     STATUS_PASSWORD_MISSING = "certificate_password_missing"
     STATUS_CERTIFICATE_INVALID = "certificate_configuration_invalid"
+    STATUS_PAYLOAD_INVALID = "payload_schema_not_ready"
 
-    def __init__(self, env, certificate_validation_service=None):
+    def __init__(
+        self,
+        env,
+        certificate_validation_service=None,
+        source_artifact_service=None,
+        unsigned_xml_builder=None,
+    ):
         self.env = env
         self.certificate_validation_service = (
             certificate_validation_service
             if certificate_validation_service is not None
             else PyQualifiedCertificateInstallationValidationService(env)
         )
+        self.source_artifact_service = (
+            source_artifact_service or PySourceArtifactService(env)
+        )
+        self.unsigned_xml_builder = unsigned_xml_builder or PyUnsignedXmlBuilder(env)
 
     def check(self, *, document):
         document.ensure_one()
@@ -89,6 +108,12 @@ class PySifenTestReadinessService:
             ]
             return report
 
+        payload_errors = self._payload_errors(document)
+        if payload_errors:
+            report["status"] = self.STATUS_PAYLOAD_INVALID
+            report["errors"] = payload_errors
+            return report
+
         report.update({
             "ready": True,
             "status": self.STATUS_READY,
@@ -96,6 +121,16 @@ class PySifenTestReadinessService:
             "errors": [],
         })
         return report
+
+    def _payload_errors(self, document):
+        try:
+            _attachment, payload = self.source_artifact_service.read_current_payload(
+                document=document
+            )
+            self.unsigned_xml_builder.build_from_payload(payload)
+        except ValidationError as error:
+            return [str(error)]
+        return []
 
     def _fiscal_errors(self, document):
         errors = []

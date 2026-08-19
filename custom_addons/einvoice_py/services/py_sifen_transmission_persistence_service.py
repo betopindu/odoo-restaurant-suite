@@ -387,6 +387,8 @@ class PySifenTransmissionPersistenceService:
             "authority_incident_type": incident.incident_type,
             "manual_retry_allowed": incident.manual_retry_allowed,
             "automatic_retry_allowed": incident.automatic_retry_allowed,
+            "diagnostic_code": result.get("diagnostic_code") or "",
+            "diagnostic_detail": result.get("diagnostic_detail") or "",
         }
         return metadata
 

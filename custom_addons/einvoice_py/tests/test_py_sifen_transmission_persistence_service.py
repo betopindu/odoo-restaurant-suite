@@ -1025,3 +1025,15 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
     def test_invalid_persistence_input(self):
         with self.assertRaisesRegex(ValidationError, "dictionary"):
             self.service.persist_result(document=self.document, result="not-a-dict")
+
+    def test_safe_signing_diagnostic_is_in_persisted_metadata(self):
+        result = self._accepted_result()
+        result.update({
+            "diagnostic_code": "payload_schema_not_ready",
+            "diagnostic_detail": "receiver city code",
+        })
+
+        metadata = self.service._metadata_values(result)
+
+        self.assertEqual(metadata["diagnostic_code"], "payload_schema_not_ready")
+        self.assertEqual(metadata["diagnostic_detail"], "receiver city code")

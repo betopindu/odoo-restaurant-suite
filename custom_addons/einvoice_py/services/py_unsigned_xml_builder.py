@@ -393,21 +393,26 @@ class PyUnsignedXmlBuilder:
     def _validate_receiver_schema_readiness(self, receiver, missing):
         nature_code = self._normalize_int_code(receiver.get("nature_code"))
         type_code = self._normalize_int_code(receiver.get("type_code"))
+        id_type = self._normalize_int_code(receiver.get("id_type"))
         if nature_code and nature_code not in self.RECEIVER_NATURES:
             missing.append("receiver nature mapping")
         if type_code and type_code not in self.RECEIVER_OPERATION_TYPES:
             missing.append("receiver operation type mapping")
 
-        required_fields = [
-            ("country_description", "receiver country description"),
-            ("house_number", "receiver house number"),
-            ("department_code", "receiver department code"),
-            ("department_name", "receiver department name"),
-            ("district_code", "receiver district code"),
-            ("district_name", "receiver district name"),
-            ("city_code", "receiver city code"),
-            ("city_name", "receiver city name"),
-        ]
+        required_fields = [("country_description", "receiver country description")]
+        # DNIT v150 declares receiver address/geography as optional. In
+        # particular, an official innominado projection (non-taxpayer, ID type
+        # 5) must not be forced to carry fabricated geographic data.
+        if not (nature_code == "2" and id_type == "5"):
+            required_fields.extend([
+                ("house_number", "receiver house number"),
+                ("department_code", "receiver department code"),
+                ("department_name", "receiver department name"),
+                ("district_code", "receiver district code"),
+                ("district_name", "receiver district name"),
+                ("city_code", "receiver city code"),
+                ("city_name", "receiver city name"),
+            ])
         for key, label in required_fields:
             self._require(missing, receiver, key, label)
 

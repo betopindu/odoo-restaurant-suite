@@ -323,6 +323,7 @@ class PySifenDurableAttemptService:
             "manual_retry_evidence_type": authorization.evidence_type,
             "reconciled_submission_id": authorization.ambiguous_submission_id,
             "reconciliation_query_id": authorization.reconciliation_query_id,
+            "local_failure_submission_id": authorization.local_failure_submission_id,
         }
 
     def _is_unresolved(self, transmission):
@@ -458,6 +459,8 @@ class PySifenDurableAttemptService:
             "authority_incident_type",
             "manual_retry_allowed",
             "automatic_retry_allowed",
+            "diagnostic_code",
+            "diagnostic_detail",
         )
         return {key: metadata[key] for key in allowed if key in metadata}
 
@@ -483,6 +486,8 @@ class PySifenDurableAttemptService:
             "authority_incident_type",
             "manual_retry_allowed",
             "automatic_retry_allowed",
+            "diagnostic_code",
+            "diagnostic_detail",
             "payload_attachment_id",
             "payload_sha256",
             "unsigned_xml_attachment_id",
@@ -498,6 +503,7 @@ class PySifenDurableAttemptService:
             "manual_retry_evidence_type",
             "reconciled_submission_id",
             "reconciliation_query_id",
+            "local_failure_submission_id",
         )
         return json.dumps(
             {key: metadata[key] for key in allowed if metadata.get(key) not in (None, "")},

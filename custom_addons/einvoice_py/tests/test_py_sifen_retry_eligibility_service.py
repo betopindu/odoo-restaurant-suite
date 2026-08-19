@@ -196,3 +196,56 @@ class TestPySifenRetryEligibilityService(TransactionCase):
         ))
         self.assertEqual(self.submission.read()[0], submission_before)
         self.assertEqual(self.query.read()[0], query_before)
+
+    def test_local_pre_post_signing_failure_allows_manual_only(self):
+        self.submission.unlink()
+        self.query.unlink()
+        self.document.state = "failed_final"
+        failed = self.env["fiscal.transmission"].create({
+            "document_id": self.document.id,
+            "transmission_type": "submit",
+            "state": "failed_final",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": self.CDC,
+            "error_code": "signing",
+            "http_status": 0,
+            "metadata_json": json.dumps({
+                "ambiguous": False,
+                "post_started": False,
+                "durability_phase": "completed",
+            }),
+        })
+
+        result = self.service.classify(document=self.document)
+
+        self.assertEqual(
+            result.evidence_type,
+            "local_pre_post_failure_manual_retry_allowed",
+        )
+        self.assertEqual(result.local_failure_submission_id, failed.id)
+        self.assertTrue(result.manual_retry_allowed)
+        self.assertFalse(result.automatic_retry_allowed)
+        self.assertFalse(PySifenRetrySchedulerService(self.env).is_retryable(failed))
+
+    def test_post_started_failure_is_not_local_retry_evidence(self):
+        self.submission.unlink()
+        self.query.unlink()
+        self.env["fiscal.transmission"].create({
+            "document_id": self.document.id,
+            "transmission_type": "submit",
+            "state": "failed_final",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": self.CDC,
+            "error_code": "signing",
+            "metadata_json": json.dumps({
+                "ambiguous": False,
+                "post_started": True,
+                "durability_phase": "completed",
+            }),
+        })
+
+        self.assertFalse(
+            self.service.classify(document=self.document).manual_retry_allowed
+        )

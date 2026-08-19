@@ -156,6 +156,34 @@ class TestPySifenManualRetryService(TransactionCase):
 
         self.assertTrue(classification.manual_retry_allowed)
 
+    def test_local_pre_post_signing_failure_delegates_manual_retry(self):
+        self.document.state = "failed_final"
+        local_failure = self._transmission(
+            code="",
+            message="",
+            state="failed_final",
+            metadata=json.dumps({
+                "ambiguous": False,
+                "post_started": False,
+                "durability_phase": "completed",
+            }),
+        )
+        local_failure.error_code = "signing"
+
+        result = self.service.retry(
+            document=self.document,
+            payload=self.payload,
+            signing_timestamp=datetime(2026, 8, 7, 14, 0, 0),
+        )
+
+        self.assertEqual(result["transmission_id"], 999)
+        authorization = self.persistence.calls[0]["manual_retry_authorization"]
+        self.assertEqual(
+            authorization.evidence_type,
+            "local_pre_post_failure_manual_retry_allowed",
+        )
+        self.assertEqual(authorization.local_failure_submission_id, local_failure.id)
+
     def test_reconciled_0420_delegates_manual_retry_with_same_cdc_and_fresh_time(self):
         ambiguous = self._transmission(
             code="",

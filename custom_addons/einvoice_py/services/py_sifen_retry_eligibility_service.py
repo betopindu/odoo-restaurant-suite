@@ -13,6 +13,7 @@ class PySifenRetryEligibility:
     document_id: int = 0
     ambiguous_submission_id: int = 0
     reconciliation_query_id: int = 0
+    local_failure_submission_id: int = 0
     cdc: str = ""
     reason: str = ""
 
@@ -21,6 +22,16 @@ class PySifenRetryEligibilityService:
     """Classify the narrow 0420 recovery path without rewriting history."""
 
     EVIDENCE_TYPE = "reconciled_not_found_manual_retry_allowed"
+    LOCAL_FAILURE_EVIDENCE_TYPE = "local_pre_post_failure_manual_retry_allowed"
+    LOCAL_PRE_POST_STAGES = {
+        "signing",
+        "signed_xml_attachment",
+        "qr_generation",
+        "qr_persistence",
+        "final_xml_preparation",
+        "final_xsd_validation",
+        "final_xml_persistence",
+    }
     HASH_RE = re.compile(r"[0-9a-f]{64}")
 
     def __init__(self, env):
@@ -65,6 +76,16 @@ class PySifenRetryEligibilityService:
             ("state", "=", "accepted"),
         ]):
             return self._blocked(base, "acceptance_exists")
+        local_failure = self._local_pre_post_failure(submits, queries)
+        if local_failure:
+            return PySifenRetryEligibility(
+                evidence_type=self.LOCAL_FAILURE_EVIDENCE_TYPE,
+                manual_retry_allowed=True,
+                automatic_retry_allowed=False,
+                document_id=document.id,
+                local_failure_submission_id=local_failure.id,
+                cdc=cdc,
+            )
         if not queries:
             return self._blocked(base, "reconciliation_missing")
 
@@ -158,3 +179,22 @@ class PySifenRetryEligibilityService:
         except (TypeError, ValueError):
             return {}
         return metadata if isinstance(metadata, dict) else {}
+
+    def _local_pre_post_failure(self, submits, queries):
+        latest = submits[-1]
+        metadata = self._metadata(latest)
+        if queries.filtered(lambda query: query.id > latest.id):
+            return False
+        if latest.error_code not in self.LOCAL_PRE_POST_STAGES:
+            return False
+        return latest if (
+            latest.state == "failed_final"
+            and not latest.request_hash
+            and not latest.response_hash
+            and not latest.authority_status_code
+            and not latest.authority_message
+            and not latest.http_status
+            and metadata.get("durability_phase") == "completed"
+            and metadata.get("post_started") is False
+            and metadata.get("ambiguous") is False
+        ) else False

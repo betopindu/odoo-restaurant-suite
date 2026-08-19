@@ -63,8 +63,7 @@ class PySifenManualRetryService:
             signing_timestamp=fresh_timestamp,
             manual_retry_authorization=(
                 authorization
-                if getattr(authorization, "evidence_type", "")
-                == PySifenRetryEligibilityService.EVIDENCE_TYPE
+                if getattr(authorization, "manual_retry_allowed", False)
                 else None
             ),
         )

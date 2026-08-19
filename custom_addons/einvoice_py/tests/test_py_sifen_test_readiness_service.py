@@ -1,5 +1,6 @@
 from datetime import date
 
+from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.einvoice_py.services.py_sifen_test_readiness_service import (
@@ -18,6 +19,21 @@ class _CertificateValidationStub:
             "valid": self.valid,
             "status": "valid" if self.valid else "invalid",
         }
+
+
+class _SourceArtifactStub:
+    def read_current_payload(self, **kwargs):
+        return object(), {"schema_fixture": True}
+
+
+class _UnsignedXmlBuilderStub:
+    def __init__(self, error=None):
+        self.error = error
+
+    def build_from_payload(self, payload):
+        if self.error:
+            raise self.error
+        return b"<rDE/>"
 
 
 class TestPySifenTestReadinessService(TransactionCase):
@@ -153,6 +169,21 @@ class TestPySifenTestReadinessService(TransactionCase):
             "80012345-6",
         )
 
+    def test_schema_invalid_payload_is_not_ready_before_submission(self):
+        self._credential()
+        service = self._service(
+            _CertificateValidationStub(valid=True),
+            unsigned_xml_builder=_UnsignedXmlBuilderStub(
+                ValidationError("Cannot build unsigned XML: receiver city code")
+            ),
+        )
+
+        report = service.check(document=self.document)
+
+        self.assertFalse(report["ready"])
+        self.assertEqual(report["status"], "payload_schema_not_ready")
+        self.assertIn("receiver city code", report["errors"][0])
+
     def test_missing_certificate_password_reference_is_not_ready(self):
         self._credential(password_secret_ref=False)
         validator = _CertificateValidationStub()
@@ -231,8 +262,12 @@ class TestPySifenTestReadinessService(TransactionCase):
             })
         return credential
 
-    def _service(self, validator):
+    def _service(self, validator, unsigned_xml_builder=None):
         return PySifenTestReadinessService(
             self.env,
             certificate_validation_service=validator,
+            source_artifact_service=_SourceArtifactStub(),
+            unsigned_xml_builder=(
+                unsigned_xml_builder or _UnsignedXmlBuilderStub()
+            ),
         )
