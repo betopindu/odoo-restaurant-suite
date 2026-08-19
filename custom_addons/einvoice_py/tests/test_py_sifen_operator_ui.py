@@ -110,6 +110,7 @@ class TestPySifenOperatorUi(TransactionCase):
             "company_id": self.company.id, "adapter_config_id": self.adapter.id,
             "document_type": "invoice", "state": state, "country_code": "PY",
             "environment": "test", "country_identifier": "1" * 44, "py_cdc": "1" * 44,
+            "source_reference": "INV/2026/00001",
         })
 
     def _service(self, document, **overrides):
@@ -151,10 +152,40 @@ class TestPySifenOperatorUi(TransactionCase):
 
     def test_open_action_is_confirmation_only_and_has_no_transport(self):
         document = self._document().with_user(self.operator)
-        action = document.action_open_py_sifen_submission()
+        with patch.object(PySifenOperatorService, "submit") as submit:
+            action = document.action_open_py_sifen_submission()
         wizard = self.env["py.sifen.operator.wizard"].browse(action["res_id"])
+        submit.assert_not_called()
         self.assertEqual(action["target"], "new")
+        self.assertEqual(action["res_model"], "py.sifen.operator.wizard")
+        wizard_view = self.env.ref("einvoice_py.view_py_sifen_operator_wizard_form")
+        self.assertIn('special="cancel"', wizard_view.arch_db)
         self.assertEqual(wizard.operation, "submit")
+        self.assertEqual(wizard.document_reference, "INV/2026/00001")
+        self.assertEqual(wizard.environment_label, "TEST")
+        self.assertEqual(wizard.cdc, document.country_identifier)
+        self.assertIn("exactly one SIFEN submission", wizard.warning)
+        self.assertIn("Automatic submission and retry remain disabled", wizard.warning)
+        self.assertEqual(document.state, "ready")
+        self.assertEqual(len(document.transmission_ids), 0)
+
+    def test_manual_retry_confirmation_is_distinct_and_has_no_side_effects(self):
+        document = self._document(state="rejected").with_user(self.operator)
+        with (
+            patch.object(
+                PySifenOperatorService,
+                "guidance",
+                return_value=("manual_retry_allowed", "A guarded manual retry is available."),
+            ),
+            patch.object(PySifenOperatorService, "submit") as submit,
+        ):
+            document.invalidate_recordset(["py_operator_action_state"])
+            action = document.action_open_py_sifen_submission()
+        wizard = self.env["py.sifen.operator.wizard"].browse(action["res_id"])
+        submit.assert_not_called()
+        self.assertEqual(wizard.operation, "manual_retry")
+        self.assertIn("exactly one manual retry", wizard.warning)
+        self.assertEqual(document.state, "rejected")
         self.assertEqual(len(document.transmission_ids), 0)
 
     def test_readiness_action_is_offline_and_reports_safe_status(self):

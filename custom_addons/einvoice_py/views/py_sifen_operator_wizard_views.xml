@@ -4,11 +4,18 @@
         <field name="model">py.sifen.operator.wizard</field>
         <field name="arch" type="xml">
             <form string="Confirm SIFEN Operation">
-                <group>
-                    <field name="document_id"/>
-                    <field name="operation"/>
-                    <field name="warning" nolabel="1"/>
-                </group>
+                <sheet>
+                    <field name="document_id" invisible="1"/>
+                    <group col="2">
+                        <field name="document_reference"/>
+                        <field name="operation"/>
+                        <field name="environment_label"/>
+                        <field name="cdc"/>
+                    </group>
+                    <div class="alert alert-warning" role="alert">
+                        <field name="warning" nolabel="1"/>
+                    </div>
+                </sheet>
                 <footer>
                     <button name="action_confirm" type="object" string="Confirm and Execute"
                             class="btn-primary" groups="einvoice_py.group_py_fiscal_operator"/>

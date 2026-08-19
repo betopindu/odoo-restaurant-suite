@@ -350,13 +350,23 @@ class FiscalDocument(models.Model):
         if operation == "submit":
             if self.py_operator_action_state not in ("submit_ready", "manual_retry_allowed"):
                 raise ValidationError("This document is not eligible for operator submission.")
-            warning = (
-                "This confirmation performs exactly one SIFEN submission. "
-                "It does not enable automatic submission or retry."
-            )
+            if self.py_operator_action_state == "manual_retry_allowed":
+                wizard_operation = "manual_retry"
+                warning = (
+                    "Confirming performs exactly one manual retry of this electronic "
+                    "document using its current CDC. Automatic submission and retry "
+                    "remain disabled."
+                )
+            else:
+                wizard_operation = "submit"
+                warning = (
+                    "Confirming performs exactly one SIFEN submission for this electronic "
+                    "document. Automatic submission and retry remain disabled."
+                )
         elif operation == "reconcile":
             if self.py_operator_action_state != "consulta_required":
                 raise ValidationError("This document is not eligible for Consulta DE recovery.")
+            wizard_operation = "reconcile"
             warning = (
                 "This confirmation performs exactly one Consulta DE for the current CDC. "
                 "It does not resend the electronic document."
@@ -365,7 +375,7 @@ class FiscalDocument(models.Model):
             raise ValidationError("Unsupported SIFEN operator operation.")
         wizard = self.env["py.sifen.operator.wizard"].create({
             "document_id": self.id,
-            "operation": operation,
+            "operation": wizard_operation,
             "warning": warning,
         })
         return {
