@@ -130,9 +130,9 @@
         await fetch(actionUrl.toString(), {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
             },
-            body: "{}",
+            body: new URLSearchParams({csrf_token: odoo.csrf_token}),
             credentials: "same-origin",
         });
 

@@ -1,0 +1,43 @@
+<odoo>
+    <record id="module_category_kds" model="ir.module.category">
+        <field name="name">Kitchen Display System</field>
+        <field name="sequence">35</field>
+    </record>
+
+    <record id="group_kds_user" model="res.groups">
+        <field name="name">KDS User / Kitchen Operator</field>
+        <field name="category_id" ref="module_category_kds"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="group_kds_manager" model="res.groups">
+        <field name="name">KDS Manager</field>
+        <field name="category_id" ref="module_category_kds"/>
+        <field name="implied_ids" eval="[(4, ref('group_kds_user'))]"/>
+    </record>
+
+    <record id="base.group_system" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_kds_manager'))]"/>
+    </record>
+
+    <record id="rule_kitchen_order_company" model="ir.rule">
+        <field name="name">KDS orders: allowed companies</field>
+        <field name="model_id" ref="model_kitchen_order"/>
+        <field name="groups" eval="[(4, ref('group_kds_user'))]"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="rule_kitchen_order_line_company" model="ir.rule">
+        <field name="name">KDS lines: allowed companies</field>
+        <field name="model_id" ref="model_kitchen_order_line"/>
+        <field name="groups" eval="[(4, ref('group_kds_user'))]"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="rule_kitchen_projection_company" model="ir.rule">
+        <field name="name">KDS projections: allowed companies</field>
+        <field name="model_id" ref="model_kitchen_order_projection"/>
+        <field name="groups" eval="[(4, ref('group_kds_manager'))]"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>

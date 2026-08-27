@@ -12,6 +12,12 @@ class KitchenOrderLine(models.Model):
         required=True,
         ondelete="cascade",
     )
+    company_id = fields.Many2one(
+        related="order_id.company_id",
+        store=True,
+        index=True,
+        readonly=True,
+    )
 
     product_id = fields.Many2one("product.product", string="Producto (ref)")
     product_name = fields.Char(string="Producto", required=True)

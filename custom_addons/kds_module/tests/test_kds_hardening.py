@@ -1,7 +1,11 @@
 import json
+import re
+import threading
+from pathlib import Path
 from datetime import timedelta
 
-from odoo import fields
+from odoo import SUPERUSER_ID, api, fields, registry
+from odoo.exceptions import AccessError
 from odoo.tests import HttpCase, tagged
 from odoo.tests.common import TransactionCase, get_db_name
 
@@ -86,6 +90,7 @@ class KdsTestMixin:
         }]
 
     def _sync_kds(self, pos_order, payload):
+        pos_order.last_order_preparation_change = payload[0]["data"]["last_order_preparation_change"]
         self.env["pos.order"]._sync_kds_from_ui_result(
             payload,
             [{"id": pos_order.id, "pos_reference": pos_order.pos_reference}],
@@ -147,6 +152,136 @@ class TestKdsCreateFromUiHardening(KdsTestMixin, TransactionCase):
         lines = self._kitchen_orders_for(pos_order).line_ids
         self.assertEqual(len(lines), 1)
         self.assertEqual(sum(lines.mapped("qty")), 2)
+        self.assertEqual(
+            self.env["kitchen.order.projection"].search_count([
+                ("pos_order_id", "=", pos_order.id),
+                ("state", "=", "complete"),
+            ]),
+            1,
+        )
+
+    def test_float_noise_does_not_create_delta(self):
+        pos_order = self._create_pos_order(self.config, "Order KDS-FLOAT")
+        self._sync_kds(pos_order, self._preparation_payload(pos_order.pos_reference, self.product, 0.3))
+        self._sync_kds(
+            pos_order,
+            self._preparation_payload(pos_order.pos_reference, self.product, 0.1 + 0.2),
+        )
+        self.assertEqual(len(self._kitchen_orders_for(pos_order).line_ids), 1)
+
+    def test_failed_projection_rolls_back_partial_kds_and_is_recoverable(self):
+        pos_order = self._create_pos_order(self.config, "Order KDS-RECOVERY")
+        payload = self._preparation_payload(pos_order.pos_reference, self.product, 2)
+        pos_order.last_order_preparation_change = payload[0]["data"]["last_order_preparation_change"]
+        projection_model = self.env["kitchen.order.projection"]
+        original = type(self.env["kitchen.order.line"]).create
+
+        def failing_create(self, vals_list):
+            raise RuntimeError("injected line failure")
+
+        try:
+            type(self.env["kitchen.order.line"]).create = failing_create
+            projection = projection_model.project_pos_order(pos_order)
+        finally:
+            type(self.env["kitchen.order.line"]).create = original
+
+        self.assertEqual(projection.state, "failed")
+        self.assertFalse(self._kitchen_orders_for(pos_order))
+        projection.action_recover()
+        self.assertEqual(projection.state, "complete")
+        self.assertEqual(sum(self._kitchen_orders_for(pos_order).line_ids.mapped("qty")), 2)
+        projection.action_recover()
+        self.assertEqual(sum(self._kitchen_orders_for(pos_order).line_ids.mapped("qty")), 2)
+
+    def test_stable_line_uuid_is_used_with_realistic_payload_key(self):
+        pos_order = self._create_pos_order(self.config, "Order KDS-UUID")
+        payload = self._preparation_payload(pos_order.pos_reference, self.product, 1, "uuid-1 - ")
+        values = json.loads(payload[0]["data"]["last_order_preparation_change"])
+        values["uuid-1 - "]["line_uuid"] = "uuid-1"
+        payload[0]["data"]["last_order_preparation_change"] = json.dumps(values)
+        self._sync_kds(pos_order, payload)
+        self.assertEqual(self._kitchen_orders_for(pos_order).line_ids.pos_line_key, f"{pos_order.id}|uuid-1")
+
+    def test_real_create_from_ui_projects_persisted_restaurant_snapshot(self):
+        session = self.env["pos.session"].create({
+            "config_id": self.config.id,
+            "user_id": self.env.user.id,
+        })
+        reference = "Order KDS-REAL-UI"
+        snapshot = {
+            "real-line-uuid - ": {
+                "line_uuid": "real-line-uuid",
+                "product_id": self.product.id,
+                "name": self.product.display_name,
+                "quantity": 1.5,
+                "note": "",
+                "attribute_value_ids": [],
+            },
+        }
+        ui_order = {
+            "id": "kds-real-ui",
+            "to_invoice": False,
+            "data": {
+                "amount_paid": 0,
+                "amount_return": 0,
+                "amount_tax": 0,
+                "amount_total": 15,
+                "date_order": fields.Datetime.to_string(fields.Datetime.now()),
+                "fiscal_position_id": False,
+                "lines": [(0, 0, {
+                    "discount": 0,
+                    "id": "real-line-uuid",
+                    "pack_lot_ids": [],
+                    "price_unit": 10,
+                    "product_id": self.product.id,
+                    "price_subtotal": 15,
+                    "price_subtotal_incl": 15,
+                    "qty": 1.5,
+                    "tax_ids": [(6, 0, [])],
+                })],
+                "name": reference,
+                "partner_id": False,
+                "pos_session_id": session.id,
+                "sequence_number": 1,
+                "statement_ids": [],
+                "uid": "kds-real-ui",
+                "user_id": self.env.uid,
+                "last_order_preparation_change": json.dumps(snapshot),
+            },
+        }
+
+        result = self.env["pos.order"].create_from_ui([ui_order], draft=True)
+
+        pos_order = self.env["pos.order"].browse(result[0]["id"])
+        self.assertEqual(json.loads(pos_order.last_order_preparation_change), snapshot)
+        self.assertEqual(sum(self._kitchen_orders_for(pos_order).line_ids.mapped("qty")), 1.5)
+
+    def test_failure_after_one_line_rolls_back_entire_projection(self):
+        product_b = self._create_product("KDS Failure Product B")
+        pos_order = self._create_pos_order(self.config, "Order KDS-PARTIAL")
+        payload = self._multi_line_payload(pos_order.pos_reference, self.product, product_b)
+        pos_order.last_order_preparation_change = payload[0]["data"]["last_order_preparation_change"]
+        line_class = type(self.env["kitchen.order.line"])
+        original = line_class.create
+        calls = {"count": 0}
+
+        def fail_second_line(self, vals_list):
+            calls["count"] += 1
+            if calls["count"] == 2:
+                raise RuntimeError("injected failure after one KDS line")
+            return original(self, vals_list)
+
+        try:
+            line_class.create = fail_second_line
+            projection = self.env["kitchen.order.projection"].project_pos_order(pos_order)
+        finally:
+            line_class.create = original
+
+        self.assertEqual(projection.state, "failed")
+        self.assertFalse(self._kitchen_orders_for(pos_order))
+        self.assertFalse(self.env["kitchen.order.line"].search([
+            ("order_id.pos_order_id", "=", pos_order.id),
+        ]))
 
     def test_increased_cumulative_quantity_creates_only_delta(self):
         pos_order = self._create_pos_order(self.config, "Order KDS-004")
@@ -292,6 +427,7 @@ class TestKdsHttpIsolation(KdsTestMixin, HttpCase):
     def setUp(self):
         super().setUp()
         self.authenticate("admin", "admin")
+        self._csrf_token = None
 
     def _display(self, config):
         return self.url_open(
@@ -300,12 +436,25 @@ class TestKdsHttpIsolation(KdsTestMixin, HttpCase):
         )
 
     def _post_line_next(self, line, config):
+        if not self._csrf_token:
+            page = self._display(config)
+            match = re.search(r"csrf_token:\s*[\"']([^\"']+)", page.text)
+            self.assertTrue(match, "Odoo page must expose its CSRF token")
+            self._csrf_token = match.group(1)
         return self.url_open(
             f"/kitchen/display/line/{line.id}/next?db={get_db_name()}&config_id={config.id}",
-            data="{}",
-            headers={"Content-Type": "application/json"},
+            data={"csrf_token": self._csrf_token},
             allow_redirects=False,
         )
+
+    def test_mutation_without_csrf_is_rejected(self):
+        response = self.url_open(
+            f"/kitchen/display/line/{self.line_a.id}/next?db={get_db_name()}&config_id={self.config_a.id}",
+            data={"missing_csrf": "1"},
+            allow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.line_a.state, "new")
 
     def test_two_pos_configs_remain_isolated_in_display(self):
         response = self._display(self.config_a)
@@ -329,7 +478,7 @@ class TestKdsHttpIsolation(KdsTestMixin, HttpCase):
             allow_redirects=False,
         )
 
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 403)
 
     def test_new_preparing_ready_done_transitions(self):
         self.assertEqual(self.line_a.state, "new")
@@ -381,3 +530,156 @@ class TestKdsInstallMetadata(TransactionCase):
         self.assertIn("point_of_sale", dependencies)
         self.assertIn("pos_restaurant", dependencies)
         self.assertNotIn("einvoice_py", dependencies)
+
+    def test_frozen_frontend_contract(self):
+        module_root = Path(__file__).resolve().parents[1]
+        css = (module_root / "static/src/css/kitchen.css").read_text()
+        template = (module_root / "views/kitchen_display.xml").read_text()
+        javascript = (module_root / "static/src/js/kitchen_display.js").read_text()
+        self.assertIn(".o_kitchen_display_column_new", css)
+        self.assertIn("lane_preparing", template)
+        self.assertIn("lane_ready", template)
+        self.assertIn("lane_done", template)
+        self.assertIn("Math.max(refreshSeconds, 3)", javascript)
+        self.assertIn("setInterval(refreshGrid, kdsSettings.refresh)", javascript)
+        self.assertIn("new AudioContext()", javascript)
+        self.assertIn("csrf_token: odoo.csrf_token", javascript)
+
+    def test_ordinary_internal_user_has_no_kds_crud(self):
+        group_user = self.env.ref("base.group_user")
+        user = self.env["res.users"].with_context(no_reset_password=True).create({
+            "name": "Ordinary KDS Test User",
+            "login": "ordinary_kds_test_user",
+            "company_id": self.env.company.id,
+            "company_ids": [(6, 0, [self.env.company.id])],
+            "groups_id": [(6, 0, [group_user.id])],
+        })
+        with self.assertRaises(AccessError):
+            self.env["kitchen.order"].with_user(user).create({"table": "Denied"})
+
+    def test_kds_manager_retains_administration_access(self):
+        manager_group = self.env.ref("kds_module.group_kds_manager")
+        manager = self.env["res.users"].with_context(no_reset_password=True).create({
+            "name": "KDS Manager Test",
+            "login": "kds_manager_test",
+            "company_id": self.env.company.id,
+            "company_ids": [(6, 0, [self.env.company.id])],
+            "groups_id": [(6, 0, [manager_group.id])],
+        })
+        config = self.env["pos.config"].create({"name": "KDS Manager Config"})
+        order = self.env["kitchen.order"].with_user(manager).create({
+            "table": "Allowed",
+            "pos_config_id": config.id,
+        })
+        self.assertTrue(order)
+
+    def test_kds_operator_record_rules_isolate_companies(self):
+        other_company = self.env["res.company"].create({"name": "KDS Isolated Company"})
+        config = self.env["pos.config"].create({"name": "KDS Rule Config"})
+        other_order = self.env["kitchen.order"].create({
+            "pos_config_id": config.id,
+            "table": "Other Company",
+        })
+        # Isolate the record-rule contract from POS journal setup in this unit
+        # test; the controller tests cover real cross-company POS configs.
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE kitchen_order SET company_id = %s WHERE id = %s",
+            [other_company.id, other_order.id],
+        )
+        other_order.invalidate_recordset(["company_id"])
+        operator = self.env["res.users"].with_context(no_reset_password=True).create({
+            "name": "KDS Company Operator",
+            "login": "kds_company_operator",
+            "company_id": self.env.company.id,
+            "company_ids": [(6, 0, [self.env.company.id])],
+            "groups_id": [(6, 0, [self.env.ref("kds_module.group_kds_user").id])],
+        })
+        operator_orders = self.env["kitchen.order"].with_user(operator).with_context(
+            allowed_company_ids=[self.env.company.id]
+        )
+        self.assertFalse(operator_orders.search([
+            ("id", "=", other_order.id),
+        ]))
+        with self.assertRaises(AccessError):
+            other_order.with_user(operator).with_context(
+                allowed_company_ids=[self.env.company.id]
+            ).write({"table": "Denied"})
+
+
+@tagged("post_install", "-at_install")
+class TestKdsConcurrentProjection(KdsTestMixin, TransactionCase):
+
+    def test_two_database_transactions_project_same_snapshot_once(self):
+        db_registry = registry(get_db_name())
+        with db_registry.cursor() as setup_cr:
+            setup_env = api.Environment(setup_cr, SUPERUSER_ID, {})
+            config = setup_env["pos.config"].create({"name": "KDS Concurrent POS"})
+            product = setup_env["product.product"].create({
+                "name": "KDS Concurrent Product",
+                "list_price": 10,
+                "available_in_pos": True,
+            })
+            session = setup_env["pos.session"].create({
+                "config_id": config.id,
+                "user_id": SUPERUSER_ID,
+            })
+            snapshot = json.dumps({
+                "line-1": {
+                    "product_id": product.id,
+                    "name": product.display_name,
+                    "quantity": 2,
+                    "note": "",
+                    "attribute_value_ids": [],
+                },
+            })
+            pos_order = setup_env["pos.order"].create({
+                "name": "Order KDS-CONCURRENT",
+                "pos_reference": "Order KDS-CONCURRENT",
+                "session_id": session.id,
+                "config_id": config.id,
+                "company_id": config.company_id.id,
+                "amount_total": 0,
+                "amount_tax": 0,
+                "amount_paid": 0,
+                "amount_return": 0,
+                "last_order_preparation_change": snapshot,
+            })
+            order_id = pos_order.id
+            setup_cr.commit()
+
+        barrier = threading.Barrier(2)
+        errors = []
+
+        def worker():
+            try:
+                with db_registry.cursor() as cr:
+                    env = api.Environment(cr, SUPERUSER_ID, {})
+                    barrier.wait(timeout=5)
+                    env["kitchen.order.projection"].project_pos_order(
+                        env["pos.order"].browse(order_id)
+                    )
+                    cr.commit()
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _index in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+
+        self.assertFalse(errors)
+        with db_registry.cursor() as check_cr:
+            check_env = api.Environment(check_cr, SUPERUSER_ID, {})
+            self.assertEqual(
+                check_env["kitchen.order.projection"].search_count([
+                ("pos_order_id", "=", order_id),
+                ("state", "=", "complete"),
+                ]),
+                1,
+            )
+            lines = check_env["kitchen.order.line"].search([
+                ("order_id.pos_order_id", "=", order_id),
+            ])
+            self.assertEqual(sum(lines.mapped("qty")), 2)

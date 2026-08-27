@@ -8,6 +8,10 @@ from werkzeug.exceptions import Forbidden, NotFound
 
 class KitchenDisplay(http.Controller):
 
+    def _assert_kds_user(self):
+        if not request.env.user.has_group("kds_module.group_kds_user"):
+            raise Forbidden()
+
     def _get_kds_config_record(self, config_id=None, allow_fallback=False):
         config_model = request.env["pos.config"].sudo()
         config = config_model.browse([])
@@ -120,6 +124,7 @@ class KitchenDisplay(http.Controller):
         return activity_dt >= (now - timedelta(minutes=done_visible_minutes))
 
     def _build_display_values(self, config_id=None):
+        self._assert_kds_user()
         kds = self._get_kds_config(config_id=config_id)
         config = self._get_kds_config_record(config_id=kds["config_id"])
         if not config:
@@ -200,8 +205,9 @@ class KitchenDisplay(http.Controller):
         values = self._build_display_values(config_id=kwargs.get("config_id"))
         return request.render("kds_module.kitchen_display_grid", values)
 
-    @http.route("/kitchen/display/line/<int:line_id>/next", auth="user", type="http", methods=["POST"], csrf=False)
+    @http.route("/kitchen/display/line/<int:line_id>/next", auth="user", type="http", methods=["POST"])
     def kitchen_display_line_next(self, line_id, **kwargs):
+        self._assert_kds_user()
         config = self._assert_config_record(kwargs.get("config_id"))
         line = request.env["kitchen.order.line"].sudo().browse(line_id).exists()
         self._assert_line_in_config(line, config)
@@ -213,8 +219,9 @@ class KitchenDisplay(http.Controller):
 
         return self._json_response({"ok": True})
 
-    @http.route("/kitchen/display/order/<int:order_id>/move/<string:from_state>", auth="user", type="http", methods=["POST"], csrf=False)
+    @http.route("/kitchen/display/order/<int:order_id>/move/<string:from_state>", auth="user", type="http", methods=["POST"])
     def kitchen_display_order_move(self, order_id, from_state, **kwargs):
+        self._assert_kds_user()
         config = self._assert_config_record(kwargs.get("config_id"))
         order = request.env["kitchen.order"].sudo().browse(order_id).exists()
         self._assert_order_in_config(order, config)

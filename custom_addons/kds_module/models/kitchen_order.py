@@ -26,6 +26,12 @@ class KitchenOrder(models.Model):
     )
     pos_order_id = fields.Many2one("pos.order", string="Orden POS", ondelete="set null")
     pos_config_id = fields.Many2one("pos.config", string="Punto de Venta", ondelete="set null")
+    company_id = fields.Many2one(
+        related="pos_config_id.company_id",
+        store=True,
+        index=True,
+        readonly=True,
+    )
     pos_reference = fields.Char(string="Referencia POS")
     pos_reference_short = fields.Char(
         string="Referencia POS corta",

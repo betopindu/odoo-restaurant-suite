@@ -294,10 +294,11 @@
         <field name="context">{'kds_refresh_admin_visibility': True}</field>
     </record>
 
-    <menuitem id="menu_restaurant_kds_root" name="Cocina"/>
+    <menuitem id="menu_restaurant_kds_root" name="Cocina" groups="kds_module.group_kds_user"/>
     <menuitem id="menu_restaurant_kds_orders"
               name="Pedidos de cocina"
               parent="menu_restaurant_kds_root"
-              action="action_kitchen_order"/>
+              action="action_kitchen_order"
+              groups="kds_module.group_kds_user"/>
 
 </odoo>

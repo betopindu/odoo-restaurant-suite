@@ -1,3 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_kitchen_order_user,access.kitchen.order.user,model_kitchen_order,base.group_user,1,1,1,1
-access_kitchen_order_line_user,access.kitchen.order.line.user,model_kitchen_order_line,base.group_user,1,1,1,1
+access_kitchen_order_user,access.kitchen.order.user,model_kitchen_order,kds_module.group_kds_user,1,1,0,0
+access_kitchen_order_manager,access.kitchen.order.manager,model_kitchen_order,kds_module.group_kds_manager,1,1,1,1
+access_kitchen_order_line_user,access.kitchen.order.line.user,model_kitchen_order_line,kds_module.group_kds_user,1,1,0,0
+access_kitchen_order_line_manager,access.kitchen.order.line.manager,model_kitchen_order_line,kds_module.group_kds_manager,1,1,1,1
+access_kitchen_projection_manager,access.kitchen.order.projection.manager,model_kitchen_order_projection,kds_module.group_kds_manager,1,1,0,0
