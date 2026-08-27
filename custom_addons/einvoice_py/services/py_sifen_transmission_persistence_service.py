@@ -23,6 +23,9 @@ from odoo.addons.einvoice_py.services.py_sifen_durable_attempt_service import (
 from odoo.addons.einvoice_py.services.py_sifen_retry_eligibility_service import (
     PySifenRetryEligibilityService,
 )
+from odoo.addons.einvoice_py.services.py_accepted_delivery_completion_service import (
+    PyAcceptedDeliveryCompletionService,
+)
 
 
 class PySifenTransmissionPersistenceService:
@@ -37,6 +40,7 @@ class PySifenTransmissionPersistenceService:
         credential_provider=None,
         source_artifact_service=None,
         durable_attempt_service=None,
+        delivery_completion_service=None,
         failure_injector=None,
     ):
         self.env = env
@@ -51,6 +55,10 @@ class PySifenTransmissionPersistenceService:
         )
         self.durable_attempt_service = (
             durable_attempt_service or PySifenDurableAttemptService(env)
+        )
+        self.delivery_completion_service = (
+            delivery_completion_service
+            or PyAcceptedDeliveryCompletionService(env)
         )
         self.failure_injector = failure_injector
 
@@ -122,6 +130,11 @@ class PySifenTransmissionPersistenceService:
             "submitted_at": started_at,
         })
         self._update_document_from_result(document, result)
+        if (
+            result.get("submission_status") == "accepted"
+            and result.get("final_xml_attachment_id")
+        ):
+            self.delivery_completion_service.ensure(document=document)
         return {
             "result": result,
             "transmission_id": transmission_id,

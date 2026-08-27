@@ -103,6 +103,7 @@
 [x] Deterministic, payload-first Paraguay invoice KuDE/PDF generation and artifact versioning
 [x] Safe SIFEN authority-incident observability and guarded manual retry
 [x] Secure recipient delivery of current accepted Paraguay rDE and KuDE artifacts
+[x] Automatic/offline authoritative KuDE completion after synchronous FE acceptance
 [x] Non-authoritative, ephemeral Paraguay KuDE Preview separated from delivery
 [x] Paraguay retry signing freshness and payload/unsigned artifact provenance hardening
 [x] Guarded manual resend of the same DE/CDC after ambiguous POST and linked Consulta DE `0420`
@@ -120,10 +121,16 @@ does not authorize production operation. The `account.move` integration covers
 the current posted-invoice MVP boundary only; broader accounting correction and
 document-type workflows remain outside this milestone.
 
+The account-driven synchronous FE path is now closed end-to-end through
+operator submission and authoritative KuDE/XML delivery. Document `30219`,
+transmission `46822`, authority `0260` and protocol `49933128` provide the live
+acceptance evidence; KuDE artifact `59605` was completed offline from its exact
+accepted payload `40329`, QR `59581` and final rDE `59582`.
+
 ## Current Validation Status
 
 After accepted-document delivery validation, the full `einvoice_py` suite
-reports **680 counted checks across 604 test methods**. Automated coverage is
+reports **702 counted checks across 624 test methods**. Automated coverage is
 network-free.
 It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
 1.2 wrapping, mocked mTLS transport, response classification, readiness, and
@@ -146,7 +153,7 @@ limited to the exercised invoice profile.
 [ ] Retry cron activation after operational approval
 [ ] Operational monitoring and alerting
 [ ] Production go-live
-[ ] Operational KuDE delivery to receivers
+[x] Operational authoritative KuDE/XML resolution for accepted FE
 [ ] KuDE profiles for additional SIFEN DTE types
 [ ] NCE end-to-end accounting and SIFEN flow
 

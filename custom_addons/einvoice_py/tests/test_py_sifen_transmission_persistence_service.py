@@ -162,6 +162,15 @@ class _CredentialProviderStub:
         return self.credentials
 
 
+class _DeliveryCompletionStub:
+    def __init__(self):
+        self.documents = []
+
+    def ensure(self, *, document):
+        self.documents.append(document)
+        return SimpleNamespace(attachment_id=777)
+
+
 class TestPySifenTransmissionPersistenceService(TransactionCase):
     CDC = "01444444017001001001452822017012515873260988"
 
@@ -286,6 +295,28 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
             ("attachment_type", "=", "authority_response"),
         ])
         self.assertFalse(response)
+
+    def test_accepted_result_completes_authoritative_delivery_artifacts(self):
+        completion = _DeliveryCompletionStub()
+        self.pipeline.result["final_xml_attachment_id"] = 5
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            submission_pipeline_service=self.pipeline,
+            delivery_completion_service=completion,
+        )
+
+        result = service.submit_and_persist(
+            document=self.document,
+            payload=self._payload(),
+            certificate_bytes=b"certificate-secret-fixture",
+            private_key_bytes=b"private-key-secret-fixture",
+            private_key_password="password-secret-fixture",
+            signing_timestamp=datetime(2026, 7, 4, 12, 0, 0),
+            endpoint_url="https://sifen-test.example.test/de",
+        )
+
+        self.assertTrue(result["transmission_id"])
+        self.assertEqual(completion.documents, [self.document])
 
     def test_production_boundary_uses_independent_cursor_and_commit(self):
         cursor = _IndependentCursor()

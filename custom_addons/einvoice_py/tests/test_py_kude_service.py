@@ -12,6 +12,9 @@ from odoo.addons.einvoice_py.services.py_kude_service import PyKudeService
 from odoo.addons.einvoice_py.services.py_qr_payload_attachment_service import (
     PyQrPayloadAttachmentService,
 )
+from odoo.addons.einvoice_py.services.py_source_artifact_service import (
+    PySourceArtifactService,
+)
 
 
 class TestPyKudeService(TransactionCase):
@@ -62,6 +65,7 @@ class TestPyKudeService(TransactionCase):
             "cdc": self.CDC,
             "document": {
                 "document_type": "invoice",
+                "py_cdc": self.CDC,
                 "py_full_number": "001-001-0000001",
                 "issue_datetime": "2026-08-06T14:00:00",
             },
@@ -122,11 +126,10 @@ class TestPyKudeService(TransactionCase):
         return payload
 
     def _persist_payload(self, payload=None):
-        return self.env["fiscal.attachment"].sudo().create_json_payload_attachment(
-            self.document,
-            "paraguay_payload_json",
-            f"{self.document.uuid}-payload.json",
-            payload or self._payload(),
+        return PySourceArtifactService(self.env).persist_payload(
+            document=self.document,
+            payload=payload or self._payload(),
+            filename=f"{self.document.uuid}-payload.json",
         )
 
     def _persist_qr(self, qr_url=None, qr_hash=None):
@@ -244,7 +247,7 @@ class TestPyKudeService(TransactionCase):
         self.assertEqual(len(attachments), 1)
 
     def test_missing_or_invalid_persisted_inputs_are_rejected_safely(self):
-        with self.assertRaisesRegex(ValidationError, "payload is missing"):
+        with self.assertRaisesRegex(ValidationError, "cannot be resolved safely"):
             self.service.generate(document=self.document)
 
         self._persist_payload()
@@ -257,11 +260,11 @@ class TestPyKudeService(TransactionCase):
 
     def test_payload_cdc_mismatch_and_unsupported_document_are_rejected(self):
         payload = self._payload(cdc="0" * 44)
-        self._persist_payload(payload)
-        self._persist_qr()
-        with self.assertRaisesRegex(ValidationError, "CDC is invalid"):
-            self.service.generate(document=self.document)
+        with self.assertRaisesRegex(ValidationError, "CDC does not match"):
+            self._persist_payload(payload)
 
+        self._persist_payload()
+        self._persist_qr()
         self.document.document_type = "credit_note"
         with self.assertRaisesRegex(ValidationError, "invoices only"):
             self.service.generate(document=self.document)

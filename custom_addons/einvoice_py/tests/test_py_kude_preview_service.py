@@ -77,6 +77,7 @@ class TestPyKudePreviewService(TransactionCase):
             "cdc": self.CDC,
             "document": {
                 "document_type": "invoice",
+                "py_cdc": self.CDC,
                 "py_full_number": "001-001-0000099",
                 "issue_datetime": "2026-08-10T10:00:00",
             },
@@ -185,14 +186,18 @@ class TestPyKudePreviewService(TransactionCase):
 
     def test_invalid_incomplete_and_cancelled_documents_are_blocked(self):
         self.payload_attachment.unlink()
-        with self.assertRaisesRegex(ValidationError, "payload is missing"):
+        with self.assertRaisesRegex(ValidationError, "cannot be resolved safely"):
             self.service.render(document=self.document)
         self.payload_attachment = self.env["fiscal.attachment"].sudo(
         ).create_json_payload_attachment(
             self.document,
             "paraguay_payload_json",
             f"{self.document.uuid}-payload.json",
-            {"version": "150"},
+            {
+                "version": "150",
+                "cdc": self.CDC,
+                "document": {"py_cdc": self.CDC},
+            },
         )
         with self.assertRaisesRegex(ValidationError, "incomplete"):
             self.service.render(document=self.document)

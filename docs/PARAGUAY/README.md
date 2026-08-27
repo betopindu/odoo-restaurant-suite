@@ -1352,7 +1352,7 @@ The architecture decision and renderer trade-off are recorded in
 
 `PyFiscalDocumentDeliveryService` exposes the recipient-facing evidence for an
 accepted Paraguay document. It resolves the current deterministic KuDE PDF and
-the current final signed `rDE`, validates both stored hashes, confirms that the
+the current final signed `rDE` independently, validates stored hashes, confirms that the
 XML contains the matching `DE`, valid XMLDSig `Signature`, and `gCamFuFD`, and
 returns immutable file descriptors. It never selects unsigned XML, the signed pre-QR
 artifact, superseded artifacts, normalized payloads, QR payloads, manifests,
@@ -1367,12 +1367,26 @@ accepted Consulta DE reconciliation with `0422`, exact returned CDC, normalized
 contradictory evidence is rejected. Setting `state = accepted`, adding local
 metadata, or installing artifacts does not make a document deliverable.
 
+After a synchronous `0260`, persistence invokes
+`PyAcceptedDeliveryCompletionService`. It validates the exact current
+payload→unsigned→signed→QR→rDE chain, XMLDSig and XSD v150, then ensures the
+authoritative KuDE from the persisted payload and exact QR only. Existing
+accepted documents with that complete evidence can use the same offline,
+idempotent completion path. It never contacts SIFEN or changes signed XML,
+final rDE, transmission or acceptance evidence. Missing KuDE does not block
+independent delivery of a valid authoritative XML.
+
 Recipient filenames are deterministic and contain no database identifiers:
 `FE-001-001-0000006.pdf` and `FE-001-001-0000006.xml`. The fiscal document form
 shows **Download KuDE** and **Download XML** only for accepted Paraguay
 documents. The authenticated routes use the document UUID, then enforce the
 normal tenant record rule and active-company boundary before resolving the
 artifacts; no arbitrary attachment-ID download is exposed.
+
+The completed account-driven FE evidence is document `30219`, accepted
+transmission `46822` (`0260`, protocol `49933128`), payload `40329`, QR `59581`,
+final rDE `59582` and authoritative KuDE `59605`. Recipient filenames are
+`FE-001-001-0000008.xml` and `FE-001-001-0000008.pdf`.
 
 `prepare_email()` suggests the persisted receiver email, a short subject/body,
 and exactly those two immutable attachments. It does not send mail or create an

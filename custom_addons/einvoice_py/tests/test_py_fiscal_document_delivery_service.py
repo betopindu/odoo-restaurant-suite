@@ -169,6 +169,16 @@ class TestPyFiscalDocumentDeliveryService(TransactionCase):
         self.assertNotIn(str(self.pdf.id), pdf_action["url"])
         self.assertNotIn(str(self.xml.id), xml_action["url"])
 
+    def test_authoritative_xml_resolves_independently_when_kude_is_missing(self):
+        self.pdf.unlink()
+
+        xml = self.service.resolve_file(document=self.document, file_kind="xml")
+
+        self.assertEqual(xml.fiscal_attachment_id, self.xml.id)
+        self.assertEqual(xml.filename, "FE-001-001-0000006.xml")
+        with self.assertRaisesRegex(ValidationError, "KuDE PDF is missing"):
+            self.service.resolve_file(document=self.document, file_kind="pdf")
+
     def test_nonaccepted_documents_are_not_deliverable(self):
         for state in ("draft", "ready", "signed", "submitted", "rejected", "manual_review", "cancelled"):
             with self.subTest(state=state):

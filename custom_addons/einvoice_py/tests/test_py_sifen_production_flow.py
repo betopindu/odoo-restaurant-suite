@@ -65,6 +65,14 @@ class _SequencedSubmissionStub:
         }
 
 
+class _DeliveryCompletionStub:
+    def __init__(self):
+        self.documents = []
+
+    def ensure(self, *, document):
+        self.documents.append(document)
+
+
 class TestPySifenProductionFlow(TransactionCase):
     CDC = _pipeline_fixtures.TestPySifenSubmissionPipelineService.CDC
     DIGEST_VALUE = _pipeline_fixtures.TestPySifenSubmissionPipelineService.DIGEST_VALUE
@@ -189,6 +197,7 @@ class TestPySifenProductionFlow(TransactionCase):
             self.env,
             submission_pipeline_service=pipeline,
             credential_provider=credential_provider,
+            delivery_completion_service=_DeliveryCompletionStub(),
         )
         scheduler = PySifenRetrySchedulerService(
             self.env,

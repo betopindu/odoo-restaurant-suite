@@ -134,8 +134,17 @@ interprets transport results. The submission pipeline persists the XSD-valid
 recipient-ready `rDE` as the versioned `paraguay_rde_final` artifact immediately
 before SOAP submission; this is distinct from `paraguay_xml_signed`, which is
 the signed pre-QR input retained for signing and retry audit. Delivery resolves
-only the single current final `rDE` and current KuDE PDF, verifies hashes, final
-XML structure and XMLDSig locally, and returns immutable, redacted file results.
+the single current final `rDE` and current KuDE PDF independently, verifies
+hashes, final XML structure and XMLDSig locally, and returns immutable, redacted
+file results. A missing PDF therefore cannot hide a valid authoritative XML.
+
+`PyAcceptedDeliveryCompletionService` is the write-side post-acceptance
+boundary. After an accepted result is projected, it verifies the authority
+evidence and exact current payload→unsigned→signed→QR→rDE provenance chain,
+including hashes, CDC, XMLDSig and XSD v150, then idempotently ensures only the
+authoritative KuDE from persisted payload and QR. The same guarded offline path
+completes historical accepted FE records with exact evidence; it never changes
+or reconstructs accepted XML/rDE and contains no transport operation.
 
 The `accepted` document state is necessary but never sufficient for delivery.
 The service also requires coherent persisted SIFEN evidence for the same

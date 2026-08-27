@@ -1,5 +1,16 @@
 # Documentation Changelog
 
+## 2026-08-27 — Authoritative Paraguay FE delivery completion
+
+* Completed the accepted synchronous FE lifecycle by ensuring the authoritative
+  KuDE offline from the accepted current payload/QR/rDE chain after `0260`.
+* Decoupled authenticated XML and KuDE resolution so a missing PDF cannot hide
+  an otherwise valid accepted final `rDE`.
+* Completed document `30219` offline from transmission `46822` (`0260`, protocol
+  `49933128`) without changing authority evidence or contacting SIFEN.
+* Closed the synchronous FE MVP end-to-end only; NCE/NDE, batch, Consulta RUC,
+  received-DTE flows and production hardening remain open.
+
 ## 2026-08-18 — Operator-controlled Paraguay SIFEN workflow
 
 * Added explicit, confirmation-gated Odoo actions for initial FE submission,

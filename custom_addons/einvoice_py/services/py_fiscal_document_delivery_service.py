@@ -66,21 +66,42 @@ class PyFiscalDocumentDeliveryService:
 
     def resolve(self, *, document):
         document.ensure_one()
-        self._check_access(document)
-        self._validate_eligibility(document)
-        stem = self._filename_stem(document)
-        pdf_attachment = self._current_attachment(document, self.PDF_TYPE)
-        xml_attachment = self._current_attachment(document, self.XML_TYPE)
-        pdf = self._file(pdf_attachment, "pdf", f"{stem}.pdf", "application/pdf")
-        xml = self._file(xml_attachment, "xml", f"{stem}.xml", "application/xml")
-        if not pdf.content.startswith(b"%PDF-"):
-            raise ValidationError("Current Paraguay KuDE PDF is invalid for delivery.")
-        self._validate_final_rde(xml.content, document)
+        pdf = self.resolve_file(document=document, file_kind="pdf")
+        xml = self.resolve_file(document=document, file_kind="xml")
         return PyFiscalDocumentDeliveryBundle(
             pdf=pdf,
             xml=xml,
             document=MappingProxyType(self._document_summary(document)),
         )
+
+    def resolve_file(self, *, document, file_kind):
+        """Resolve one authoritative file without coupling it to its sibling."""
+        document.ensure_one()
+        self._check_access(document)
+        self._validate_eligibility(document)
+        stem = self._filename_stem(document)
+        if file_kind == "pdf":
+            attachment = self._current_attachment(document, self.PDF_TYPE)
+            result = self._file(
+                attachment, "pdf", f"{stem}.pdf", "application/pdf"
+            )
+            if not result.content.startswith(b"%PDF-"):
+                raise ValidationError("Current Paraguay KuDE PDF is invalid for delivery.")
+            return result
+        if file_kind == "xml":
+            attachment = self._current_attachment(document, self.XML_TYPE)
+            result = self._file(
+                attachment, "xml", f"{stem}.xml", "application/xml"
+            )
+            self._validate_final_rde(result.content, document)
+            return result
+        raise ValidationError("Paraguay delivery file kind is unsupported.")
+
+    def validate_eligibility(self, *, document):
+        document.ensure_one()
+        self._check_access(document)
+        self._validate_eligibility(document)
+        return True
 
     def prepare_email(self, *, document):
         bundle = self.resolve(document=document)

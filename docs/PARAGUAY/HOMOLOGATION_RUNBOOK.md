@@ -222,6 +222,19 @@ Confirm that a current `paraguay_rde_final` and current
 **Download KuDE** actions; never share an internal attachment URL or ID.
 Resolution is read-only and must return the same hashes on repeated access.
 
+The two downloads resolve independently: a missing KuDE must not conceal a
+valid accepted rDE. For an accepted document with an exact current
+payload/unsigned/signed/QR/rDE provenance chain, use
+`PyAcceptedDeliveryCompletionService` to create only the missing authoritative
+KuDE offline. The service verifies acceptance scope, CDC, hashes, XMLDSig and
+XSD before rendering and is idempotent; it never rebuilds or alters the rDE.
+
+Live evidence: account invoice `86` / fiscal document `30219` was accepted by
+transmission `46822` with `0260` and protocol `49933128`. Offline completion
+created current KuDE `59605` from payload `40329` and exact QR `59581`; delivery
+resolves `FE-001-001-0000008.pdf` and accepted rDE `59582` as
+`FE-001-001-0000008.xml` without another SIFEN operation.
+
 Do not deliver unsigned XML, the signed pre-QR input, payload/QR JSON,
 manifests, normalized responses, superseded files, or credential artifacts.
 Rejected and manual-review documents remain internal evidence only. Cancelled

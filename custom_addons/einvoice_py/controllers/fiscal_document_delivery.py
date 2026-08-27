@@ -24,12 +24,12 @@ class PyFiscalDocumentDeliveryController(http.Controller):
         if not document:
             return request.not_found()
         try:
-            bundle = PyFiscalDocumentDeliveryService(request.env).resolve(
-                document=document
+            delivery_file = PyFiscalDocumentDeliveryService(request.env).resolve_file(
+                document=document,
+                file_kind=file_kind,
             )
         except (AccessError, MissingError, ValidationError):
             return request.not_found()
-        delivery_file = getattr(bundle, file_kind)
         return request.make_response(
             delivery_file.content,
             headers=[

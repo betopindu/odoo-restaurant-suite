@@ -58,6 +58,9 @@ from .py_fiscal_document_delivery_service import (
     PyFiscalDocumentDeliveryService,
     PyFiscalDocumentEmailPreparation,
 )
+from .py_accepted_delivery_completion_service import (
+    PyAcceptedDeliveryCompletionService,
+)
 from .py_final_rde_attachment_service import PyFinalRdeAttachmentService
 from .py_sifen_authority_incident_service import (
     PySifenAuthorityIncidentClassification,

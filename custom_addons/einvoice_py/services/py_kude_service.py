@@ -20,6 +20,9 @@ from odoo.exceptions import ValidationError
 from odoo.addons.einvoice_py.services.py_qr_payload_attachment_service import (
     PyQrPayloadAttachmentService,
 )
+from odoo.addons.einvoice_py.services.py_source_artifact_service import (
+    PySourceArtifactService,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,12 +47,20 @@ class PyKudeService:
     MARGIN = 15 * mm
     QR_SIZE = 28 * mm
 
-    def __init__(self, env, qr_attachment_service=None):
+    def __init__(
+        self,
+        env,
+        qr_attachment_service=None,
+        source_artifact_service=None,
+    ):
         self.env = env
         self.qr_attachment_service = (
             qr_attachment_service
             if qr_attachment_service is not None
             else PyQrPayloadAttachmentService(env)
+        )
+        self.source_artifact_service = (
+            source_artifact_service or PySourceArtifactService(env)
         )
 
     def generate(self, *, document, filename=None):
@@ -107,29 +118,7 @@ class PyKudeService:
             )
 
     def load_payload(self, document):
-        attachment = self.env["fiscal.attachment"].sudo().search(
-            [
-                ("document_id", "=", document.id),
-                ("attachment_type", "=", self.PAYLOAD_TYPE),
-            ],
-            order="id desc",
-            limit=1,
-        )
-        if not attachment or not attachment.ir_attachment_id:
-            raise ValidationError("Persisted Paraguay payload is missing for KuDE.")
-        try:
-            content = base64.b64decode(
-                attachment.ir_attachment_id.datas or b"",
-                validate=True,
-            )
-            payload = json.loads(content.decode("utf-8"))
-        except (TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
-            raise ValidationError("Persisted Paraguay payload is invalid for KuDE.") from None
-        if hashlib.sha256(content).hexdigest() != attachment.sha256:
-            raise ValidationError("Persisted Paraguay payload integrity check failed.")
-        if not isinstance(payload, dict):
-            raise ValidationError("Persisted Paraguay payload is invalid for KuDE.")
-        return attachment, payload
+        return self.source_artifact_service.read_current_payload(document=document)
 
     def validate_payload(self, payload, document):
         required_sections = (
