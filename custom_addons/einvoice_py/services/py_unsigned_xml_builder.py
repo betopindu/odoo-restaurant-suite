@@ -140,6 +140,22 @@ class PyUnsignedXmlBuilder:
     def _build_receiver(self, parent, payload):
         receiver = payload["receiver"]
         nature_code = self._normalize_int_code(receiver["nature_code"])
+        id_type = self._normalize_int_code(receiver.get("id_type"))
+        is_innominado_without_geography = (
+            nature_code == "2"
+            and id_type == "5"
+            and not any(
+                self._has_value(receiver.get(field_name))
+                for field_name in (
+                    "department_code",
+                    "department_name",
+                    "district_code",
+                    "district_name",
+                    "city_code",
+                    "city_name",
+                )
+            )
+        )
         group = self._sub(parent, "gDatRec")
         self._text(group, "iNatRec", nature_code)
         self._text(group, "iTiOpe", self._normalize_int_code(receiver["type_code"]))
@@ -150,18 +166,19 @@ class PyUnsignedXmlBuilder:
             self._text(group, "dRucRec", receiver.get("ruc_or_document"))
             self._text(group, "dDVRec", receiver.get("ruc_dv"))
         elif nature_code == "2":
-            self._text(group, "iTipIDRec", self._normalize_int_code(receiver.get("id_type")))
+            self._text(group, "iTipIDRec", id_type)
             self._text(group, "dDTipIDRec", receiver.get("id_type_description"))
             self._text(group, "dNumIDRec", receiver.get("id_number"))
         self._text(group, "dNomRec", receiver["name"])
-        self._text(group, "dDirRec", receiver.get("address"))
-        self._text(group, "dNumCasRec", receiver.get("house_number"))
-        self._text(group, "cDepRec", receiver.get("department_code"))
-        self._text(group, "dDesDepRec", receiver.get("department_name"))
-        self._text(group, "cDisRec", receiver.get("district_code"))
-        self._text(group, "dDesDisRec", receiver.get("district_name"))
-        self._text(group, "cCiuRec", receiver.get("city_code"))
-        self._text(group, "dDesCiuRec", receiver.get("city_name"))
+        if not is_innominado_without_geography:
+            self._text(group, "dDirRec", receiver.get("address"))
+            self._text(group, "dNumCasRec", receiver.get("house_number"))
+            self._text(group, "cDepRec", receiver.get("department_code"))
+            self._text(group, "dDesDepRec", receiver.get("department_name"))
+            self._text(group, "cDisRec", receiver.get("district_code"))
+            self._text(group, "dDesDisRec", receiver.get("district_name"))
+            self._text(group, "cCiuRec", receiver.get("city_code"))
+            self._text(group, "dDesCiuRec", receiver.get("city_name"))
         self._text(group, "dTelRec", receiver.get("phone"))
         self._text(group, "dEmailRec", receiver.get("email"))
         self._text(group, "dCodCliente", receiver.get("customer_code"))

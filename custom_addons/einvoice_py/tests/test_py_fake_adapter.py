@@ -1319,10 +1319,39 @@ class TestPyFakeAdapter(TransactionCase):
         root = ET.fromstring(xml_bytes)
 
         self.assertIsNone(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/cDepRec"))
+        self.assertIsNone(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dDirRec"))
         self.assertEqual(
             self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dNumIDRec"),
             "0",
         )
+
+    def test_payload_innominado_does_not_restore_partner_contact_address(self):
+        self._create_config()
+        document = self._create_document()
+        self._enrich_standard_cash_invoice(document)
+        document.write({
+            "customer_tax_id": "0",
+            "py_receiver_nature": "2",
+            "py_receiver_taxpayer_type": False,
+            "py_receiver_id_type": "5",
+            "py_receiver_id_type_description": "Innominado",
+            "py_receiver_id_number": "0",
+            "py_receiver_address": False,
+            "py_receiver_house_number": False,
+            "py_receiver_department_code": False,
+            "py_receiver_department_name": False,
+            "py_receiver_district_code": False,
+            "py_receiver_district_name": False,
+            "py_receiver_city_code": False,
+            "py_receiver_city_name": False,
+        })
+
+        payload = self._payload_for_xml(document)
+        xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        root = ET.fromstring(xml_bytes)
+
+        self.assertFalse(payload["receiver"]["address"])
+        self.assertIsNone(self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dDirRec"))
 
     def test_unsigned_xml_receiver_readiness_blocks_unknown_nature_and_type(self):
         self._create_config()

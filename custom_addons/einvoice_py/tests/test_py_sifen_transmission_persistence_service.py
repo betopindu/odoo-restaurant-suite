@@ -1037,3 +1037,22 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
 
         self.assertEqual(metadata["diagnostic_code"], "payload_schema_not_ready")
         self.assertEqual(metadata["diagnostic_detail"], "receiver city code")
+
+    def test_safe_final_xsd_diagnostic_is_in_persisted_metadata(self):
+        result = self._accepted_result()
+        result.update({
+            "diagnostic_code": "final_xsd_structure_invalid",
+            "diagnostic_detail": (
+                "element=dDirRec; category=facet_pattern; line=62; column=0"
+            ),
+        })
+
+        metadata = self.service._metadata_values(result)
+
+        self.assertEqual(
+            metadata["diagnostic_code"], "final_xsd_structure_invalid"
+        )
+        self.assertEqual(
+            metadata["diagnostic_detail"],
+            "element=dDirRec; category=facet_pattern; line=62; column=0",
+        )

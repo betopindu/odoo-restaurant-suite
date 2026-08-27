@@ -191,7 +191,15 @@ class PyPayloadBuilder:
         partner = document.partner_id
         tax_id, tax_dv = self._split_tax_identifier(document.customer_tax_id)
         email = document.customer_email or partner.email
-        address = document.py_receiver_address or (partner.contact_address if partner else None)
+        is_innominado = (
+            document.py_receiver_nature == "2"
+            and document.py_receiver_id_type == "5"
+        )
+        address = document.py_receiver_address or (
+            partner.contact_address
+            if partner and not is_innominado
+            else None
+        )
         if not tax_dv:
             warnings.append("Receiver RUC/document DV is missing.")
         if not email:

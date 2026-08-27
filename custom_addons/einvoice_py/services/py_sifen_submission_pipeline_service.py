@@ -202,7 +202,7 @@ class PySifenSubmissionPipelineService:
         final_xml_bytes = assembly_result.final_xml_bytes
 
         if not assembly_result.xsd_valid:
-            return self._fail(
+            self._fail(
                 result,
                 "final_xsd_validation",
                 "Final signed Paraguay XML failed local SIFEN XSD validation.",
@@ -219,6 +219,10 @@ class PySifenSubmissionPipelineService:
                     ],
                 },
             )
+            result.update(
+                self._safe_xsd_diagnostic(assembly_result.validation_errors)
+            )
+            return result
 
         final_attachment = self._run_stage(
             result,
@@ -392,6 +396,35 @@ class PySifenSubmissionPipelineService:
         return {
             "diagnostic_code": f"{stage}_validation_failed",
             "diagnostic_detail": "",
+        }
+
+    def _safe_xsd_diagnostic(self, errors):
+        """Allow-list structural XSD evidence without persisting XML values."""
+        error = next(iter(errors or ()), None)
+        if error is None:
+            return {
+                "diagnostic_code": "final_xsd_validation_failed",
+                "diagnostic_detail": "",
+            }
+        element = re.sub(r"[^A-Za-z0-9_.:-]", "", error.element or "")[:80]
+        message = error.message or ""
+        category = "schema_validation"
+        if "[facet 'pattern']" in message:
+            category = "facet_pattern"
+        elif "Missing child element" in message:
+            category = "missing_child"
+        elif "This element is not expected" in message:
+            category = "unexpected_element"
+        parts = [f"category={category}"]
+        if element:
+            parts.insert(0, f"element={element}")
+        if isinstance(error.line, int) and error.line >= 0:
+            parts.append(f"line={error.line}")
+        if isinstance(error.column, int) and error.column >= 0:
+            parts.append(f"column={error.column}")
+        return {
+            "diagnostic_code": "final_xsd_structure_invalid",
+            "diagnostic_detail": "; ".join(parts)[:500],
         }
 
     def _fail(self, result, stage, message, xsd_report=None):

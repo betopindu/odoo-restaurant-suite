@@ -72,7 +72,16 @@ class _XsdValidationStub:
         self.calls.append(xml_content)
         return {
             "valid": self.valid,
-            "errors": [] if self.valid else [{"message": "fixture xsd error"}],
+            "errors": [] if self.valid else [{
+                "message": (
+                    "Element '{http://ekuatia.set.gov.py/sifen/xsd}dDirRec': "
+                    "[facet 'pattern'] The value 'private-value' is invalid."
+                ),
+                "line": 62,
+                "column": 0,
+                "failing_element": "dDirRec",
+                "path": "dDirRec",
+            }],
             "warnings": [],
         }
 
@@ -515,7 +524,12 @@ class TestPySifenSubmissionPipelineService(TransactionCase):
             result["error_message"],
             "Final signed Paraguay XML failed local SIFEN XSD validation.",
         )
-        self.assertEqual(result["xsd_errors"][0]["message"], "fixture xsd error")
+        self.assertEqual(result["diagnostic_code"], "final_xsd_structure_invalid")
+        self.assertEqual(
+            result["diagnostic_detail"],
+            "element=dDirRec; category=facet_pattern; line=62; column=0",
+        )
+        self.assertNotIn("private-value", result["diagnostic_detail"])
         self.assertFalse(self.submission.calls)
 
     def test_submission_failure_is_normalized(self):
