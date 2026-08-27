@@ -1,6 +1,8 @@
 import json
 from unittest.mock import patch
 
+from lxml import etree
+
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import TransactionCase
 
@@ -186,6 +188,27 @@ class TestPySifenOperatorUi(TransactionCase):
         self.assertIn("Automatic submission and retry remain disabled", wizard.warning)
         self.assertEqual(document.state, "ready")
         self.assertEqual(len(document.transmission_ids), 0)
+
+    def test_submit_and_manual_retry_buttons_are_mutually_exclusive(self):
+        view = self.env.ref("einvoice_py.view_fiscal_document_form_py")
+        root = etree.fromstring(view.arch_db.encode("utf-8"))
+        buttons = root.xpath(
+            ".//button[@name='action_open_py_sifen_submission']"
+        )
+
+        self.assertEqual(len(buttons), 2)
+        definitions = {
+            button.get("string"): button.get("invisible") for button in buttons
+        }
+        self.assertEqual(
+            definitions["Submit to SIFEN"],
+            "country_code != 'PY' or py_operator_action_state != 'submit_ready'",
+        )
+        self.assertEqual(
+            definitions["Manual Retry to SIFEN"],
+            "country_code != 'PY' or py_operator_action_state != 'manual_retry_allowed'",
+        )
+        self.assertTrue(all(button.get("type") == "object" for button in buttons))
 
     def test_manual_retry_confirmation_is_distinct_and_has_no_side_effects(self):
         document = self._document(state="rejected").with_user(self.operator)

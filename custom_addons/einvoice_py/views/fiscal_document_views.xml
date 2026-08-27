@@ -16,7 +16,13 @@
                         string="Submit to SIFEN"
                         class="btn-primary"
                         groups="einvoice_py.group_py_fiscal_operator"
-                        invisible="country_code != 'PY' or py_operator_action_state not in ('submit_ready', 'manual_retry_allowed')"/>
+                        invisible="country_code != 'PY' or py_operator_action_state != 'submit_ready'"/>
+                <button name="action_open_py_sifen_submission"
+                        type="object"
+                        string="Manual Retry to SIFEN"
+                        class="btn-primary"
+                        groups="einvoice_py.group_py_fiscal_operator"
+                        invisible="country_code != 'PY' or py_operator_action_state != 'manual_retry_allowed'"/>
                 <button name="action_open_py_sifen_reconciliation"
                         type="object"
                         string="Consulta DE Recovery"
