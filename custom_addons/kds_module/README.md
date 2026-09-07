@@ -23,6 +23,9 @@ Odoo 17 Community addon for the existing Restaurant KDS screen and workflow.
   administers KDS records and failed recovery. Company record rules and POS
   configuration checks apply.
 - Mutable display routes use Odoo session authentication and standard CSRF.
+- The preparation-revision patch is registered in Odoo's actual
+  `point_of_sale._assets_pos` bundle. The standalone KDS display keeps its
+  existing frontend bundle, visual layout and interaction contract.
 
 ## Staging checklist
 

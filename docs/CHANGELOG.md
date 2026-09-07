@@ -1,5 +1,13 @@
 # Documentation Changelog
 
+## 2026-09-08 — KDS POS asset loading correction
+
+* Registered the preparation-revision patch in Odoo 17's real
+  `point_of_sale._assets_pos` bundle so the hardened event identity is active
+  in Restaurant POS sessions.
+* Preserved the native preparation-printer integration and the approved KDS
+  display, workflow, polling, sound and styling without frontend redesign.
+
 ## 2026-09-07 — Event-aware KDS projection identity
 
 * Replaced snapshot-only projection identity with a monotonic POS preparation

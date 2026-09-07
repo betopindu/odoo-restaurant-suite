@@ -1,3 +1,4 @@
+import ast
 import json
 import re
 import threading
@@ -695,6 +696,18 @@ class TestKdsInstallMetadata(TransactionCase):
         self.assertIn("super.sendOrderInPreparationUpdateLastChange", revision_javascript)
         self.assertIn("super.export_as_JSON", revision_javascript)
         self.assertNotIn("printChanges(", revision_javascript)
+
+    def test_pos_revision_patch_is_loaded_by_the_real_pos_bundle(self):
+        module_root = Path(__file__).resolve().parents[1]
+        manifest = ast.literal_eval((module_root / "__manifest__.py").read_text())
+        revision_patch = "kds_module/static/src/js/pos_preparation_revision.js"
+
+        self.assertIn(revision_patch, manifest["assets"]["point_of_sale._assets_pos"])
+        self.assertNotIn(revision_patch, manifest["assets"]["web.assets_frontend"])
+        self.assertIn(
+            "kds_module/static/src/js/kitchen_display.js",
+            manifest["assets"]["web.assets_frontend"],
+        )
 
     def test_ordinary_internal_user_has_no_kds_crud(self):
         group_user = self.env.ref("base.group_user")
