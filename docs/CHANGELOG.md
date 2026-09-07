@@ -1,5 +1,15 @@
 # Documentation Changelog
 
+## 2026-09-07 — Event-aware KDS projection identity
+
+* Replaced snapshot-only projection identity with a monotonic POS preparation
+  revision plus content hash, preserving true replay protection while allowing
+  a valid `A -> B -> A` cancellation transition.
+* Kept legacy projections readable with null revisions and hash-based
+  deduplication; the module upgrade invents no history and deletes no records.
+* Preserved the native preparation-printer flow and the frozen KDS display,
+  polling, interaction and styling contracts.
+
 ## 2026-08-27 — Authoritative Paraguay FE delivery completion
 
 * Completed the accepted synchronous FE lifecycle by ensuring the authoritative

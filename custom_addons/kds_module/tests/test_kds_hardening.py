@@ -5,7 +5,7 @@ from pathlib import Path
 from datetime import timedelta
 
 from odoo import SUPERUSER_ID, api, fields, registry
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import HttpCase, tagged
 from odoo.tests.common import TransactionCase, get_db_name
 
@@ -49,8 +49,15 @@ class KdsTestMixin:
         })
 
     @classmethod
-    def _preparation_payload(cls, reference, product, quantity, line_key="line-1"):
-        return [{
+    def _preparation_payload(
+        cls,
+        reference,
+        product,
+        quantity,
+        line_key="line-1",
+        revision=None,
+    ):
+        payload = [{
             "data": {
                 "name": reference,
                 "last_order_preparation_change": json.dumps({
@@ -64,6 +71,9 @@ class KdsTestMixin:
                 }),
             },
         }]
+        if revision is not None:
+            payload[0]["data"]["kds_preparation_revision"] = revision
+        return payload
 
     @classmethod
     def _multi_line_payload(cls, reference, product_a, product_b):
@@ -91,6 +101,8 @@ class KdsTestMixin:
 
     def _sync_kds(self, pos_order, payload):
         pos_order.last_order_preparation_change = payload[0]["data"]["last_order_preparation_change"]
+        if "kds_preparation_revision" in payload[0]["data"]:
+            pos_order.kds_preparation_revision = payload[0]["data"]["kds_preparation_revision"]
         self.env["pos.order"]._sync_kds_from_ui_result(
             payload,
             [{"id": pos_order.id, "pos_reference": pos_order.pos_reference}],
@@ -207,7 +219,7 @@ class TestKdsCreateFromUiHardening(KdsTestMixin, TransactionCase):
             "config_id": self.config.id,
             "user_id": self.env.user.id,
         })
-        reference = "Order KDS-REAL-UI"
+        reference = "Order 00001-001-0001"
         snapshot = {
             "real-line-uuid - ": {
                 "line_uuid": "real-line-uuid",
@@ -247,6 +259,7 @@ class TestKdsCreateFromUiHardening(KdsTestMixin, TransactionCase):
                 "uid": "kds-real-ui",
                 "user_id": self.env.uid,
                 "last_order_preparation_change": json.dumps(snapshot),
+                "kds_preparation_revision": 1,
             },
         }
 
@@ -254,7 +267,34 @@ class TestKdsCreateFromUiHardening(KdsTestMixin, TransactionCase):
 
         pos_order = self.env["pos.order"].browse(result[0]["id"])
         self.assertEqual(json.loads(pos_order.last_order_preparation_change), snapshot)
+        self.assertEqual(pos_order.kds_preparation_revision, 1)
+        exported = self.env["pos.order"]._export_for_ui(pos_order)
+        self.assertEqual(exported["kds_preparation_revision"], 1)
         self.assertEqual(sum(self._kitchen_orders_for(pos_order).line_ids.mapped("qty")), 1.5)
+
+    def test_same_revision_different_snapshot_is_rejected_before_persistence(self):
+        pos_order = self._create_pos_order(self.config, "Order KDS-REV-CONFLICT")
+        initial = self._preparation_payload(
+            pos_order.pos_reference, self.product, 1, revision=1
+        )[0]["data"]
+        pos_order.write({
+            "last_order_preparation_change": initial["last_order_preparation_change"],
+            "kds_preparation_revision": 1,
+        })
+        conflicting = self._preparation_payload(
+            pos_order.pos_reference, self.product, 2, revision=1
+        )[0]["data"]
+
+        with self.assertRaisesRegex(ValidationError, "different snapshots"):
+            self.env["pos.order"]._process_order(
+                {"data": conflicting}, draft=True, existing_order=pos_order
+            )
+
+        self.assertEqual(pos_order.kds_preparation_revision, 1)
+        self.assertEqual(
+            json.loads(pos_order.last_order_preparation_change)["line-1"]["quantity"],
+            1,
+        )
 
     def test_failure_after_one_line_rolls_back_entire_projection(self):
         product_b = self._create_product("KDS Failure Product B")
@@ -315,6 +355,110 @@ class TestKdsCreateFromUiHardening(KdsTestMixin, TransactionCase):
         lines = self._kitchen_orders_for(pos_order).line_ids
         self.assertEqual(sum(lines.filtered(lambda line: not line.is_cancellation).mapped("qty")), 5)
         self.assertEqual(sum(lines.filtered("is_cancellation").mapped("qty")), 3)
+
+    def test_repeated_state_new_revision_creates_cancellation_delta(self):
+        pos_order = self._create_pos_order(self.config, "Order KDS-A-B-A")
+
+        self._sync_kds(
+            pos_order,
+            self._preparation_payload(
+                pos_order.pos_reference, self.product, 1, revision=1
+            ),
+        )
+        self._sync_kds(
+            pos_order,
+            self._preparation_payload(
+                pos_order.pos_reference, self.product, 2, revision=2
+            ),
+        )
+        third_event = self._preparation_payload(
+            pos_order.pos_reference, self.product, 1, revision=3
+        )
+        self._sync_kds(pos_order, third_event)
+
+        projections = self.env["kitchen.order.projection"].search([
+            ("pos_order_id", "=", pos_order.id),
+        ], order="source_revision")
+        lines = self._kitchen_orders_for(pos_order).line_ids
+        normal_lines = lines.filtered(lambda line: not line.is_cancellation)
+        cancellation_lines = lines.filtered("is_cancellation")
+        self.assertEqual(projections.mapped("source_revision"), [1, 2, 3])
+        self.assertEqual(len(self._kitchen_orders_for(pos_order)), 3)
+        self.assertEqual(normal_lines.mapped("qty"), [1, 1])
+        self.assertEqual(cancellation_lines.mapped("qty"), [1])
+        self.assertEqual(sum(normal_lines.mapped("qty")) - sum(cancellation_lines.mapped("qty")), 1)
+        self.assertEqual(cancellation_lines.original_line_id, normal_lines[-1])
+
+        self._sync_kds(pos_order, third_event)
+        self.assertEqual(self.env["kitchen.order.projection"].search_count([
+            ("pos_order_id", "=", pos_order.id),
+        ]), 3)
+        self.assertEqual(len(self._kitchen_orders_for(pos_order)), 3)
+
+    def test_initial_revision_replay_and_reconnect_are_idempotent(self):
+        pos_order = self._create_pos_order(self.config, "Order KDS-REV-REPLAY")
+        payload = self._preparation_payload(
+            pos_order.pos_reference, self.product, 1, revision=1
+        )
+
+        self._sync_kds(pos_order, payload)
+        self._sync_kds(pos_order, payload)
+        self._sync_kds(pos_order, json.loads(json.dumps(payload)))
+
+        self.assertEqual(self.env["kitchen.order.projection"].search_count([
+            ("pos_order_id", "=", pos_order.id),
+        ]), 1)
+        self.assertEqual(len(self._kitchen_orders_for(pos_order)), 1)
+
+    def test_distinct_revisions_preserve_identical_source_hashes(self):
+        pos_order = self._create_pos_order(self.config, "Order KDS-SAME-HASH")
+        first = self._preparation_payload(
+            pos_order.pos_reference, self.product, 1, revision=1
+        )
+        second = self._preparation_payload(
+            pos_order.pos_reference, self.product, 1, revision=2
+        )
+
+        self._sync_kds(pos_order, first)
+        self._sync_kds(pos_order, second)
+
+        projections = self.env["kitchen.order.projection"].search([
+            ("pos_order_id", "=", pos_order.id),
+        ], order="source_revision")
+        self.assertEqual(projections.mapped("source_revision"), [1, 2])
+        self.assertEqual(len(set(projections.mapped("source_hash"))), 1)
+        self.assertEqual(len(self._kitchen_orders_for(pos_order)), 1)
+
+    def test_projection_revision_cannot_regress(self):
+        pos_order = self._create_pos_order(self.config, "Order KDS-REV-ORDER")
+        self._sync_kds(
+            pos_order,
+            self._preparation_payload(
+                pos_order.pos_reference, self.product, 2, revision=2
+            ),
+        )
+        pos_order.last_order_preparation_change = self._preparation_payload(
+            pos_order.pos_reference, self.product, 1, revision=1
+        )[0]["data"]["last_order_preparation_change"]
+        pos_order.kds_preparation_revision = 1
+
+        with self.assertRaisesRegex(ValueError, "cannot move backwards"):
+            self.env["kitchen.order.projection"].project_pos_order(pos_order)
+
+    def test_legacy_projection_remains_readable_and_hash_idempotent(self):
+        pos_order = self._create_pos_order(self.config, "Order KDS-LEGACY")
+        payload = self._preparation_payload(pos_order.pos_reference, self.product, 1)
+
+        self._sync_kds(pos_order, payload)
+        projection = self.env["kitchen.order.projection"].search([
+            ("pos_order_id", "=", pos_order.id),
+        ])
+        self.assertFalse(projection.source_revision)
+
+        self._sync_kds(pos_order, payload)
+        self.assertEqual(self.env["kitchen.order.projection"].search_count([
+            ("pos_order_id", "=", pos_order.id),
+        ]), 1)
 
     def test_payment_final_resend_does_not_duplicate_kitchen_order(self):
         pos_order = self._create_pos_order(self.config, "Order KDS-006")
@@ -536,6 +680,9 @@ class TestKdsInstallMetadata(TransactionCase):
         css = (module_root / "static/src/css/kitchen.css").read_text()
         template = (module_root / "views/kitchen_display.xml").read_text()
         javascript = (module_root / "static/src/js/kitchen_display.js").read_text()
+        revision_javascript = (
+            module_root / "static/src/js/pos_preparation_revision.js"
+        ).read_text()
         self.assertIn(".o_kitchen_display_column_new", css)
         self.assertIn("lane_preparing", template)
         self.assertIn("lane_ready", template)
@@ -544,6 +691,10 @@ class TestKdsInstallMetadata(TransactionCase):
         self.assertIn("setInterval(refreshGrid, kdsSettings.refresh)", javascript)
         self.assertIn("new AudioContext()", javascript)
         self.assertIn("csrf_token: odoo.csrf_token", javascript)
+        self.assertIn("order.changesToOrder(cancelled)", revision_javascript)
+        self.assertIn("super.sendOrderInPreparationUpdateLastChange", revision_javascript)
+        self.assertIn("super.export_as_JSON", revision_javascript)
+        self.assertNotIn("printChanges(", revision_javascript)
 
     def test_ordinary_internal_user_has_no_kds_crud(self):
         group_user = self.env.ref("base.group_user")
@@ -644,6 +795,7 @@ class TestKdsConcurrentProjection(KdsTestMixin, TransactionCase):
                 "amount_paid": 0,
                 "amount_return": 0,
                 "last_order_preparation_change": snapshot,
+                "kds_preparation_revision": 1,
             })
             order_id = pos_order.id
             setup_cr.commit()

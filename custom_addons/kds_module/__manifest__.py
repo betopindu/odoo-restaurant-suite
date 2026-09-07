@@ -1,7 +1,7 @@
 {
     "name": "Restaurant KDS",
     "summary": "Kitchen Display System for Odoo POS Restaurant",
-    "version": "17.0.1.1.0",
+    "version": "17.0.1.1.1",
     "category": "Point of Sale",
     "depends": ["point_of_sale", "pos_restaurant"],
     "data": [
@@ -19,6 +19,7 @@
         ],
         "web.assets_frontend": [
             "kds_module/static/src/css/kitchen.css",
+            "kds_module/static/src/js/pos_preparation_revision.js",
             "kds_module/static/src/js/kitchen_display.js",
         ],
     },

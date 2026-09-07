@@ -19,6 +19,7 @@ class KitchenOrderProjection(models.Model):
     pos_order_id = fields.Many2one("pos.order", required=True, ondelete="cascade", index=True)
     pos_config_id = fields.Many2one(related="pos_order_id.config_id", store=True, index=True)
     company_id = fields.Many2one(related="pos_order_id.company_id", store=True, index=True)
+    source_revision = fields.Integer(index=True, readonly=True)
     source_hash = fields.Char(required=True, index=True, readonly=True)
     source_snapshot_json = fields.Text(required=True, readonly=True)
     state = fields.Selection(
@@ -33,11 +34,21 @@ class KitchenOrderProjection(models.Model):
 
     _sql_constraints = [
         (
-            "pos_order_source_hash_unique",
-            "unique(pos_order_id, source_hash)",
-            "This POS source state already has a KDS projection.",
+            "pos_order_source_revision_unique",
+            "unique(pos_order_id, source_revision)",
+            "This POS preparation revision already has a KDS projection.",
         ),
     ]
+
+    def init(self):
+        # The old snapshot-only identity collapses a valid A -> B -> A transition.
+        # Legacy rows retain NULL revisions and remain readable/deduplicated by hash.
+        self.env.cr.execute(
+            """
+            ALTER TABLE kitchen_order_projection
+            DROP CONSTRAINT IF EXISTS kitchen_order_projection_pos_order_source_hash_unique
+            """
+        )
 
     @api.model
     def _canonical_snapshot(self, raw_snapshot):
@@ -51,25 +62,54 @@ class KitchenOrderProjection(models.Model):
         return snapshot, serialized, hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
     @api.model
-    def project_pos_order(self, pos_order, expected_source_hash=None):
+    def project_pos_order(
+        self,
+        pos_order,
+        expected_source_hash=None,
+        expected_source_revision=None,
+    ):
         pos_order = pos_order.sudo().exists()
         if not pos_order:
             return self.browse()
 
         self.env.cr.execute("SELECT id FROM pos_order WHERE id = %s FOR UPDATE", [pos_order.id])
-        pos_order.invalidate_recordset(["last_order_preparation_change"])
+        pos_order.invalidate_recordset([
+            "last_order_preparation_change",
+            "kds_preparation_revision",
+        ])
         snapshot, serialized, source_hash = self._canonical_snapshot(
             pos_order.last_order_preparation_change or "{}"
         )
         if expected_source_hash and source_hash != expected_source_hash:
             raise ValueError("Persisted POS preparation state changed before KDS projection")
+        source_revision = pos_order.kds_preparation_revision or None
+        if (
+            expected_source_revision is not None
+            and source_revision != expected_source_revision
+        ):
+            raise ValueError("Persisted POS preparation revision changed before KDS projection")
         if not snapshot:
             return self.browse()
 
-        projection = self.sudo().search([
-            ("pos_order_id", "=", pos_order.id),
-            ("source_hash", "=", source_hash),
-        ], limit=1)
+        if source_revision is not None:
+            latest = self.sudo().search([
+                ("pos_order_id", "=", pos_order.id),
+                ("source_revision", "!=", False),
+            ], order="source_revision desc", limit=1)
+            if latest and source_revision < latest.source_revision:
+                raise ValueError("POS preparation revision cannot move backwards")
+            projection = self.sudo().search([
+                ("pos_order_id", "=", pos_order.id),
+                ("source_revision", "=", source_revision),
+            ], limit=1)
+            if projection and projection.source_hash != source_hash:
+                raise ValueError("POS preparation revision content changed")
+        else:
+            projection = self.sudo().search([
+                ("pos_order_id", "=", pos_order.id),
+                ("source_revision", "=", False),
+                ("source_hash", "=", source_hash),
+            ], limit=1)
         if projection.state == "complete":
             return projection
         if not projection:
@@ -79,17 +119,18 @@ class KitchenOrderProjection(models.Model):
                     self.env.cr.execute(
                         """
                 INSERT INTO kitchen_order_projection
-                    (pos_order_id, pos_config_id, company_id, source_hash,
+                    (pos_order_id, pos_config_id, company_id, source_revision, source_hash,
                      source_snapshot_json, state, attempt_count,
                      create_uid, create_date, write_uid, write_date)
-                VALUES (%s, %s, %s, %s, %s, 'processing', 1, %s, %s, %s, %s)
-                ON CONFLICT (pos_order_id, source_hash) DO NOTHING
+                VALUES (%s, %s, %s, %s, %s, %s, 'processing', 1, %s, %s, %s, %s)
+                ON CONFLICT (pos_order_id, source_revision) DO NOTHING
                 RETURNING id
                         """,
                         [
                             pos_order.id,
                             pos_order.config_id.id,
                             pos_order.company_id.id,
+                            source_revision,
                             source_hash,
                             serialized,
                             self.env.uid,
@@ -104,8 +145,8 @@ class KitchenOrderProjection(models.Model):
                 # The savepoint keeps the POS transaction usable.
                 return self.browse()
             # Under Odoo's REPEATABLE READ isolation a concurrent winner is not
-            # visible in this transaction's snapshot. ON CONFLICT still waits
-            # for it and makes this invocation a safe no-op.
+            # visible in this transaction's snapshot. The row lock normally
+            # serializes callers; the unique revision is the durable backstop.
             if not inserted:
                 return self.browse()
             projection = self.sudo().browse(inserted[0])
@@ -147,7 +188,14 @@ class KitchenOrderProjection(models.Model):
             )
             if current_hash != projection.source_hash:
                 raise ValueError("POS source state changed; failed KDS projection cannot be recovered")
-            self.project_pos_order(projection.pos_order_id, expected_source_hash=projection.source_hash)
+            current_revision = projection.pos_order_id.kds_preparation_revision or None
+            if projection.source_revision and current_revision != projection.source_revision:
+                raise ValueError("POS preparation revision changed; failed KDS projection cannot be recovered")
+            self.project_pos_order(
+                projection.pos_order_id,
+                expected_source_hash=projection.source_hash,
+                expected_source_revision=current_revision,
+            )
         return True
 
     @api.model

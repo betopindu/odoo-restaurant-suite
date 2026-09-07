@@ -6,8 +6,13 @@ Odoo 17 Community addon for the existing Restaurant KDS screen and workflow.
 
 - POS persistence remains authoritative. KDS projects the persisted
   `pos.order.last_order_preparation_change` snapshot after `create_from_ui`.
-- A database-unique projection ledger keyed by POS order and canonical source
-  hash makes reconnect, payment resend, and concurrent delivery idempotent.
+- A monotonic preparation revision is persisted by the POS and combined with
+  the canonical source hash. The revision identifies the event while the hash
+  verifies its content, keeping reconnect, payment resend, and concurrent
+  delivery idempotent.
+- Snapshot hash alone is not an event identity: `A -> B -> A` must preserve
+  three revisions so the final transition creates its cancellation delta. A
+  replay of the third revision remains a no-op.
 - The POS row is locked while deltas are calculated. KDS writes run in a
   savepoint, so partial projections roll back without losing a successful POS
   response.
@@ -27,6 +32,11 @@ payment/resend, reconnect, multiple terminals/configurations, workflow through
 the delivered lane, browser polling and sound, then inject and recover one KDS
 projection failure. Confirm other custom `create_from_ui` overrides call
 `super()` and do not reorder persisted preparation state.
+
+Upgrading is required to add the POS revision and projection revision columns
+and replace the old snapshot-only uniqueness constraint. Existing projection
+rows retain a null revision and continue using legacy hash deduplication; no
+historical revision is invented and no KDS history is removed.
 
 Uninstall is not a complete rollback because it discards KDS audit/history.
 Prefer restoring the pre-install database backup if staging validation fails.

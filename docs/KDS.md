@@ -26,6 +26,25 @@ rewrite historical `pos.order` rows and does not create historical
 KDS starts from future POS Restaurant synchronizations that include
 `last_order_preparation_change`. Existing historical orders are not backfilled.
 
+## Preparation Event Identity
+
+The cumulative preparation snapshot is content, not event identity. In an
+`A -> B -> A` sequence, the final snapshot has the same hash as the initial
+snapshot but represents a new transition that must produce a cancellation.
+
+The POS therefore persists an invisible monotonic `kds_preparation_revision`
+only when Odoo's native `changesToOrder()` reports new or cancelled quantities.
+The projection ledger uses `(pos_order_id, source_revision)` for event
+idempotency and retains `source_hash` to verify that a revision is never reused
+with different content. Offline storage, reconnect, draft sync and payment
+resend retain the same revision, while a later valid return to an earlier
+snapshot receives a new revision.
+
+Upgrading `kds_module` adds the revision columns and replaces the historical
+`(pos_order_id, source_hash)` constraint. Existing projection records keep a
+null revision and remain readable and hash-idempotent. The upgrade assigns no
+synthetic revision and deletes no history.
+
 ## POS Configuration Isolation
 
 The KDS screen should be opened with:
@@ -65,8 +84,10 @@ Recommended staging and production procedure:
 11. Create a controlled POS Restaurant order and verify one KDS order appears.
 12. Resend/synchronize the same order and verify no duplicate KDS quantity.
 13. Increase quantity and verify only the delta appears.
-14. Pay/finalize and verify no duplicate KDS order appears.
-15. Verify multi-POS isolation if more than one POS config exists.
+14. Reduce to the original quantity and verify one cancellation change appears.
+15. Replay that revision and verify no duplicate cancellation appears.
+16. Pay/finalize and verify no duplicate KDS order appears.
+17. Verify multi-POS isolation if more than one POS config exists.
 
 Rollback is the normal Odoo rollback: restore the pre-install database,
 filestore, and code deployment.
@@ -86,6 +107,6 @@ Remaining production-hardening debt:
 
 * KDS ACLs are intentionally broad for internal users.
 * State-changing KDS routes use authenticated `auth="user"` routes with
-  `csrf=False` for the display workflow.
+  standard Odoo CSRF validation for the display workflow.
 * Staging must verify the actual production POS Restaurant workflow, browser
   reload behavior, and multi-terminal synchronization.
