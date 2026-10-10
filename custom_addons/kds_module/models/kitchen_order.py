@@ -136,26 +136,33 @@ class KitchenOrder(models.Model):
         for order in self:
             order.pos_reference_short = order._format_pos_reference_short()
 
-    @api.depends("line_ids.qty")
+    @api.depends("line_ids.qty", "line_ids.is_note_change")
     def _compute_line_count(self):
         for order in self:
-            order.line_count = len(order.line_ids.filtered(lambda l: l.qty > 0))
+            order.line_count = len(order.line_ids.filtered(lambda l: l.qty > 0 or l.is_note_change))
 
-    @api.depends("line_ids.product_name", "line_ids.qty")
+    @api.depends("line_ids.product_name", "line_ids.qty", "line_ids.note", "line_ids.is_note_change")
     def _compute_lines_preview(self):
         for order in self:
             parts = []
             for line in order.line_ids:
+                if line.is_note_change:
+                    note_label = f"Nueva nota: {line.note}" if line.note else "Quitar nota"
+                    parts.append(f"{line.product_name} — {note_label}")
+                    continue
                 if line.qty <= 0:
                     continue
                 qty = int(line.qty) if line.qty == int(line.qty) else line.qty
-                parts.append(f"{qty} x {line.product_name}")
+                label = f"{qty} x {line.product_name}"
+                if line.note:
+                    label += f" — Nota: {line.note}"
+                parts.append(label)
             order.lines_preview = "\n".join(parts)
 
-    @api.depends("line_ids.state", "line_ids.qty")
+    @api.depends("line_ids.state", "line_ids.qty", "line_ids.is_note_change")
     def _compute_state_summary(self):
         for order in self:
-            visible_lines = order.line_ids.filtered(lambda l: l.qty > 0)
+            visible_lines = order.line_ids.filtered(lambda l: l.qty > 0 or l.is_note_change)
             states = set(visible_lines.mapped("state"))
 
             if not states:
@@ -275,7 +282,9 @@ class KitchenOrder(models.Model):
         next_state, date_field = next_map[from_state]
 
         for order in self:
-            lines = order.line_ids.filtered(lambda l: l.state == from_state and l.qty > 0)
+            lines = order.line_ids.filtered(
+                lambda l: l.state == from_state and (l.qty > 0 or l.is_note_change)
+            )
             if lines:
                 if order.event_type == "change" and from_state == "new":
                     for line in lines:
@@ -308,7 +317,7 @@ class KitchenOrder(models.Model):
 
     def _get_visible_lines(self):
         self.ensure_one()
-        return self.line_ids.filtered(lambda l: l.qty > 0)
+        return self.line_ids.filtered(lambda l: l.qty > 0 or l.is_note_change)
 
     def action_set_all_lines_new(self):
         now = fields.Datetime.now()
@@ -396,7 +405,9 @@ class KitchenOrder(models.Model):
             "target": "new",
             "domain": [
                 ("order_id", "=", self.id),
+                "|",
                 ("qty", ">", 0),
+                ("is_note_change", "=", True),
             ],
             "context": {
                 "create": False,

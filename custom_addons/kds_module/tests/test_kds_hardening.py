@@ -57,6 +57,7 @@ class KdsTestMixin:
         quantity,
         line_key="line-1",
         revision=None,
+        note="",
     ):
         payload = [{
             "data": {
@@ -66,7 +67,7 @@ class KdsTestMixin:
                         "product_id": product.id,
                         "name": product.display_name,
                         "quantity": quantity,
-                        "note": "",
+                        "note": note,
                         "attribute_value_ids": [],
                     },
                 }),
@@ -396,6 +397,108 @@ class TestKdsCreateFromUiHardening(KdsTestMixin, TransactionCase):
         ]), 3)
         self.assertEqual(len(self._kitchen_orders_for(pos_order)), 3)
 
+    def test_initial_preparation_note_is_preserved(self):
+        pos_order = self._create_pos_order(self.config, "Order KDS-NOTE-INITIAL")
+
+        self._sync_kds(
+            pos_order,
+            self._preparation_payload(
+                pos_order.pos_reference,
+                self.product,
+                1,
+                revision=1,
+                note="SIN HIELO",
+            ),
+        )
+
+        line = self._kitchen_orders_for(pos_order).line_ids
+        self.assertEqual(line.note, "SIN HIELO")
+        self.assertFalse(line.is_note_change)
+
+    def test_note_only_revision_creates_idempotent_change_without_quantity_delta(self):
+        pos_order = self._create_pos_order(self.config, "Order KDS-NOTE-CHANGE")
+        initial = self._preparation_payload(
+            pos_order.pos_reference,
+            self.product,
+            1,
+            revision=1,
+            note="SIN HIELO",
+        )
+        changed = self._preparation_payload(
+            pos_order.pos_reference,
+            self.product,
+            1,
+            revision=2,
+            note="SIN LIMÓN",
+        )
+
+        self._sync_kds(pos_order, initial)
+        self._sync_kds(pos_order, changed)
+        self._sync_kds(pos_order, changed)
+
+        orders = self._kitchen_orders_for(pos_order)
+        note_change = orders.filtered(lambda order: order.event_type == "change").line_ids
+        quantity_lines = orders.line_ids.filtered(
+            lambda line: not line.is_cancellation and not line.is_note_change
+        )
+        self.assertEqual(len(orders), 2)
+        self.assertEqual(note_change.note, "SIN LIMÓN")
+        self.assertTrue(note_change.is_note_change)
+        self.assertEqual(note_change.qty, 0)
+        self.assertEqual(sum(quantity_lines.mapped("qty")), 1)
+        self.assertEqual(note_change.state, "new")
+        note_change.action_next_state()
+        self.assertEqual(note_change.state, "done")
+
+    def test_note_removal_creates_explicit_change(self):
+        pos_order = self._create_pos_order(self.config, "Order KDS-NOTE-REMOVE")
+        self._sync_kds(
+            pos_order,
+            self._preparation_payload(
+                pos_order.pos_reference, self.product, 1, revision=1, note="SIN SAL"
+            ),
+        )
+        self._sync_kds(
+            pos_order,
+            self._preparation_payload(
+                pos_order.pos_reference, self.product, 1, revision=2, note=""
+            ),
+        )
+
+        note_change = self._kitchen_orders_for(pos_order).filtered(
+            lambda order: order.event_type == "change"
+        ).line_ids
+        self.assertTrue(note_change.is_note_change)
+        self.assertFalse(note_change.note)
+        self.assertEqual(note_change.qty, 0)
+
+    def test_cancellation_after_note_change_preserves_latest_note(self):
+        pos_order = self._create_pos_order(self.config, "Order KDS-NOTE-CANCEL")
+        self._sync_kds(
+            pos_order,
+            self._preparation_payload(
+                pos_order.pos_reference, self.product, 1, revision=1, note="SIN SAL"
+            ),
+        )
+        self._sync_kds(
+            pos_order,
+            self._preparation_payload(
+                pos_order.pos_reference, self.product, 1, revision=2, note="SIN CEBOLLA"
+            ),
+        )
+        self._sync_kds(
+            pos_order,
+            self._preparation_payload(
+                pos_order.pos_reference, self.product, 0, revision=3, note=""
+            ),
+        )
+
+        cancellation = self._kitchen_orders_for(pos_order).line_ids.filtered(
+            "is_cancellation"
+        )
+        self.assertEqual(cancellation.qty, 1)
+        self.assertEqual(cancellation.note, "SIN CEBOLLA")
+
     def test_initial_revision_replay_and_reconnect_are_idempotent(self):
         pos_order = self._create_pos_order(self.config, "Order KDS-REV-REPLAY")
         payload = self._preparation_payload(
@@ -609,6 +712,15 @@ class TestKdsHttpIsolation(KdsTestMixin, HttpCase):
         self.assertIn("Mesa A", body)
         self.assertNotIn("Mesa B", body)
 
+    def test_line_note_is_visible_and_html_escaped(self):
+        self.line_a.note = "SIN HIELO <urgente>"
+
+        response = self._display(self.config_a)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Nota: SIN HIELO &lt;urgente&gt;", response.text)
+        self.assertNotIn("Nota: SIN HIELO <urgente>", response.text)
+
     def test_cross_config_line_mutation_is_rejected(self):
         response = self._post_line_next(self.line_b, self.config_a)
 
@@ -685,9 +797,14 @@ class TestKdsInstallMetadata(TransactionCase):
             module_root / "static/src/js/pos_preparation_revision.js"
         ).read_text()
         self.assertIn(".o_kitchen_display_column_new", css)
+        self.assertIn(".o_kitchen_card_change .o_kitchen_display_item_note", css)
         self.assertIn("lane_preparing", template)
         self.assertIn("lane_ready", template)
         self.assertIn("lane_done", template)
+        self.assertIn("line.is_note_change", template)
+        self.assertIn("Actualizar nota:", template)
+        self.assertIn("Nota eliminada", template)
+        self.assertNotIn("card['lines'].filtered(lambda l: l.qty > 0)", template)
         self.assertIn("Math.max(refreshSeconds, 3)", javascript)
         self.assertIn("setInterval(refreshGrid, kdsSettings.refresh)", javascript)
         self.assertIn("new AudioContext()", javascript)

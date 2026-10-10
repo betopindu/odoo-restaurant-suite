@@ -240,12 +240,30 @@ class KitchenOrderProjection(models.Model):
 
         deltas = []
         cancellations = []
+        note_changes = []
         for key, values in lines_by_key.items():
             prior_lines = prior.filtered(lambda line, k=key: line.pos_line_key == k)
-            sent = sum(prior_lines.filtered(lambda line: not line.is_cancellation).mapped("qty"))
+            quantity_lines = prior_lines.filtered(
+                lambda line: not line.is_cancellation and not line.is_note_change
+            )
+            sent = sum(quantity_lines.mapped("qty"))
             sent -= sum(prior_lines.filtered("is_cancellation").mapped("qty"))
             delta = values["qty"] - sent
             rounding = values["rounding"]
+            latest_note_line = prior_lines.filtered(
+                lambda line: not line.is_cancellation
+            ).sorted(key=lambda line: (line.created_at, line.id), reverse=True)[:1]
+            previous_note = (latest_note_line.note or "") if latest_note_line else ""
+            if latest_note_line and float_compare(
+                values["qty"], 0.0, precision_rounding=rounding
+            ) <= 0:
+                values["note"] = previous_note
+            if (
+                latest_note_line
+                and float_compare(values["qty"], 0.0, precision_rounding=rounding) > 0
+                and values["note"] != previous_note
+            ):
+                note_changes.append((key, values, latest_note_line))
             if float_is_zero(delta, precision_rounding=rounding):
                 continue
             if float_compare(delta, 0.0, precision_rounding=rounding) > 0:
@@ -291,8 +309,12 @@ class KitchenOrderProjection(models.Model):
                     "state": "new",
                     "created_at": now,
                 })
-        if cancellations:
-            reference = cancellations[0][3].order_id
+        if cancellations or note_changes:
+            reference = (
+                cancellations[0][3].order_id
+                if cancellations
+                else note_changes[0][2].order_id
+            )
             change_order = order_model.create({
                 "event_type": "change",
                 "change_reference_order_id": reference.id,
@@ -309,10 +331,24 @@ class KitchenOrderProjection(models.Model):
                     "product_id": original.product_id.id,
                     "product_name": original.product_name,
                     "qty": qty,
-                    "note": original.note,
+                    "note": values["note"] or original.note,
                     "pos_line_key": key,
                     "pos_cumulative_qty": values["qty"],
                     "is_cancellation": True,
+                    "original_line_id": original.id,
+                    "state": "new",
+                    "created_at": now,
+                })
+            for key, values, original in note_changes:
+                line_model.create({
+                    "order_id": change_order.id,
+                    "product_id": values["product"].id if values["product"] else original.product_id.id,
+                    "product_name": values["product_name"] or original.product_name,
+                    "qty": 0,
+                    "note": values["note"],
+                    "pos_line_key": key,
+                    "pos_cumulative_qty": values["qty"],
+                    "is_note_change": True,
                     "original_line_id": original.id,
                     "state": "new",
                     "created_at": now,

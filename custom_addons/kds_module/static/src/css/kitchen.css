@@ -133,6 +133,21 @@
     animation: kitchenItemEnter 0.28s ease;
 }
 
+.o_kitchen_display_item_note {
+    margin-top: 5px;
+    padding-left: 12px;
+    color: #7c2d12;
+    font-size: 0.92em;
+    font-weight: 700;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.o_kitchen_card_change .o_kitchen_display_item_note {
+    color: #fff7ed;
+}
+
 @keyframes kitchenItemEnter {
     0% {
         opacity: 0.2;

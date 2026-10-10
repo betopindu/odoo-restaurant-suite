@@ -58,11 +58,18 @@
                             </div>
 
                             <div class="o_kitchen_display_items">
-                                <t t-foreach="card['lines'].filtered(lambda l: l.qty > 0)" t-as="line">
+                                <t t-foreach="card['lines']" t-as="line">
                                     <div class="o_kitchen_display_item_row o_kitchen_display_item_click"
                                          t-att-data-line-id="line.id"
                                          title="Mover este ítem al siguiente estado">
-                                        <t t-if="line.is_cancellation">
+                                        <t t-if="line.is_note_change">
+                                            <strong>Actualizar nota:</strong> <t t-esc="line.product_name"/>
+                                            <div class="o_kitchen_display_item_note">
+                                                <t t-if="line.note">Nota: <t t-esc="line.note"/></t>
+                                                <t t-else="">Nota eliminada</t>
+                                            </div>
+                                        </t>
+                                        <t t-elif="line.is_cancellation">
                                             Cancelar <strong><t t-esc="card['line_qty_labels'].get(line.id)"/></strong> <t t-esc="line.product_name"/>
                                         </t>
                                         <t t-else="">
@@ -73,6 +80,9 @@
                                                 <span class="o_kitchen_age_danger">(-<t t-esc="card['cancellation_total_labels'].get(line.id)"/>)</span>
                                             </t>
                                         </t>
+                                        <div t-if="not line.is_note_change and line.note" class="o_kitchen_display_item_note">
+                                            Nota: <t t-esc="line.note"/>
+                                        </div>
                                     </div>
                                 </t>
                             </div>
@@ -117,11 +127,18 @@
                             </div>
 
                             <div class="o_kitchen_display_items">
-                                <t t-foreach="card['lines'].filtered(lambda l: l.qty > 0)" t-as="line">
+                                <t t-foreach="card['lines']" t-as="line">
                                     <div class="o_kitchen_display_item_row o_kitchen_display_item_click"
                                          t-att-data-line-id="line.id"
                                          title="Mover este ítem al siguiente estado">
-                                        <t t-if="line.is_cancellation">
+                                        <t t-if="line.is_note_change">
+                                            <strong>Actualizar nota:</strong> <t t-esc="line.product_name"/>
+                                            <div class="o_kitchen_display_item_note">
+                                                <t t-if="line.note">Nota: <t t-esc="line.note"/></t>
+                                                <t t-else="">Nota eliminada</t>
+                                            </div>
+                                        </t>
+                                        <t t-elif="line.is_cancellation">
                                             Cancelar <strong><t t-esc="card['line_qty_labels'].get(line.id)"/></strong> <t t-esc="line.product_name"/>
                                         </t>
                                         <t t-else="">
@@ -132,6 +149,9 @@
                                                 <span class="o_kitchen_age_danger">(-<t t-esc="card['cancellation_total_labels'].get(line.id)"/>)</span>
                                             </t>
                                         </t>
+                                        <div t-if="not line.is_note_change and line.note" class="o_kitchen_display_item_note">
+                                            Nota: <t t-esc="line.note"/>
+                                        </div>
                                     </div>
                                 </t>
                             </div>
@@ -176,11 +196,18 @@
                             </div>
 
                             <div class="o_kitchen_display_items">
-                                <t t-foreach="card['lines'].filtered(lambda l: l.qty > 0)" t-as="line">
+                                <t t-foreach="card['lines']" t-as="line">
                                     <div class="o_kitchen_display_item_row o_kitchen_display_item_click"
                                          t-att-data-line-id="line.id"
                                          title="Mover este ítem al siguiente estado">
-                                        <t t-if="line.is_cancellation">
+                                        <t t-if="line.is_note_change">
+                                            <strong>Actualizar nota:</strong> <t t-esc="line.product_name"/>
+                                            <div class="o_kitchen_display_item_note">
+                                                <t t-if="line.note">Nota: <t t-esc="line.note"/></t>
+                                                <t t-else="">Nota eliminada</t>
+                                            </div>
+                                        </t>
+                                        <t t-elif="line.is_cancellation">
                                             Cancelar <strong><t t-esc="card['line_qty_labels'].get(line.id)"/></strong> <t t-esc="line.product_name"/>
                                         </t>
                                         <t t-else="">
@@ -191,6 +218,9 @@
                                                 <span class="o_kitchen_age_danger">(-<t t-esc="card['cancellation_total_labels'].get(line.id)"/>)</span>
                                             </t>
                                         </t>
+                                        <div t-if="not line.is_note_change and line.note" class="o_kitchen_display_item_note">
+                                            Nota: <t t-esc="line.note"/>
+                                        </div>
                                     </div>
                                 </t>
                             </div>
@@ -226,9 +256,16 @@
                             </div>
 
                             <div class="o_kitchen_display_items">
-                                <t t-foreach="card['lines'].filtered(lambda l: l.qty > 0)" t-as="line">
+                                <t t-foreach="card['lines']" t-as="line">
                                     <div class="o_kitchen_display_item_row">
-                                        <t t-if="line.is_cancellation">
+                                        <t t-if="line.is_note_change">
+                                            <strong>Actualizar nota:</strong> <t t-esc="line.product_name"/>
+                                            <div class="o_kitchen_display_item_note">
+                                                <t t-if="line.note">Nota: <t t-esc="line.note"/></t>
+                                                <t t-else="">Nota eliminada</t>
+                                            </div>
+                                        </t>
+                                        <t t-elif="line.is_cancellation">
                                             Cancelar <strong><t t-esc="card['line_qty_labels'].get(line.id)"/></strong> <t t-esc="line.product_name"/>
                                         </t>
                                         <t t-else="">
@@ -239,6 +276,9 @@
                                                 <span class="o_kitchen_age_danger">(-<t t-esc="card['cancellation_total_labels'].get(line.id)"/>)</span>
                                             </t>
                                         </t>
+                                        <div t-if="not line.is_note_change and line.note" class="o_kitchen_display_item_note">
+                                            Nota: <t t-esc="line.note"/>
+                                        </div>
                                     </div>
                                 </t>
                             </div>

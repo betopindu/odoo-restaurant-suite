@@ -26,6 +26,7 @@ class KitchenOrderLine(models.Model):
     pos_line_key = fields.Char(string="Clave línea POS", index=True, copy=False)
     pos_cumulative_qty = fields.Float(string="Cantidad acumulada POS", copy=False)
     is_cancellation = fields.Boolean(string="Es cancelación", default=False, index=True)
+    is_note_change = fields.Boolean(string="Es cambio de nota", default=False, index=True)
     original_line_id = fields.Many2one(
         "kitchen.order.line",
         string="Línea original",

@@ -210,13 +210,19 @@
                 <field name="product_name"/>
                 <field name="state"/>
                 <field name="note"/>
+                <field name="is_note_change"/>
 
                 <templates>
                     <t t-name="kanban-box">
                         <div class="o_kitchen_line_editor_card">
                             <div class="o_kitchen_line_editor_header">
                                 <div class="o_kitchen_line_editor_title">
-                                    <field name="qty"/> x <field name="product_name"/>
+                                    <t t-if="record.is_note_change.raw_value">
+                                        Actualizar nota: <field name="product_name"/>
+                                    </t>
+                                    <t t-else="">
+                                        <field name="qty"/> x <field name="product_name"/>
+                                    </t>
                                 </div>
 
                                 <div t-if="record.state.raw_value == 'new'" class="o_kitchen_badge o_kitchen_badge_new">
@@ -235,6 +241,9 @@
 
                             <div t-if="record.note.raw_value" class="o_kitchen_line_editor_note">
                                 Nota: <field name="note"/>
+                            </div>
+                            <div t-if="record.is_note_change.raw_value and not record.note.raw_value" class="o_kitchen_line_editor_note">
+                                Nota eliminada
                             </div>
 
                             <div class="o_kitchen_line_editor_actions">

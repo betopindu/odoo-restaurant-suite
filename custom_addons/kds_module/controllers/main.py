@@ -159,7 +159,9 @@ class KitchenDisplay(http.Controller):
                 if state == "done" and not self._is_done_visible(order, kds["done_visible_minutes"]):
                     continue
 
-                lines = order.line_ids.filtered(lambda l: l.state == state and l.qty > 0)
+                lines = order.line_ids.filtered(
+                    lambda l: l.state == state and (l.qty > 0 or l.is_note_change)
+                )
                 if lines:
                     line_qty_labels = {
                         line.id: self._format_qty(line.qty)
