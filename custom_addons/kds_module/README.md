@@ -43,3 +43,8 @@ historical revision is invented and no KDS history is removed.
 
 Uninstall is not a complete rollback because it discards KDS audit/history.
 Prefer restoring the pre-install database backup if staging validation fails.
+
+The optional Epson ePOS simulator under `tools/epos_simulator` is a separate
+STAGING-only test utility. It does not belong to the KDS runtime and must not be
+deployed as a production printer. See its README for the secure SSH-tunnel
+workflow and automated protocol checks.

@@ -12,6 +12,9 @@ sessions/
 # Environment variables
 .env
 .env.local
+tools/epos_simulator/epos.env
+tools/epos_simulator/data/*
+!tools/epos_simulator/data/.gitkeep
 
 # Backups
 backups/*

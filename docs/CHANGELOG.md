@@ -1,5 +1,14 @@
 # Documentation Changelog
 
+## 2026-10-10 — STAGING Epson ePOS simulator
+
+* Added a development/STAGING-only Epson ePOS receiver for validating Odoo's
+  native preparation-printer output without physical hardware.
+* Added bounded capture retention, PNG rendering, token-protected review,
+  protocol tests and a secure SSH-tunnel operating procedure.
+* Kept the simulator independent from KDS and production; no KDS UI, POS
+  workflow, e-Invoice or SIFEN behavior changed.
+
 ## 2026-09-08 — KDS POS asset loading correction
 
 * Registered the preparation-revision patch in Odoo 17's real

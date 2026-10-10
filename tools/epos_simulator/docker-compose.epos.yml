@@ -1,0 +1,18 @@
+services:
+  epos_simulator:
+    image: python:3.12-alpine
+    container_name: restaurant_epos_simulator
+    command: python /app/server.py
+    env_file:
+      - ./tools/epos_simulator/epos.env
+    environment:
+      EPOS_DATA_DIR: /data
+      EPOS_MAX_BODY_BYTES: "12582912"
+      EPOS_MAX_JOBS: "200"
+      EPOS_PORT: "9000"
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./tools/epos_simulator/server.py:/app/server.py:ro
+      - ./tools/epos_simulator/data:/data
+    restart: unless-stopped

@@ -110,3 +110,23 @@ Remaining production-hardening debt:
   standard Odoo CSRF validation for the display workflow.
 * Staging must verify the actual production POS Restaurant workflow, browser
   reload behavior, and multi-terminal synchronization.
+
+## STAGING preparation-printer simulation
+
+The repository includes `tools/epos_simulator` solely for development and
+STAGING validation of Odoo's standard Epson ePOS preparation-printer flow. It
+is independent of `kds_module`, stores a bounded set of protected test captures,
+and must not be treated as a production printing service.
+
+Use SSH port forwarding for both Odoo and the simulator. Opening Odoo through a
+public IP and targeting a loopback printer is blocked by modern browser local
+network protections. Do not expose the simulator port publicly. See the
+simulator README for deployment, automated protocol checks, evidence review,
+retention, and cleanup.
+
+The validated STAGING behavior is deliberately parallel: a POS preparation
+event reaches KDS and the native Odoo preparation printer independently.
+Initial items, incremental additions and cancellations have been observed in
+both channels. KDS automated tests cover quantity deltas, cancellation,
+reconnect/replay and payment idempotency; the simulator tests cover only the
+ePOS receiver and protected evidence viewer.
