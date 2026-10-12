@@ -103,13 +103,17 @@ The KDS cron touches only `kitchen.order` records and updates KDS admin
 visibility flags. It does not mutate POS orders, POS sessions, stock, taxes,
 payments, or receipts.
 
-Remaining production-hardening debt:
+Active security controls:
 
 * State-changing KDS routes use authenticated `auth="user"` routes with
   standard Odoo CSRF validation for the display workflow.
 * The dedicated KDS user/manager groups and company/POS-config isolation are
-  active. A later production-clone exercise must still verify interactions with
-  any third-party POS addons and real multi-terminal traffic.
+  active.
+
+Remaining production-hardening debt:
+
+* A later production-clone exercise must verify interactions with any
+  third-party POS addons and real multi-terminal traffic.
 * A public domain, reverse proxy and HTTPS are deliberately deferred while the
   environment remains development/STAGING-only.
 * A physical preparation printer has not yet been validated. The Epson ePOS
@@ -137,8 +141,8 @@ ePOS receiver and protected evidence viewer.
 
 ## Validated STAGING baseline
 
-Baseline `kds-staging-v1` was closed on 2026-10-12 from commit `2ad9a22` plus
-the documentation-only closure commit carrying this record. The installed KDS
+Baseline `kds-staging-v1` points to commit `e861c41`. It was closed on
+2026-10-12 after deploying functional commit `2ad9a22`. The installed KDS
 module version is `17.0.1.1.3` on Odoo 17 Community.
 
 Verified in AWS STAGING:
@@ -160,6 +164,25 @@ failures or errors. The note scenario was also exercised interactively against
 order `00001-010-0001`: initial note, updated note and removed note produced one
 normal KDS projection plus two zero-quantity note-change projections, leaving
 the active quantity at one.
+
+A final post-baseline AWS smoke test created KDS order `#10`, line `#22`, from
+Restaurant POS order `00001-010-0001`: one Café with note
+`PRUEBA KDS AWS 12-OCT`. It appeared exactly once at source revision 4 and was
+advanced visually through `new`, `preparing`, `ready` and `done`. The initial
+browser reload had one transient `Failed to fetch`; the normal polling cycle
+recovered automatically, the backend routes remained HTTP 200 and no duplicate
+projection was created.
+
+STAGING currently permits direct development access to Odoo on public port
+`8069` for authorized testers. This is a temporary exception, not the target
+production topology. Keep PostgreSQL and simulator port `9000` closed publicly;
+use SSH tunnelling where practical. Before production, replace direct `8069`
+access with a domain, reverse proxy and HTTPS.
+
+STAGING backups are intentionally manual during active development. Take a
+database-and-filestore backup before important deployments. The verified
+2026-10-12 recovery point exists both on the EC2 host and as a private Mac copy;
+scheduled retention/off-site automation is deferred until production planning.
 
 This closes the KDS development/STAGING MVP. It does not certify production
 readiness: physical printer validation, production-clone compatibility,

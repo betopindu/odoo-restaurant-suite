@@ -1,5 +1,18 @@
 # Documentation Changelog
 
+## 2026-10-12 — Post-baseline AWS KDS smoke test
+
+* Verified AWS STAGING KDS order `#10` / line `#22` from Restaurant POS order
+  `00001-010-0001`: one Café with note `PRUEBA KDS AWS 12-OCT`.
+* Confirmed exactly one projection for source revision 4 and the complete
+  visual transition `new -> preparing -> ready -> done`.
+* Recorded one transient browser `Failed to fetch` during the initial reload;
+  polling recovered automatically, backend KDS routes stayed healthy and no
+  duplicate projection was created.
+* Recorded the deliberate development policy: direct `8069` access is
+  temporary, STAGING backups remain manual, and physical printer plus
+  domain/HTTPS are deferred until production preparation.
+
 ## 2026-10-12 — KDS STAGING MVP closure
 
 * Closed the `kds-staging-v1` development/STAGING baseline after successful

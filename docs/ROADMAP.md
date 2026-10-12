@@ -110,6 +110,14 @@
 
 ## Current Baseline
 
+Restaurant KDS is closed as a development/STAGING MVP at tag
+`kds-staging-v1` (`e861c41`), with addon version `17.0.1.1.3` deployed in AWS.
+Restaurant POS projection, quantity/cancellation deltas, note handling,
+idempotency, status transitions and the virtual Epson preparation-printer path
+have been validated. Physical printer, production-clone compatibility,
+domain/HTTPS, monitoring and production operations remain outside that
+milestone.
+
 The repository has live SIFEN TEST acceptance for synchronous FE in both B2C
 and B2B profiles. B2C document `16106`/transmission `17896` and B2B document
 `17894`/transmission `31916` were accepted with `0260`; the B2B authority

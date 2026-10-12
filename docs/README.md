@@ -1,4 +1,4 @@
-# e-Invoice Platform Documentation
+# Odoo Restaurant Suite Documentation
 
 [Documentation Home](README.md)
 -> [Architecture](ARCHITECTURE.md)
@@ -9,16 +9,25 @@
 
 ## Project Overview
 
-The e-Invoice Platform is a multi-tenant electronic invoicing platform built on Odoo.
+This repository contains two related Odoo 17 Community workstreams:
+
+* Restaurant POS/KDS, currently validated in AWS STAGING at
+  `kds-staging-v1`;
+* a multi-tenant electronic-invoicing platform with the Paraguay SIFEN country
+  implementation.
 
 It is organized around a country-neutral fiscal core, country-specific addons, API-first integration, tenant isolation, auditability, and an adapter pattern for future tax authority integrations.
 
-Current country implementation:
+Current country implementation and evidence:
 
-* Paraguay through `einvoice_py`. The first controlled synchronous DE was
-  accepted by SIFEN TEST with authority code `0260` on 2026-08-06. This proves
-  TEST interoperability for the validated invoice profile; it is not production
-  authorization or completion of the full homologation matrix.
+* Paraguay through `einvoice_py`. Synchronous FE was accepted live in SIFEN
+  TEST for B2C and B2B profiles with authority code `0260`. Account-driven FE
+  is closed through operator submission and authoritative KuDE/XML delivery.
+  This is TEST interoperability evidence, not production authorization or
+  completion of the full homologation matrix.
+* Restaurant KDS is closed as a development/STAGING MVP with the standard POS
+  workflow, note handling and virtual Epson preparation-printer evidence. It
+  is not yet validated against a production clone or physical printer.
 
 ## Documentation Map
 
@@ -138,16 +147,23 @@ Implemented:
 * isolated TEST end-to-end submission composition
 * offline qualified-certificate installation and readiness validation
 * first accepted real SIFEN TEST synchronous DE (`0260`)
+* B2C and B2B synchronous FE live acceptance evidence
+* durable pre-POST submission evidence and conservative reconciliation
+* operator-controlled FE readiness, submit, manual retry and Consulta DE UI
+* posted `account.move` to immutable neutral fiscal snapshot
 * deterministic invoice KuDE/PDF from persisted payload and exact QR artifacts
+* authoritative accepted KuDE/XML delivery
+* Odoo Restaurant KDS development/STAGING MVP at `kds-staging-v1`
 
 Operationally pending:
 
 * completion of the official TEST homologation case matrix
 * production credential, CSC, timbrado, endpoint, and operational approval
-* Stage 8.24B durable pre-POST persistence, postponed until homologation evidence requires it
 * production enablement and electronic timbrado workflow
 * KuDE delivery and representations for additional Paraguay DTE types
 * Delivery by email or WhatsApp
+* NCE/NDE, asynchronous batch, Consulta RUC and received-DTE flows
+* KDS production-clone, physical-printer, HTTPS and production operations
 
 ## Diagrams
 
