@@ -1,5 +1,15 @@
 # Documentation Changelog
 
+## 2026-10-12 — Fiscal retry cron deduplication
+
+* Restricted the generic fiscal cron to the latest transmission evidence for
+  each `failed_retryable` document, so an expired historical schedule cannot
+  repeatedly requeue the same document.
+* Consumed older retry schedules whenever a new transmission attempt is
+  created and added regressions for future, due and repeated cron execution.
+* Kept the Paraguay-specific automatic SIFEN retry cron disabled and made no
+  change to manual retry, reconciliation, transport or authority handling.
+
 ## 2026-10-12 — Post-baseline AWS KDS smoke test
 
 * Verified AWS STAGING KDS order `#10` / line `#22` from Restaurant POS order

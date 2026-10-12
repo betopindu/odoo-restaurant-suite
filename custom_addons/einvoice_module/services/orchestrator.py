@@ -57,6 +57,9 @@ class FiscalOrchestrator:
         next_retry_at = False
         if result.outcome == "failed_retryable":
             next_retry_at = now + timedelta(seconds=retry_after_seconds)
+        document.transmission_ids.filtered(
+            lambda transmission: transmission.next_retry_at
+        ).write({"next_retry_at": False})
         return self.env["fiscal.transmission"].create({
             "document_id": document.id,
             "attempt_number": self._next_attempt_number(document),
@@ -307,17 +310,30 @@ class FiscalOrchestrator:
         retry_documents = self.env["fiscal.document"].browse()
         if remaining_limit:
             now = fields.Datetime.now()
-            retry_transmissions = self.env["fiscal.transmission"].search(
-                [
-                    ("document_id.state", "=", "failed_retryable"),
-                    ("state", "=", "failed_retryable"),
-                    ("next_retry_at", "!=", False),
-                    ("next_retry_at", "<=", now),
-                ],
-                order="next_retry_at asc, id asc",
-                limit=remaining_limit,
-            )
-            retry_documents = retry_transmissions.mapped("document_id")
+            retry_candidates = self.env["fiscal.document"].search([
+                ("state", "=", "failed_retryable"),
+            ])
+            due_transmissions = self.env["fiscal.transmission"].browse()
+            for document in retry_candidates:
+                transmission = self.env["fiscal.transmission"].search(
+                    [("document_id", "=", document.id)],
+                    order="attempt_number desc, id desc",
+                    limit=1,
+                )
+                if (
+                    transmission.transmission_type == "submit"
+                    and transmission.state == "failed_retryable"
+                    and transmission.next_retry_at
+                    and transmission.next_retry_at <= now
+                ):
+                    due_transmissions |= transmission
+            due_transmissions = due_transmissions.sorted(
+                key=lambda transmission: (
+                    transmission.next_retry_at,
+                    transmission.id,
+                )
+            )[:remaining_limit]
+            retry_documents = due_transmissions.mapped("document_id")
 
         documents = queued_documents | retry_documents
         return self.process_documents(documents, actor_context={"actor_type": "system"})

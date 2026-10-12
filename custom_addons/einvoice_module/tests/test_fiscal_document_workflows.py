@@ -1,5 +1,10 @@
+from datetime import timedelta
+
+from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
+
+from odoo.addons.einvoice_module.services.orchestrator import FiscalOrchestrator
 
 
 class TestFiscalDocumentWorkflows(TransactionCase):
@@ -37,6 +42,16 @@ class TestFiscalDocumentWorkflows(TransactionCase):
             order="occurred_at desc, id desc",
             limit=1,
         )
+
+    def _add_valid_line(self, document):
+        return self.env["fiscal.document.line"].create({
+            "document_id": document.id,
+            "product_name": "Test item",
+            "quantity": 1,
+            "price_unit": 100,
+            "subtotal": 100,
+            "total": 100,
+        })
 
     def _create_user(self, login):
         return self.env["res.users"].with_context(no_reset_password=True).create({
@@ -218,3 +233,66 @@ class TestFiscalDocumentWorkflows(TransactionCase):
             ("event_type", "=", "manual_override"),
         ])
         self.assertFalse(events)
+
+    def test_cron_ignores_old_due_retry_when_latest_attempt_is_not_due(self):
+        document = self._create_document("failed_retryable", key_suffix="old-due")
+        self._add_valid_line(document)
+        now = fields.Datetime.now()
+        old = self.env["fiscal.transmission"].create({
+            "document_id": document.id,
+            "attempt_number": 1,
+            "state": "failed_retryable",
+            "next_retry_at": now - timedelta(minutes=10),
+        })
+        latest = self.env["fiscal.transmission"].create({
+            "document_id": document.id,
+            "attempt_number": 2,
+            "state": "failed_retryable",
+            "next_retry_at": now + timedelta(minutes=5),
+        })
+
+        FiscalOrchestrator(self.env).process_queued(limit=10)
+
+        transmissions = self.env["fiscal.transmission"].search([
+            ("document_id", "=", document.id),
+        ])
+        self.assertEqual(transmissions, old | latest)
+        self.assertEqual(document.state, "failed_retryable")
+
+    def test_cron_consumes_latest_due_retry_only_once(self):
+        document = self._create_document("failed_retryable", key_suffix="latest-due")
+        self._add_valid_line(document)
+        now = fields.Datetime.now()
+        old = self.env["fiscal.transmission"].create({
+            "document_id": document.id,
+            "attempt_number": 1,
+            "state": "failed_retryable",
+            "next_retry_at": now - timedelta(minutes=10),
+        })
+        due = self.env["fiscal.transmission"].create({
+            "document_id": document.id,
+            "attempt_number": 2,
+            "state": "failed_retryable",
+            "next_retry_at": now - timedelta(minutes=1),
+        })
+        orchestrator = FiscalOrchestrator(self.env)
+
+        orchestrator.process_queued(limit=10)
+
+        transmissions = self.env["fiscal.transmission"].search([
+            ("document_id", "=", document.id),
+        ], order="attempt_number desc, id desc")
+        self.assertEqual(len(transmissions), 3)
+        latest = transmissions[0]
+        self.assertEqual(latest.attempt_number, 3)
+        self.assertTrue(latest.next_retry_at)
+        old.invalidate_recordset()
+        due.invalidate_recordset()
+        self.assertFalse(old.next_retry_at)
+        self.assertFalse(due.next_retry_at)
+
+        orchestrator.process_queued(limit=10)
+
+        self.assertEqual(self.env["fiscal.transmission"].search_count([
+            ("document_id", "=", document.id),
+        ]), 3)
