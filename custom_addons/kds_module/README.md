@@ -48,3 +48,16 @@ The optional Epson ePOS simulator under `tools/epos_simulator` is a separate
 STAGING-only test utility. It does not belong to the KDS runtime and must not be
 deployed as a production printer. See its README for the secure SSH-tunnel
 workflow and automated protocol checks.
+
+## Closed STAGING MVP
+
+The `kds-staging-v1` baseline validates the existing UI/workflow with normal
+orders, quantity deltas, cancellations, replay/reconnect/payment idempotency,
+status transitions and preparation notes. A note-only edit creates an auditable
+zero-quantity change event, so the kitchen sees the updated or removed note
+without changing the active product quantity.
+
+The AWS STAGING exercise also validated the native Epson preparation-printer
+channel using the separate virtual ePOS receiver. That receiver is temporary
+test infrastructure. Physical printer validation and domain/HTTPS remain
+deferred until production preparation.

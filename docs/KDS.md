@@ -105,11 +105,15 @@ payments, or receipts.
 
 Remaining production-hardening debt:
 
-* KDS ACLs are intentionally broad for internal users.
 * State-changing KDS routes use authenticated `auth="user"` routes with
   standard Odoo CSRF validation for the display workflow.
-* Staging must verify the actual production POS Restaurant workflow, browser
-  reload behavior, and multi-terminal synchronization.
+* The dedicated KDS user/manager groups and company/POS-config isolation are
+  active. A later production-clone exercise must still verify interactions with
+  any third-party POS addons and real multi-terminal traffic.
+* A public domain, reverse proxy and HTTPS are deliberately deferred while the
+  environment remains development/STAGING-only.
+* A physical preparation printer has not yet been validated. The Epson ePOS
+  simulator is test evidence, not a production printer.
 
 ## STAGING preparation-printer simulation
 
@@ -130,3 +134,34 @@ Initial items, incremental additions and cancellations have been observed in
 both channels. KDS automated tests cover quantity deltas, cancellation,
 reconnect/replay and payment idempotency; the simulator tests cover only the
 ePOS receiver and protected evidence viewer.
+
+## Validated STAGING baseline
+
+Baseline `kds-staging-v1` was closed on 2026-10-12 from commit `2ad9a22` plus
+the documentation-only closure commit carrying this record. The installed KDS
+module version is `17.0.1.1.3` on Odoo 17 Community.
+
+Verified in AWS STAGING:
+
+* normal Restaurant POS order projection;
+* quantity increments, reductions and cancellation deltas;
+* replay/reconnect/payment idempotency and concurrent duplicate protection;
+* scoped KDS workflow through `new`, `preparing`, `ready` and `done`;
+* initial preparation notes, note-only updates and explicit note removal,
+  without changing the projected product quantity;
+* native preparation-printer output received by the protected Epson ePOS
+  simulator in parallel with KDS;
+* module upgrade over the existing STAGING database and successful registry,
+  route, view and asset loading;
+* a verified database-and-filestore backup and isolated restoration check.
+
+The automated KDS suite completed with 41 post-tests / 49 checks and zero
+failures or errors. The note scenario was also exercised interactively against
+order `00001-010-0001`: initial note, updated note and removed note produced one
+normal KDS projection plus two zero-quantity note-change projections, leaving
+the active quantity at one.
+
+This closes the KDS development/STAGING MVP. It does not certify production
+readiness: physical printer validation, production-clone compatibility,
+domain/HTTPS, production monitoring and production backup policy remain future
+deployment work.

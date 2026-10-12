@@ -1,5 +1,18 @@
 # Documentation Changelog
 
+## 2026-10-12 — KDS STAGING MVP closure
+
+* Closed the `kds-staging-v1` development/STAGING baseline after successful
+  Odoo 17 Restaurant POS, KDS workflow and Epson virtual-printer validation.
+* Recorded preparation-note support for initial notes, note-only updates and
+  explicit removal without changing active quantities.
+* Recorded 41 post-tests / 49 checks with zero failures or errors, successful
+  module upgrade, registry/route/view/assets verification and a tested
+  database-and-filestore restoration.
+* Kept physical printer validation, production-clone compatibility,
+  domain/HTTPS, monitoring and production backup policy explicitly outside the
+  STAGING MVP.
+
 ## 2026-10-10 — STAGING Epson ePOS simulator
 
 * Added a development/STAGING-only Epson ePOS receiver for validating Odoo's
