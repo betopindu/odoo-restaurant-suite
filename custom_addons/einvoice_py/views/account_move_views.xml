@@ -7,14 +7,21 @@
             <xpath expr="//header" position="inside">
                 <button name="action_prepare_paraguay_fiscal_document" type="object"
                         string="Prepare Electronic Invoice" class="btn-secondary"
-                        invisible="move_type != 'out_invoice' or state != 'posted' or fiscal_document_count != 0"/>
+                        invisible="move_type != 'out_invoice' or debit_origin_id or state != 'posted' or fiscal_document_count != 0"/>
+                <button name="action_prepare_paraguay_debit_note" type="object"
+                        string="Prepare Electronic Debit Note" class="btn-secondary"
+                        invisible="move_type != 'out_invoice' or not debit_origin_id or state != 'posted' or fiscal_document_count != 0"/>
                 <button name="action_prepare_paraguay_credit_note" type="object"
                         string="Prepare Electronic Credit Note" class="btn-secondary"
                         invisible="move_type != 'out_refund' or state != 'posted' or fiscal_document_count != 0"/>
                 <button name="action_open_paraguay_sifen_submission" type="object"
                         string="Submit Electronic Invoice" class="btn-primary"
                         groups="einvoice_py.group_py_fiscal_operator"
-                        invisible="move_type != 'out_invoice' or py_fiscal_document_state not in ('ready', 'rejected', 'failed_retryable', 'manual_review')"/>
+                        invisible="move_type != 'out_invoice' or debit_origin_id or py_fiscal_document_state not in ('ready', 'rejected', 'failed_retryable', 'manual_review')"/>
+                <button name="action_open_paraguay_sifen_submission" type="object"
+                        string="Submit Electronic Debit Note" class="btn-primary"
+                        groups="einvoice_py.group_py_fiscal_operator"
+                        invisible="move_type != 'out_invoice' or not debit_origin_id or py_fiscal_document_state not in ('ready', 'rejected', 'failed_retryable', 'manual_review')"/>
                 <button name="action_open_paraguay_sifen_submission" type="object"
                         string="Submit Electronic Credit Note" class="btn-primary"
                         groups="einvoice_py.group_py_fiscal_operator"
@@ -27,6 +34,7 @@
                 <field name="py_fiscal_point_of_issue_id" invisible="move_type not in ('out_invoice', 'out_refund')"/>
                 <field name="py_sale_condition_code" invisible="move_type not in ('out_invoice', 'out_refund')"/>
                 <field name="py_credit_note_reason_code" invisible="move_type != 'out_refund'"/>
+                <field name="py_debit_note_reason_code" invisible="move_type != 'out_invoice' or not debit_origin_id"/>
                 <field name="py_fiscal_document_id" readonly="1" invisible="move_type not in ('out_invoice', 'out_refund')"/>
                 <field name="py_fiscal_document_state" readonly="1" invisible="move_type not in ('out_invoice', 'out_refund')"/>
             </xpath>

@@ -98,11 +98,15 @@ class FiscalDocumentFromAccountMoveService:
 
     def _validate(self, move, tenant, adapter, document_type, original_document):
         problems = []
-        expected_move_types = {"invoice": "out_invoice", "credit_note": "out_refund"}
+        expected_move_types = {
+            "invoice": "out_invoice",
+            "credit_note": "out_refund",
+            "debit_note": "out_invoice",
+        }
         expected_move_type = expected_move_types.get(document_type)
         if not expected_move_type or move.move_type != expected_move_type:
             problems.append(
-                "Only matching customer invoices or customer credit notes can create fiscal documents."
+                "Only matching customer invoices, credit notes, or debit notes can create fiscal documents."
             )
         if move.state != "posted":
             problems.append("The customer invoice must be posted first.")
@@ -118,14 +122,14 @@ class FiscalDocumentFromAccountMoveService:
             problems.append("The customer invoice requires a customer.")
         if not move.currency_id:
             problems.append("The customer invoice requires a currency.")
-        if document_type == "credit_note" and not original_document:
-            problems.append("A credit note requires its original fiscal document.")
+        if document_type in ("credit_note", "debit_note") and not original_document:
+            problems.append("A credit or debit note requires its original fiscal document.")
         if original_document and (
             original_document.company_id != move.company_id
             or original_document.tenant_id != tenant
             or original_document.adapter_config_id != adapter
         ):
-            problems.append("Original fiscal document scope does not match the credit note.")
+            problems.append("Original fiscal document scope does not match the correction document.")
         if problems:
             raise ValidationError(" ".join(problems))
 

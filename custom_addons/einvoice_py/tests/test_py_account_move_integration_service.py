@@ -120,6 +120,18 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
             "establishment_id": cls.establishment.id, "point_of_issue_id": cls.point.id,
             "document_type": "credit_note", "next_number": 8000000, "padding": 7,
         })
+        cls.debit_note_timbrado = cls.env["fiscal.py.timbrado"].create({
+            "number": "4444444", "tenant_id": cls.tenant.id,
+            "company_id": cls.company.id, "environment": "test",
+            "document_type": "debit_note", "valid_from": date(2026, 1, 1),
+            "allowed_point_of_issue_ids": [(6, 0, [cls.point.id])],
+        })
+        cls.debit_note_sequence = cls.env["fiscal.py.sequence"].create({
+            "name": "Debit note sequence", "tenant_id": cls.tenant.id,
+            "company_id": cls.company.id, "timbrado_id": cls.debit_note_timbrado.id,
+            "establishment_id": cls.establishment.id, "point_of_issue_id": cls.point.id,
+            "document_type": "debit_note", "next_number": 7000000, "padding": 7,
+        })
         cls.tax_10 = cls._tax("IVA 10 explicit fixture", 10, "iva_10")
         cls.tax_5 = cls._tax("IVA 5 explicit fixture", 5, "iva_5")
         cls.tax_exempt = cls._tax("Exempt explicit fixture", 0, "exempt")
@@ -145,7 +157,7 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
 
     def _move(
         self, taxes=None, *, partner=None, move_type="out_invoice", post=True,
-        lines=None, reversed_entry=None, credit_note_reason=None,
+        lines=None, reversed_entry=None, debit_origin=None, credit_note_reason=None,
     ):
         taxes = taxes if taxes is not None else self.tax_10
         lines = lines or [("Service line", 110000, taxes)]
@@ -156,6 +168,7 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
             "py_fiscal_establishment_id": self.establishment.id,
             "py_fiscal_point_of_issue_id": self.point.id,
             "reversed_entry_id": reversed_entry.id if reversed_entry else False,
+            "debit_origin_id": debit_origin.id if debit_origin else False,
             "py_credit_note_reason_code": credit_note_reason,
         }
         if move_type != "entry":
@@ -447,6 +460,119 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
 
         self.assertTrue(result.pdf_bytes.startswith(b"%PDF-"))
         self.assertEqual(result.filename, f"PREVIEW-NCE-{note.py_full_number}.pdf")
+        self.assertFalse(note.transmission_ids)
+
+    def test_posted_odoo_debit_note_creates_schema_valid_nde(self):
+        original_move, original = self._accepted_invoice()
+        debit_move = self._move(
+            partner=original_move.partner_id,
+            debit_origin=original_move,
+            credit_note_reason="8",
+            lines=[("Price adjustment", 11000, self.tax_10)],
+        )
+
+        note = self.service.create(move=debit_move)
+        repeated = self.service.create(move=debit_move)
+        payload = PyPayloadBuilder(self.env).build(note)
+        xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        from lxml import etree
+        root = etree.fromstring(xml_bytes)
+        ns = {"s": PyUnsignedXmlBuilder.SIFEN_NS}
+
+        self.assertEqual(repeated, note)
+        self.assertEqual(note.document_type, "debit_note")
+        self.assertEqual(note.original_document_id, original)
+        self.assertEqual(note.py_credit_debit_reason_code, "8")
+        self.assertTrue(note.py_cdc.startswith("06"))
+        self.assertEqual(note.py_timbrado_id, self.debit_note_timbrado)
+        self.assertEqual(note.state, "ready")
+        self.assertEqual(payload["associated_document"]["cdc"], original.py_cdc)
+        self.assertEqual(root.xpath("string(.//s:gCamNCDE/s:iMotEmi)", namespaces=ns), "8")
+        self.assertEqual(
+            root.xpath("string(.//s:gCamDEAsoc/s:dCdCDERef)", namespaces=ns),
+            original.py_cdc,
+        )
+        self.assertEqual(
+            self.env["fiscal.document"].search_count([
+                ("account_move_id", "=", debit_move.id),
+                ("document_type", "=", "debit_note"),
+            ]),
+            1,
+        )
+
+    def test_nde_fails_closed_without_valid_original_reason_or_scope(self):
+        original_move, original = self._accepted_invoice()
+        with self.assertRaisesRegex(ValidationError, "requires its original"):
+            FiscalDocumentFromAccountMoveService(self.env).create(
+                move=self._move(
+                    partner=original_move.partner_id,
+                    lines=[("Adjustment", 11000, self.tax_10)],
+                ),
+                tenant=self.tenant,
+                adapter_config=self.adapter,
+                document_type="debit_note",
+            )
+        with self.assertRaisesRegex(ValidationError, "debit note reason"):
+            self.service.create(move=self._move(
+                partner=original_move.partner_id,
+                debit_origin=original_move,
+                lines=[("Adjustment", 11000, self.tax_10)],
+            ))
+        original.write({"state": "rejected"})
+        with self.assertRaisesRegex(ValidationError, "must be accepted"):
+            self.service.create(move=self._move(
+                partner=original_move.partner_id,
+                debit_origin=original_move,
+                credit_note_reason="8",
+                lines=[("Adjustment", 11000, self.tax_10)],
+            ))
+
+    def test_nde_preview_and_full_signed_v150_pipeline_are_offline(self):
+        original_move, _original = self._accepted_invoice()
+        note = self.service.create(move=self._move(
+            partner=original_move.partner_id,
+            debit_origin=original_move,
+            credit_note_reason="8",
+            lines=[("Price adjustment", 11000, self.tax_10)],
+        ))
+        preview = PyKudePreviewService(self.env).render(document=note)
+        self.assertTrue(preview.pdf_bytes.startswith(b"%PDF-"))
+        self.assertEqual(preview.filename, f"PREVIEW-NDE-{note.py_full_number}.pdf")
+
+        payload = PyPayloadBuilder(self.env).build(note)
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        subject = x509.Name([
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "PY"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "Offline NDE Fixture"),
+        ])
+        certificate = (
+            x509.CertificateBuilder()
+            .subject_name(subject).issuer_name(subject)
+            .public_key(private_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(self.SNAPSHOT_TIME - timedelta(days=1))
+            .not_valid_after(self.SNAPSHOT_TIME + timedelta(days=30))
+            .sign(private_key=private_key, algorithm=hashes.SHA256())
+        )
+        submission = _OfflineNceSubmission()
+        result = PySifenSubmissionPipelineService(
+            self.env, submission_service=submission
+        ).submit_test(
+            document=note,
+            payload=payload,
+            signing_timestamp=self.SNAPSHOT_TIME,
+            certificate_bytes=certificate.public_bytes(serialization.Encoding.PEM),
+            private_key_bytes=private_key.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            ),
+            endpoint_url="https://offline.example.test/de",
+            mutual_tls_credential={"offline": True},
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["submission_status"], "accepted")
+        self.assertEqual(len(submission.calls), 1)
         self.assertFalse(note.transmission_ids)
 
     def test_nce_real_signing_qr_and_final_v150_xsd_pipeline_offline(self):

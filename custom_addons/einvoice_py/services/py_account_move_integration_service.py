@@ -34,7 +34,7 @@ class PyFiscalDocumentFromAccountMoveService:
         config = self._configuration(move, document_type)
         if move.currency_id.name != "PYG":
             raise ValidationError("Paraguay fiscal preparation currently supports PYG only.")
-        self._validate_credit_note(move, document_type, original_document, config)
+        self._validate_correction_note(move, document_type, original_document, config)
         receiver = self._receiver_values(move.partner_id.commercial_partner_id)
         snapshot_at = self.snapshot_time_provider()
         document = FiscalDocumentFromAccountMoveService(
@@ -57,21 +57,27 @@ class PyFiscalDocumentFromAccountMoveService:
         return document
 
     def _document_type(self, move):
+        if move.move_type == "out_invoice" and move.debit_origin_id:
+            return "debit_note"
         mapping = {"out_invoice": "invoice", "out_refund": "credit_note"}
         document_type = mapping.get(move.move_type)
         if not document_type:
             raise ValidationError(
-                "Only customer invoices and customer credit notes are supported."
+                "Only customer invoices, credit notes, and debit notes are supported."
             )
         return document_type
 
     def _original_document(self, move, document_type):
-        if document_type != "credit_note":
+        if document_type not in ("credit_note", "debit_note"):
             return self.env["fiscal.document"]
-        original_move = move.reversed_entry_id
+        original_move = (
+            move.reversed_entry_id
+            if document_type == "credit_note"
+            else move.debit_origin_id
+        )
         if not original_move:
             raise ValidationError(
-                "Paraguay electronic credit notes must be created from an original customer invoice."
+                "Paraguay electronic credit and debit notes must be created from an original customer invoice."
             )
         documents = original_move.fiscal_document_ids.filtered(
             lambda item: item.active
@@ -204,8 +210,8 @@ class PyFiscalDocumentFromAccountMoveService:
             "py_credit_debit_reason_code": move.py_credit_note_reason_code or False,
         })
 
-    def _validate_credit_note(self, move, document_type, original, config):
-        if document_type != "credit_note":
+    def _validate_correction_note(self, move, document_type, original, config):
+        if document_type not in ("credit_note", "debit_note"):
             return
         self._lock_original_document(original)
         problems = []
@@ -214,32 +220,33 @@ class PyFiscalDocumentFromAccountMoveService:
         if not original.py_cdc or len(original.py_cdc) != 44:
             problems.append("The original Paraguay invoice requires a valid CDC.")
         if original.adapter_config_id != config["adapter"]:
-            problems.append("Original invoice and credit note adapter scope do not match.")
+            problems.append("Original invoice and correction note adapter scope do not match.")
         if original.currency_id != move.currency_id:
-            problems.append("Credit note currency must match the original invoice.")
+            problems.append("Correction note currency must match the original invoice.")
         if original.partner_id.commercial_partner_id != move.partner_id.commercial_partner_id:
-            problems.append("Credit note customer must match the original invoice customer.")
+            problems.append("Correction note customer must match the original invoice customer.")
         if original.py_receiver_nature != "1":
             problems.append(
-                "The original invoice receiver must be identified for a Paraguay credit note."
+                "The original invoice receiver must be identified for a Paraguay correction note."
             )
         if not move.py_credit_note_reason_code:
-            problems.append("Select the SIFEN credit note reason.")
-        existing_amount = sum(
-            self.env["fiscal.document"].sudo().search([
-                ("original_document_id", "=", original.id),
-                ("document_type", "=", "credit_note"),
-                ("active", "=", True),
-                ("state", "!=", "cancelled"),
-                ("account_move_id", "!=", move.id),
-            ]).mapped("amount_total")
-        )
-        if Decimal(str(existing_amount)) + Decimal(str(move.amount_total)) > Decimal(
-            str(original.amount_total)
-        ):
-            problems.append(
-                "Credit notes cannot exceed the remaining amount of the original invoice."
+            problems.append(f"Select the SIFEN {document_type.replace('_', ' ')} reason.")
+        if document_type == "credit_note":
+            existing_amount = sum(
+                self.env["fiscal.document"].sudo().search([
+                    ("original_document_id", "=", original.id),
+                    ("document_type", "=", "credit_note"),
+                    ("active", "=", True),
+                    ("state", "!=", "cancelled"),
+                    ("account_move_id", "!=", move.id),
+                ]).mapped("amount_total")
             )
+            if Decimal(str(existing_amount)) + Decimal(str(move.amount_total)) > Decimal(
+                str(original.amount_total)
+            ):
+                problems.append(
+                    "Credit notes cannot exceed the remaining amount of the original invoice."
+                )
         if problems:
             raise ValidationError(" ".join(problems))
 
@@ -253,7 +260,7 @@ class PyFiscalDocumentFromAccountMoveService:
                 locked = self.env.cr.fetchone()
         except errors.LockNotAvailable:
             raise ValidationError(
-                "Another credit-note preparation is already evaluating this original invoice."
+                "Another correction-note preparation is already evaluating this original invoice."
             ) from None
         if not locked:
             raise ValidationError("The original fiscal document no longer exists.")

@@ -31,6 +31,11 @@ class AccountMove(models.Model):
         string="SIFEN Credit Note Reason",
         copy=False,
     )
+    py_debit_note_reason_code = fields.Selection(
+        related="py_credit_note_reason_code",
+        string="SIFEN Debit Note Reason",
+        readonly=False,
+    )
     py_fiscal_document_id = fields.Many2one(
         "fiscal.document",
         compute="_compute_py_fiscal_ui_state",
@@ -80,6 +85,9 @@ class AccountMove(models.Model):
             "view_mode": "form", "views": [(False, "form")],
             "res_id": document.id, "target": "current",
         }
+
+    def action_prepare_paraguay_debit_note(self):
+        return self.action_prepare_paraguay_fiscal_document()
 
     def action_open_paraguay_sifen_submission(self):
         self.ensure_one()

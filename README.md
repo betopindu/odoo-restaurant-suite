@@ -32,9 +32,9 @@ The synchronous FE MVP is closed end-to-end for the exercised TEST profiles:
 * XML v150, XMLDSig, QR, XSD, SOAP 1.2 and mTLS;
 * authoritative accepted KuDE/XML delivery.
 
-Production operation is not ready. NCE/NDE, asynchronous batches, Consulta
-RUC, received-DTE flows and completion/live validation of fiscal events remain
-future work.
+Production operation is not ready. NCE/NDE are complete offline but still need
+live TEST validation; asynchronous batches, Consulta RUC, received-DTE flows
+and completion/live validation of fiscal events remain future work.
 
 ## Addons
 

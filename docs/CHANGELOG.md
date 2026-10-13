@@ -1,5 +1,15 @@
 # Documentation Changelog
 
+## 2026-10-13 — Paraguay NDE end-to-end offline foundation
+
+* Integrated Odoo 17's standard debit-note origin with an immutable Paraguay
+  NDE snapshot linked to one accepted identified-receiver FE.
+* Added independent NDE timbrado/sequence/CDC `06`, correction reason,
+  `gCamNCDE`, `gCamDEAsoc`, NDE KuDE preview and existing delivery/submission
+  services without duplicating transport or persistence logic.
+* Proved signing, XMLDSig, QR and final official v150 XSD validation using
+  stubbed transport only. Live SIFEN TEST validation remains pending.
+
 ## 2026-10-13 — Paraguay NCE end-to-end offline foundation
 
 * Added the posted Odoo customer-credit-note to immutable Paraguay NCE

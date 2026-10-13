@@ -163,11 +163,12 @@ limited to the exercised invoice profile.
 [ ] Operational monitoring and alerting
 [ ] Production go-live
 [x] Operational authoritative KuDE/XML resolution for accepted FE
-[~] KuDE profiles for additional SIFEN DTE types (NCE implemented offline;
-NDE and live validation pending)
+[~] KuDE profiles for additional SIFEN DTE types (NCE/NDE implemented offline;
+live validation pending)
 [~] NCE end-to-end accounting and SIFEN flow (offline pipeline complete; live
 SIFEN TEST evidence pending)
-[ ] NDE end-to-end accounting and SIFEN flow
+[~] NDE end-to-end accounting and SIFEN flow (offline pipeline complete; live
+SIFEN TEST evidence pending)
 [ ] Cancellation and inutilization completion for MVP
 
 ## Future

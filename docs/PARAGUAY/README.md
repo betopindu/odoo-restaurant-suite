@@ -1335,7 +1335,7 @@ result.attachment_id, result.sha256, result.page_count
 
 Preconditions are a current persisted payload and exact QR artifact for the
 same CDC. Missing, malformed or hash-inconsistent inputs fail safely. The
-renderer supports Factura Electrónica and the offline NCE profile; debit notes,
+renderer supports Factura Electrónica plus the offline NCE and NDE profiles;
 events and their distinct official representations remain unsupported.
 Historical documents without an exact QR artifact are not silently rebuilt
 from CSC.

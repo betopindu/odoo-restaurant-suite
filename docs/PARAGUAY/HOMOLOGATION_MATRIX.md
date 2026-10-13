@@ -72,7 +72,7 @@ Status meanings:
 | Cash sale | READY | `gCamCond/gPaConEIni`, payment and accepted live baseline. |
 | Credit sale with installments | NOT IMPLEMENTED | Selection fields exist, but the builder always emits initial-payment `gPaConEIni`; credit schedule/installment groups and models are absent. |
 | Credit note | REQUIRES LIVE TEST | Posted Odoo refunds now create an immutable NCE linked to one accepted identified-receiver FE; independent CDC `05`, reason, cumulative amount guard, `gCamNCDE`, `gCamDEAsoc`, signing, XMLDSig, QR, final v150 XSD, KuDE preview and stubbed submission are covered offline. Authority TEST evidence is pending. |
-| Debit note | NOT IMPLEMENTED | Neutral type and Paraguay CDC code exist, but NDE-specific associated-document/reason XML groups and end-to-end tests are absent. |
+| Debit note | REQUIRES LIVE TEST | Odoo's standard debit-note origin creates an immutable NDE linked to one accepted identified-receiver FE; independent CDC `06`, reason, `gCamNCDE`, `gCamDEAsoc`, signing, XMLDSig, QR, final v150 XSD, KuDE preview and stubbed submission are covered offline. Authority TEST evidence is pending. |
 | Duplicate submission | PARTIAL | Response parser distinguishes configured duplicate codes and persistence blocks accidental resend of accepted CDCs. There is no operator-safe intentional duplicate homologation operation. |
 | Explicit rejection | READY | Parser/persistence tests plus preserved live rejection evidence demonstrate non-ambiguous rejection handling. |
 | Ambiguous POST and Consulta DE | LIVE-VALIDATED | Timeout normalization, CDC blocking, row-locked SOAP Consulta DE, immutable submission evidence, `0422` acceptance and `0420` `reconciliation_not_found` are live-observed. The guarded transition was exercised by ambiguous submission `29963`, linked Consulta DE `30867` (`0420`) and same-CDC manual retry `31903` (`1306`). `0420` is not a rejection or automatic-retry category, and newer/conflicting evidence still blocks retry. |
@@ -91,8 +91,9 @@ normal fiscal validation (`1306`) and document `17894` was subsequently
 accepted (`0260`). `0100` remains ineligible for automatic retry.
 
 Country-neutral core support does not imply Paraguay protocol support. In
-particular, a neutral `credit_note`, `debit_note` or `cancelled` value is not an
-implementation of the corresponding SIFEN XML/service contract.
+particular, a neutral document/event value alone is not implementation of its
+corresponding SIFEN XML/service contract. NCE and NDE now have complete offline
+accounting-to-delivery paths; their live authority validation is still pending.
 
 ## Selected next scenario
 

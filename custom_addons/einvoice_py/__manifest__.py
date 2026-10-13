@@ -3,7 +3,7 @@
     "summary": "Paraguay fiscal configuration for the e-Invoice core",
     "version": "17.0.1.0.0",
     "category": "Accounting/Accounting",
-    "depends": ["einvoice_module"],
+    "depends": ["einvoice_module", "account_debit_note"],
     "external_dependencies": {
         "python": ["reportlab"],
     },
