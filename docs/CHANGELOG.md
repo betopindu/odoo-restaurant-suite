@@ -1,5 +1,14 @@
 # Documentation Changelog
 
+## 2026-10-13 — Operator-controlled durable SIFEN number inutilization
+
+* Added the Paraguay Fiscal Operator confirmation flow and read-only evidence
+  views without enabling automatic events.
+* Added an independent boundary that commits the exact fiscal range, event
+  identity and request hash before POST and finalizes the same audit record.
+* Kept ambiguous results blocked from blind repetition and denied direct user
+  creation/editing of authority evidence.
+
 ## 2026-10-13 — Operator-controlled durable SIFEN cancellation
 
 * Added the explicit accepted-document cancellation confirmation UI for the

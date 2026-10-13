@@ -28,6 +28,12 @@ boundary independently, and finalizes the same attempt. Opening or cancelling
 the operator confirmation wizard creates no attempt and performs no network
 operation.
 
+Number inutilization follows the same durable safety shape without pretending
+that an unused range is a fiscal document. Its dedicated audit record is
+created independently after signing/XSD validation and before POST. The
+operator wizard is the normal creation path; direct user creation or editing
+of authority evidence is denied.
+
 No generic core event protocol is introduced. The existing neutral
 `fiscal.event` remains a document lifecycle journal and is not stretched to
 represent unused number ranges.

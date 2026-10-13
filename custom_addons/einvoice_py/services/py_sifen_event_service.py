@@ -399,31 +399,65 @@ class PySifenCancellationService:
 class PySifenInutilizationService:
     TYPE_CODES = {"invoice": "1", "credit_note": "5", "debit_note": "6"}
 
-    def __init__(self, env, *, event_service=None):
+    def __init__(self, env, *, event_service=None, durable_service=None):
         self.env = env
         self.event_service = event_service or PySifenEventService(env)
+        if durable_service is None:
+            from odoo.addons.einvoice_py.services.py_sifen_durable_inutilization_service import (
+                PySifenDurableInutilizationService,
+            )
+            durable_service = PySifenDurableInutilizationService(env)
+        self.durable_service = durable_service
 
     def inutilize(self, *, adapter, timbrado, establishment, point_of_issue, document_type, number_from, number_to, reason, occurred_on, signing_timestamp=None):
-        self._lock_scope(timbrado)
         existing = self._exact(adapter, timbrado, establishment, point_of_issue, document_type, number_from, number_to)
         if existing:
             return {"accepted": existing.state == "accepted", "inutilization_id": existing.id, "idempotent": True}
         self._validate_scope(adapter, timbrado, establishment, point_of_issue, document_type, number_from, number_to, reason, occurred_on)
-        record = self.env["fiscal.py.inutilization"].sudo().create({
-            "tenant_id": adapter.tenant_id.id, "company_id": adapter.company_id.id, "environment": adapter.environment,
-            "adapter_config_id": adapter.id, "timbrado_id": timbrado.id, "establishment_id": establishment.id,
-            "point_of_issue_id": point_of_issue.id, "document_type": document_type,
-            "number_from": number_from, "number_to": number_to, "reason": reason.strip(), "state": "pending",
-        })
         event_id = self.event_service._next_id(adapter, 10)
-        record.event_id = event_id
         event_xml = self.event_service.build_inutilization_event(
             event_id=event_id, timbrado=timbrado.number, establishment=establishment.code, point=point_of_issue.code,
             number_from=number_from, number_to=number_to, document_type_code=self.TYPE_CODES[document_type],
             reason=reason.strip(), signing_timestamp=signing_timestamp or fields.Datetime.now(),
         )
-        result = self.event_service.execute(adapter=adapter, event_xml_bytes=event_xml, audit_record=record, audit_model="fiscal.py.inutilization")
-        return dict(result, inutilization_id=record.id, event_id=event_id)
+        prepared_event = self.event_service.prepare(
+            adapter=adapter, event_xml_bytes=event_xml
+        )
+        identity = {
+            "tenant_id": adapter.tenant_id.id,
+            "company_id": adapter.company_id.id,
+            "environment": adapter.environment,
+            "adapter_id": adapter.id,
+            "timbrado_id": timbrado.id,
+            "establishment_id": establishment.id,
+            "point_id": point_of_issue.id,
+            "document_type": document_type,
+            "number_from": number_from,
+            "number_to": number_to,
+            "occurred_on": fields.Date.to_date(occurred_on),
+        }
+        prepared = self.durable_service.prepare(
+            identity=identity,
+            prepared_event=prepared_event,
+            reason=reason.strip(),
+        )
+        self.durable_service.mark_post_started(
+            inutilization_id=prepared.inutilization_id
+        )
+        result = self.event_service.send(prepared_event)
+        self.durable_service.finalize(
+            inutilization_id=prepared.inutilization_id,
+            result=result,
+        )
+        record = self.env["fiscal.py.inutilization"].sudo().browse(
+            prepared.inutilization_id
+        )
+        record.invalidate_recordset()
+        return dict(
+            result,
+            inutilization_id=record.id,
+            event_id=event_id,
+        )
 
     def _validate_scope(self, adapter, timbrado, establishment, point, document_type, start, end, reason, occurred_on):
         records = (timbrado, establishment, point)

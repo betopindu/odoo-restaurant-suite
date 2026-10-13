@@ -1053,6 +1053,14 @@ the recorded numbering error. It creates `fiscal.py.inutilization`; no dummy DE,
 CDC, CSC or signed document artifact is generated. Identical repeated calls are
 idempotent, and ambiguous evidence is never automatically retried.
 
+Authorized operators open **e-Invoice → Inutilize Number Range**, review the
+environment and complete fiscal range, then explicitly confirm one operation.
+Opening or closing the wizard has no fiscal or network side effects. After
+signing and official v150 XSD validation, the exact range, event identity and
+request hash are committed independently before transport; `post_started` is
+committed before the call and the final result updates that same audit record.
+Direct user creation/editing of authority evidence is disabled.
+
 Both operations sign `rEve` using the existing `xml_signing` credential and use
 the existing `mutual_tls` binding. They persist only safe endpoint, HTTP status,
 duration, request/response hashes, event identity, authority code/message,

@@ -65,5 +65,8 @@ final result are committed independently on the same `cancel` transmission.
 An accepted durable cancellation that outlives caller rollback is projected
 idempotently on the next operator invocation without another POST.
 
-Inutilization, receiver events, and Consulta DE do not yet use an independent
+Number inutilization now uses a parallel independent boundary on its dedicated
+`fiscal.py.inutilization` audit record: exact range identity and request hash
+are committed before POST, followed by an independent `post_started` marker and
+finalization. Receiver events and Consulta DE do not yet use an independent
 durable cursor. Their behavior remains unchanged pending separate work.

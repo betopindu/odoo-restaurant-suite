@@ -117,6 +117,12 @@ contains any created/issued number. A request may contain at most 1000
 correlative numbers and must be reported by day 15 of the following month.
 Ambiguous inutilization records are evidence and must not be duplicated.
 
+Use **e-Invoice → Inutilize Number Range** only with the Paraguay Fiscal
+Operator role. Opening/cancelling the wizard is offline. Confirmation signs and
+XSD-validates the event, durably records the range and request hash, marks POST
+started, and then performs exactly one authority call. Stop after every explicit
+or ambiguous result; there is no automatic retry.
+
 ```python
 from odoo.addons.einvoice_py.services.py_sifen_manual_retry_service import PySifenManualRetryService
 
@@ -279,8 +285,8 @@ credential references; none was hardcoded into the localization.
 * CSC plaintext storage remains an acknowledged MVP limitation in
   `fiscal.py.csc`; migrate through an approved secret boundary without changing
   QR consumers.
-* Cancellation has its own independently committed durable pre-POST boundary.
-  Inutilization, receiver events, and Consulta DE do not yet use an independent
+* Cancellation and inutilization have independently committed durable pre-POST
+  boundaries. Receiver events and Consulta DE do not yet use an independent
   durable cursor; their adoption requires separate review.
 * Payload monetary calculations use Decimal internally but the normalized
   payload currently carries numeric floats before deterministic XML

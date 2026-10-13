@@ -80,6 +80,27 @@ class _InspectingTransport(_Transport):
         return super().__call__(**kwargs)
 
 
+class _InspectingInutilizationTransport(_Transport):
+    def __init__(self, env, response=None):
+        super().__init__(response=response)
+        self.env = env
+        self.observed = None
+
+    def __call__(self, **kwargs):
+        record = self.env["fiscal.py.inutilization"].sudo().search(
+            [], order="id desc", limit=1
+        )
+        metadata = json.loads(record.metadata_json or "{}")
+        self.observed = {
+            "id": record.id,
+            "state": record.state,
+            "request_hash": record.request_hash,
+            "post_started": metadata.get("post_started"),
+            "durability_phase": metadata.get("durability_phase"),
+        }
+        return super().__call__(**kwargs)
+
+
 class TestPySifenEventService(TransactionCase):
     CDC = "01444444017001001001452822017012515873260988"
 
@@ -252,6 +273,48 @@ class TestPySifenEventService(TransactionCase):
         self.assertTrue(first["accepted"])
         self.assertTrue(second["idempotent"])
         self.assertEqual(record.state, "accepted")
+        self.assertEqual(record.occurred_on, self._inutilization_kwargs(10, 12)["occurred_on"])
+        metadata = json.loads(record.metadata_json)
+        self.assertEqual(metadata["durability_phase"], "finalized")
+        self.assertTrue(metadata["post_started"])
+        self.assertTrue(record.request_hash)
+        self.assertTrue(record.response_hash)
+        self.assertEqual(len(transport.calls), 1)
+
+    def test_inutilization_is_durable_before_transport(self):
+        transport = _InspectingInutilizationTransport(
+            self.env,
+            response=self._response("0600", "Evento registrado correctamente"),
+        )
+        event = PySifenEventService(
+            self.env,
+            credential_provider=_Provider(self.credentials),
+            signer=_Signer(),
+            event_validator=_Validator(),
+            transport=transport,
+        )
+        result = PySifenInutilizationService(
+            self.env, event_service=event
+        ).inutilize(**self._inutilization_kwargs(40, 42))
+
+        self.assertEqual(transport.observed["id"], result["inutilization_id"])
+        self.assertEqual(transport.observed["state"], "pending")
+        self.assertTrue(transport.observed["request_hash"])
+        self.assertTrue(transport.observed["post_started"])
+        self.assertEqual(transport.observed["durability_phase"], "post_started")
+        self.assertEqual(len(transport.calls), 1)
+
+    def test_ambiguous_inutilization_is_preserved_and_never_repeated(self):
+        service, transport = self._inutilization(None, error=PySifenTimeoutError())
+        kwargs = self._inutilization_kwargs(50, 51)
+        first = service.inutilize(**kwargs)
+        second = service.inutilize(**kwargs)
+        record = self.env["fiscal.py.inutilization"].browse(
+            first["inutilization_id"]
+        )
+        self.assertTrue(first["ambiguous"])
+        self.assertTrue(second["idempotent"])
+        self.assertEqual(record.state, "manual_review")
         self.assertEqual(len(transport.calls), 1)
 
     def test_inutilization_blocks_issued_overlap_and_existing_overlap(self):

@@ -19,6 +19,9 @@ class FiscalPyInutilization(models.Model):
     )
     number_from = fields.Integer(required=True, index=True)
     number_to = fields.Integer(required=True, index=True)
+    occurred_on = fields.Date(
+        help="Operational date on which the numbering became unusable.",
+    )
     reason = fields.Char(required=True)
     event_id = fields.Char(index=True)
     state = fields.Selection(

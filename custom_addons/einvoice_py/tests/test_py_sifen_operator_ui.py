@@ -94,6 +94,22 @@ class _Cancellation:
         }
 
 
+class _Inutilization:
+    def __init__(self):
+        self.calls = 0
+        self.kwargs = None
+
+    def inutilize(self, **kwargs):
+        self.calls += 1
+        self.kwargs = kwargs
+        return {
+            "inutilization_id": 9300,
+            "authority_code": "0600",
+            "authority_message": "Event accepted",
+            "ambiguous": False,
+        }
+
+
 class TestPySifenOperatorUi(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -390,3 +406,61 @@ class TestPySifenOperatorUi(TransactionCase):
             "country_code != 'PY' or state != 'accepted'",
         )
         self.assertEqual(buttons[0].get("type"), "object")
+
+    def test_inutilization_modal_is_operator_only_and_open_is_side_effect_free(self):
+        action = self.env.ref("einvoice_py.action_py_sifen_inutilization_wizard")
+        view = self.env.ref("einvoice_py.view_py_sifen_inutilization_wizard_form")
+        self.assertEqual(action.res_model, "py.sifen.inutilization.wizard")
+        self.assertEqual(action.target, "new")
+        self.assertIn('special="cancel"', view.arch_db)
+        self.assertIn("Confirm and Inutilize in SIFEN", view.arch_db)
+        self.assertFalse(self.env["fiscal.py.inutilization"].search([]))
+
+        with self.assertRaises(AccessError):
+            self.env["py.sifen.inutilization.wizard"].with_user(
+                self.regular
+            ).create({})
+
+    def test_inutilization_confirm_delegates_exactly_once(self):
+        issuer = self.env["fiscal.py.issuer"].create({
+            "name": "Operator issuer", "ruc": "44444401", "ruc_dv": "7",
+            "taxpayer_type": "2", "tenant_id": self.tenant.id,
+            "company_id": self.company.id, "environment": "test", "active": False,
+        })
+        establishment = self.env["fiscal.py.establishment"].create({
+            "name": "Operator establishment", "code": "001",
+            "tenant_id": self.tenant.id, "company_id": self.company.id,
+            "issuer_id": issuer.id, "active": True,
+        })
+        point = self.env["fiscal.py.point.of.issue"].create({
+            "name": "Operator point", "code": "001",
+            "establishment_id": establishment.id,
+        })
+        timbrado = self.env["fiscal.py.timbrado"].create({
+            "number": "44444401", "tenant_id": self.tenant.id,
+            "company_id": self.company.id, "environment": "test",
+            "document_type": "invoice",
+        })
+        wizard = self.env["py.sifen.inutilization.wizard"].with_user(
+            self.operator
+        ).create({
+            "adapter_config_id": self.adapter.id,
+            "timbrado_id": timbrado.id,
+            "establishment_id": establishment.id,
+            "point_of_issue_id": point.id,
+            "document_type": "invoice",
+            "number_from": 10,
+            "number_to": 12,
+            "occurred_on": "2026-08-18",
+            "reason": "Unused range due to numbering error",
+        })
+        service = _Inutilization()
+        with patch.object(
+            type(wizard), "_inutilization_service", return_value=service
+        ):
+            result = wizard.action_confirm()
+        self.assertEqual(service.calls, 1)
+        self.assertEqual(service.kwargs["number_from"], 10)
+        self.assertEqual(service.kwargs["number_to"], 12)
+        self.assertEqual(result["tag"], "display_notification")
+        self.assertTrue(result["params"]["sticky"])

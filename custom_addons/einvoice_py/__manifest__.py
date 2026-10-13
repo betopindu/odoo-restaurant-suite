@@ -23,6 +23,7 @@
         "views/account_move_views.xml",
         "views/py_sifen_operator_wizard_views.xml",
         "views/py_sifen_cancellation_wizard_views.xml",
+        "views/py_sifen_inutilization_views.xml",
         "views/account_tax_views.xml",
         "views/res_partner_views.xml",
         "views/einvoice_py_menus.xml",

@@ -84,6 +84,8 @@
 [x] Paraguay SIFEN cancellation and number inutilization flows
 [x] Operator-controlled, XSD-valid and independently durable cancellation offline
 [ ] Live TEST validation of cancellation
+[x] Operator-controlled, XSD-valid and independently durable number inutilization offline
+[ ] Live TEST validation of number inutilization
 [x] Stage 8.25 SIFEN TEST homologation profile and readiness status
 [x] Stage 8.26 SIFEN XMLDSig signing engine
 [x] Stage 8.27 SIFEN QR payload and gCamFuFD builder
