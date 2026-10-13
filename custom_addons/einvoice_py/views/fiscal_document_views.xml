@@ -33,7 +33,7 @@
                         type="object"
                         string="Preview KuDE"
                         class="btn-secondary"
-                        invisible="country_code != 'PY' or document_type not in ('invoice', 'credit_note') or state in ('validation_error', 'cancelled')"/>
+                        invisible="country_code != 'PY' or document_type not in ('invoice', 'credit_note', 'debit_note') or state in ('validation_error', 'cancelled')"/>
                 <button name="action_download_paraguay_kude"
                         type="object"
                         string="Download KuDE"
@@ -43,6 +43,12 @@
                         type="object"
                         string="Download XML"
                         class="btn-secondary"
+                        invisible="country_code != 'PY' or state != 'accepted'"/>
+                <button name="action_open_py_sifen_cancellation"
+                        type="object"
+                        string="Cancel in SIFEN"
+                        class="btn-danger"
+                        groups="einvoice_py.group_py_fiscal_operator"
                         invisible="country_code != 'PY' or state != 'accepted'"/>
             </xpath>
             <xpath expr="//sheet/group[field[@name='country_code']]" position="after">

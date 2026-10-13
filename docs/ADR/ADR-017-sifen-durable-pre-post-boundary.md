@@ -58,5 +58,12 @@ Outbound identity survives caller rollback without committing unrelated data.
 Crashes during local preparation leave a durable `pending` record requiring an
 explicit operator decision but cannot represent an unknown remote side effect.
 
-Cancellation, inutilization, receiver events, and Consulta DE do not yet use
-this primitive. Their behavior remains unchanged pending separate work.
+Cancellation now applies the same decision through the narrower
+`PySifenDurableCancellationService`: its signed, XSD-valid request hash and
+event identity are committed before POST; the `post_started` transition and
+final result are committed independently on the same `cancel` transmission.
+An accepted durable cancellation that outlives caller rollback is projected
+idempotently on the next operator invocation without another POST.
+
+Inutilization, receiver events, and Consulta DE do not yet use an independent
+durable cursor. Their behavior remains unchanged pending separate work.

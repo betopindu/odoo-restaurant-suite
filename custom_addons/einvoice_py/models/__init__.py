@@ -16,3 +16,4 @@ from . import account_move
 from . import account_tax
 from . import res_partner
 from . import py_sifen_operator_wizard
+from . import py_sifen_cancellation_wizard

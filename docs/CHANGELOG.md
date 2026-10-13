@@ -1,5 +1,15 @@
 # Documentation Changelog
 
+## 2026-10-13 — Operator-controlled durable SIFEN cancellation
+
+* Added the explicit accepted-document cancellation confirmation UI for the
+  Paraguay Fiscal Operator group; opening/cancelling the modal has no side
+  effects and confirmation delegates to the existing event service.
+* Pinned and enforced the official SIFEN v150 event schemas before transport.
+* Added an independent durable cancellation boundary that commits request
+  identity before POST, blocks ambiguous duplicates, finalizes the same attempt
+  and projects accepted crash-recovery evidence without resending.
+
 ## 2026-10-13 — Paraguay NDE end-to-end offline foundation
 
 * Integrated Odoo 17's standard debit-note origin with an immutable Paraguay

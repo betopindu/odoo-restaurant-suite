@@ -7,6 +7,31 @@ from odoo.exceptions import AccessError, ValidationError
 class FiscalDocument(models.Model):
     _inherit = "fiscal.document"
 
+    def action_open_py_sifen_cancellation(self):
+        self.ensure_one()
+        if not self.env.user.has_group("einvoice_py.group_py_fiscal_operator"):
+            raise AccessError("Only Paraguay Fiscal Operators may cancel a DTE in SIFEN.")
+        if (self.country_code or "").upper() != "PY" or self.state != "accepted":
+            raise ValidationError("Only an accepted Paraguay DTE can open SIFEN cancellation.")
+        if self.transmission_ids.filtered(
+            lambda tx: tx.transmission_type == "cancel"
+            and tx.state in ("pending", "sent", "manual_review")
+        ):
+            raise ValidationError(
+                "SIFEN cancellation has an unresolved prior attempt requiring manual review."
+            )
+        return {
+            "type": "ir.actions.act_window",
+            "name": "Confirm SIFEN Cancellation",
+            "res_model": "py.sifen.cancellation.wizard",
+            "view_mode": "form",
+            "views": [(self.env.ref(
+                "einvoice_py.view_py_sifen_cancellation_wizard_form"
+            ).id, "form")],
+            "target": "new",
+            "context": {"default_document_id": self.id},
+        }
+
     py_establishment_id = fields.Many2one(
         "fiscal.py.establishment",
         string="Establishment",

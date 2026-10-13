@@ -80,6 +80,20 @@ class _Reconciliation:
                 "authority_code": "0422"}
 
 
+class _Cancellation:
+    def __init__(self):
+        self.calls = 0
+
+    def cancel(self, **_kwargs):
+        self.calls += 1
+        return {
+            "transmission_id": 9200,
+            "authority_code": "0600",
+            "authority_message": "Event accepted",
+            "ambiguous": False,
+        }
+
+
 class TestPySifenOperatorUi(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -331,3 +345,48 @@ class TestPySifenOperatorUi(TransactionCase):
             action = wizard.action_confirm()
         submit.assert_called_once()
         self.assertEqual(action["tag"], "display_notification")
+
+    def test_cancellation_modal_open_and_cancel_paths_have_no_side_effects(self):
+        document = self._document(state="accepted").with_user(self.operator)
+        action = document.action_open_py_sifen_cancellation()
+        self.assertEqual(action["res_model"], "py.sifen.cancellation.wizard")
+        self.assertEqual(action["target"], "new")
+        self.assertEqual(action["context"]["default_document_id"], document.id)
+        view = self.env.ref("einvoice_py.view_py_sifen_cancellation_wizard_form")
+        self.assertIn('special="cancel"', view.arch_db)
+        self.assertIn("Confirm and Cancel in SIFEN", view.arch_db)
+        self.assertEqual(len(document.transmission_ids), 0)
+
+    def test_cancellation_modal_requires_operator_and_confirm_delegates_once(self):
+        document = self._document(state="accepted")
+        with self.assertRaisesRegex(AccessError, "Fiscal Operators"):
+            document.with_user(self.regular).action_open_py_sifen_cancellation()
+
+        cancellation = _Cancellation()
+        wizard = self.env["py.sifen.cancellation.wizard"].with_user(
+            self.operator
+        ).create({
+            "document_id": document.id,
+            "reason": "The transaction did not occur",
+        })
+        with patch.object(
+            type(wizard), "_cancellation_service", return_value=cancellation
+        ):
+            action = wizard.action_confirm()
+        self.assertEqual(cancellation.calls, 1)
+        self.assertEqual(action["tag"], "display_notification")
+        self.assertTrue(action["params"]["sticky"])
+
+    def test_cancellation_button_is_only_available_for_accepted_documents(self):
+        view = self.env.ref("einvoice_py.view_fiscal_document_form_py")
+        root = etree.fromstring(view.arch_db.encode("utf-8"))
+        buttons = root.xpath(
+            ".//button[@name='action_open_py_sifen_cancellation']"
+        )
+        self.assertEqual(len(buttons), 1)
+        self.assertEqual(buttons[0].get("string"), "Cancel in SIFEN")
+        self.assertEqual(
+            buttons[0].get("invisible"),
+            "country_code != 'PY' or state != 'accepted'",
+        )
+        self.assertEqual(buttons[0].get("type"), "object")

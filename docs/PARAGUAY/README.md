@@ -1036,6 +1036,13 @@ the document to `cancelled` while preserving `accepted_at`, the accepted
 transmission and all DE artifacts. Rejection leaves the document accepted.
 Timeout, HTTP/TLS uncertainty, SOAP Fault or malformed XML creates a manual
 review cancellation transmission and blocks another cancellation POST.
+The operator starts cancellation explicitly from an accepted fiscal document,
+reviews document/environment/CDC, supplies a reason, and confirms the modal.
+Opening or dismissing it has no fiscal side effect. Before POST, the signed
+event passes the pinned official v150 event XSD and the same `cancel`
+transmission is committed independently with request hash, event identity and
+`post_started` evidence. An accepted durable result is projected idempotently
+after restart without resending.
 
 `PySifenInutilizationService` handles a correlated range of 1–1000 unused
 seven-digit numbers scoped by tenant, company, environment, timbrado,

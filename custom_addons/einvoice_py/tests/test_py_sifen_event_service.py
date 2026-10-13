@@ -19,6 +19,9 @@ from odoo.addons.einvoice_py.services.py_sifen_event_service import (
     PySifenReceiverEventService,
 )
 from odoo.addons.einvoice_py.services.py_sifen_event_signature_service import PySifenEventSignatureService
+from odoo.addons.einvoice_py.services.py_sifen_event_xsd_validation_service import (
+    PySifenEventXsdValidationService,
+)
 from odoo.addons.einvoice_py.services.py_sifen_datetime_service import PySifenDatetimeService
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import PySifenTimeoutError
 
@@ -36,6 +39,11 @@ class _Signer:
         return SimpleNamespace(signed_xml_bytes=event_xml_bytes, event_id="1")
 
 
+class _Validator:
+    def validate_signed_event(self, _signed_event_xml):
+        return True
+
+
 class _Transport:
     def __init__(self, response=None, error=None):
         self.response = response
@@ -47,6 +55,29 @@ class _Transport:
         if self.error:
             raise self.error
         return self.response
+
+
+class _InspectingTransport(_Transport):
+    def __init__(self, env, document, response=None):
+        super().__init__(response=response)
+        self.env = env
+        self.document = document
+        self.observed = None
+
+    def __call__(self, **kwargs):
+        attempt = self.env["fiscal.transmission"].sudo().search([
+            ("document_id", "=", self.document.id),
+            ("transmission_type", "=", "cancel"),
+        ], order="id desc", limit=1)
+        metadata = json.loads(attempt.metadata_json or "{}")
+        self.observed = {
+            "id": attempt.id,
+            "state": attempt.state,
+            "request_hash": attempt.request_hash,
+            "post_started": metadata.get("post_started"),
+            "durability_phase": metadata.get("durability_phase"),
+        }
+        return super().__call__(**kwargs)
 
 
 class TestPySifenEventService(TransactionCase):
@@ -114,11 +145,42 @@ class TestPySifenEventService(TransactionCase):
         self.assertEqual(cancellation.state, "accepted")
         self.assertEqual(cancellation.authority_status_code, "0600")
         self.assertEqual(cancellation.http_status, 200)
+        metadata = json.loads(cancellation.metadata_json)
+        self.assertEqual(metadata["durability_phase"], "finalized")
+        self.assertTrue(metadata["post_started"])
+        self.assertFalse(metadata["ambiguous"])
+        self.assertTrue(cancellation.request_hash)
+        self.assertTrue(cancellation.response_hash)
         self.assertEqual(len(transport.calls), 1)
         request = etree.fromstring(transport.calls[0]["body"])
         self.assertIsNotNone(request.find(".//{http://ekuatia.set.gov.py/sifen/xsd}rEnviEventoDe"))
         self.assertIsNotNone(request.find(".//{http://ekuatia.set.gov.py/sifen/xsd}rGeVeCan"))
         self.assertNotIn(b"CSC", transport.calls[0]["body"])
+
+    def test_durable_cancellation_is_marked_started_before_transport(self):
+        transport = _InspectingTransport(
+            self.env,
+            self.document,
+            response=self._response("0600", "Evento registrado correctamente"),
+        )
+        event = PySifenEventService(
+            self.env,
+            credential_provider=_Provider(self.credentials),
+            signer=_Signer(),
+            event_validator=_Validator(),
+            transport=transport,
+        )
+
+        result = PySifenCancellationService(
+            self.env, event_service=event
+        ).cancel(document=self.document, reason="Transaction did not occur")
+
+        self.assertEqual(transport.observed["id"], result["transmission_id"])
+        self.assertEqual(transport.observed["state"], "sent")
+        self.assertTrue(transport.observed["request_hash"])
+        self.assertTrue(transport.observed["post_started"])
+        self.assertEqual(transport.observed["durability_phase"], "post_started")
+        self.assertEqual(len(transport.calls), 1)
 
     def test_non_accepted_and_expired_documents_are_blocked(self):
         service, transport = self._cancellation(self._response("0600", "OK"))
@@ -155,6 +217,31 @@ class TestPySifenEventService(TransactionCase):
         self.assertTrue(second["idempotent"])
         self.assertEqual(first["transmission_id"], second["transmission_id"])
         self.assertEqual(len(transport.calls), 1)
+
+    def test_durable_accepted_attempt_is_projected_after_process_restart(self):
+        transmission = self.env["fiscal.transmission"].sudo().create({
+            "document_id": self.document.id,
+            "transmission_type": "cancel",
+            "state": "accepted",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": self.CDC,
+            "request_hash": "c" * 64,
+            "response_hash": "d" * 64,
+            "authority_status_code": "0600",
+            "authority_message": "Event accepted",
+            "metadata_json": json.dumps({
+                "durability_phase": "finalized", "post_started": True,
+            }),
+        })
+        service, transport = self._cancellation(self._response("0600", "OK"))
+        result = service.cancel(
+            document=self.document, reason="Transaction did not occur"
+        )
+        self.assertTrue(result["idempotent"])
+        self.assertEqual(result["transmission_id"], transmission.id)
+        self.assertEqual(self.document.state, "cancelled")
+        self.assertEqual(transport.calls, [])
 
     def test_valid_inutilization_and_idempotency(self):
         service, transport = self._inutilization(self._response("0600", "Evento registrado correctamente"))
@@ -249,6 +336,34 @@ class TestPySifenEventService(TransactionCase):
         context = xmlsec.SignatureContext()
         context.key = verify_key
         context.verify(signature)
+        self.assertTrue(
+            PySifenEventXsdValidationService().validate_signed_event(
+                result.signed_xml_bytes
+            )
+        )
+
+    def test_invalid_signed_event_is_blocked_before_transport(self):
+        class InvalidValidator:
+            def validate_signed_event(self, _signed_event_xml):
+                raise ValidationError("Signed SIFEN event failed official v150 XSD validation.")
+
+        transport = _Transport(response=self._response("0600", "OK"))
+        event = PySifenEventService(
+            self.env,
+            credential_provider=_Provider(self.credentials),
+            signer=_Signer(),
+            event_validator=InvalidValidator(),
+            transport=transport,
+        )
+        with self.assertRaisesRegex(ValidationError, "official v150 XSD"):
+            PySifenCancellationService(self.env, event_service=event).cancel(
+                document=self.document,
+                reason="Transaction did not occur",
+            )
+        self.assertEqual(transport.calls, [])
+        self.assertFalse(self.document.transmission_ids.filtered(
+            lambda tx: tx.transmission_type == "cancel"
+        ))
 
     def test_all_official_receiver_event_requests_are_built(self):
         cases = (
@@ -413,7 +528,13 @@ class TestPySifenEventService(TransactionCase):
 
     def _event_service(self, response, error=None):
         transport = _Transport(response=response, error=error)
-        return PySifenEventService(self.env, credential_provider=_Provider(self.credentials), signer=_Signer(), transport=transport), transport
+        return PySifenEventService(
+            self.env,
+            credential_provider=_Provider(self.credentials),
+            signer=_Signer(),
+            event_validator=_Validator(),
+            transport=transport,
+        ), transport
 
     def _cancellation(self, response, error=None):
         event, transport = self._event_service(response, error)

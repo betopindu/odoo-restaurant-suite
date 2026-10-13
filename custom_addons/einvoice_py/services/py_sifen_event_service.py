@@ -1,6 +1,7 @@
 import hashlib
 import json
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from urllib.parse import urlsplit, urlunsplit
@@ -12,9 +13,22 @@ from odoo.exceptions import ValidationError
 from odoo.addons.einvoice_py.services.py_sifen_credential_provider import PySifenCredentialProvider
 from odoo.addons.einvoice_py.services.py_sifen_datetime_service import PySifenDatetimeService
 from odoo.addons.einvoice_py.services.py_sifen_event_signature_service import PySifenEventSignatureService
+from odoo.addons.einvoice_py.services.py_sifen_event_xsd_validation_service import (
+    PySifenEventXsdValidationService,
+)
 from odoo.addons.einvoice_py.services.py_sifen_sandbox_transport import PySifenSandboxTransport
 from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import PySifenTransportError
 from odoo.addons.einvoice_py.services.cdc_service import PyCdcService
+
+
+@dataclass(frozen=True)
+class PySifenPreparedEventRequest:
+    endpoint_url: str
+    request_xml: bytes
+    request_hash: str
+    event_id: str
+    timeout_seconds: int
+    mutual_tls_credential: object
 
 
 class PySifenEventService:
@@ -26,10 +40,14 @@ class PySifenEventService:
     }
     ACCEPTED_CODE = "0600"
 
-    def __init__(self, env, *, credential_provider=None, signer=None, transport=None):
+    def __init__(
+        self, env, *, credential_provider=None, signer=None, event_validator=None,
+        transport=None,
+    ):
         self.env = env
         self.credential_provider = credential_provider or PySifenCredentialProvider(env)
         self.signer = signer or PySifenEventSignatureService()
+        self.event_validator = event_validator or PySifenEventXsdValidationService()
         self.transport = transport or PySifenSandboxTransport(env)
 
     def execute(self, *, adapter, event_xml_bytes, audit_record, audit_model, original_ids=None):
@@ -38,25 +56,10 @@ class PySifenEventService:
         request_hash = ""
         event_id = ""
         try:
-            credentials = self.credential_provider.resolve_event(adapter_config=adapter)
-            signed = self.signer.sign(
-                event_xml_bytes=event_xml_bytes,
-                certificate_bytes=credentials.signing_certificate_bytes,
-                private_key_bytes=credentials.signing_private_key_bytes,
-                private_key_password=credentials.signing_private_key_password,
-            )
-            event_id = signed.event_id
-            request_xml = self._envelope(adapter, signed.signed_xml_bytes)
-            request_hash = hashlib.sha256(request_xml).hexdigest()
-            response = self.transport(
-                endpoint_url=endpoint,
-                body=request_xml,
-                timeout_seconds=credentials.timeout_seconds,
-                mutual_tls_credential=credentials.mutual_tls_credential,
-            )
-            result = self._parse_response(response)
-        except PySifenTransportError:
-            result = self._failure("transport_ambiguous", "SIFEN event transport outcome is ambiguous.", True)
+            prepared = self.prepare(adapter=adapter, event_xml_bytes=event_xml_bytes)
+            request_hash = prepared.request_hash
+            event_id = prepared.event_id
+            result = self.send(prepared)
         except ValidationError:
             result = self._failure("configuration_invalid", "SIFEN event configuration is invalid.", False)
         except Exception:
@@ -68,6 +71,54 @@ class PySifenEventService:
             "endpoint_url": self._safe_endpoint(endpoint),
         })
         self._persist_result(audit_record, audit_model, result, original_ids or [])
+        return result
+
+    def prepare(self, *, adapter, event_xml_bytes):
+        credentials = self.credential_provider.resolve_event(adapter_config=adapter)
+        signed = self.signer.sign(
+            event_xml_bytes=event_xml_bytes,
+            certificate_bytes=credentials.signing_certificate_bytes,
+            private_key_bytes=credentials.signing_private_key_bytes,
+            private_key_password=credentials.signing_private_key_password,
+        )
+        self.event_validator.validate_signed_event(signed.signed_xml_bytes)
+        request_xml = self._envelope(adapter, signed.signed_xml_bytes)
+        endpoint = self.ENDPOINTS[adapter.environment]
+        return PySifenPreparedEventRequest(
+            endpoint_url=self._safe_endpoint(endpoint),
+            request_xml=request_xml,
+            request_hash=hashlib.sha256(request_xml).hexdigest(),
+            event_id=signed.event_id,
+            timeout_seconds=credentials.timeout_seconds,
+            mutual_tls_credential=credentials.mutual_tls_credential,
+        )
+
+    def send(self, prepared):
+        started = time.monotonic()
+        try:
+            response = self.transport(
+                endpoint_url=prepared.endpoint_url,
+                body=prepared.request_xml,
+                timeout_seconds=prepared.timeout_seconds,
+                mutual_tls_credential=prepared.mutual_tls_credential,
+            )
+            result = self._parse_response(response)
+        except PySifenTransportError:
+            result = self._failure(
+                "transport_ambiguous",
+                "SIFEN event transport outcome is ambiguous.",
+                True,
+            )
+        except Exception:
+            result = self._failure(
+                "event_failure", "SIFEN event could not be completed.", False
+            )
+        result.update({
+            "request_hash": prepared.request_hash,
+            "event_id": prepared.event_id,
+            "duration_ms": max(0, int((time.monotonic() - started) * 1000)),
+            "endpoint_url": prepared.endpoint_url,
+        })
         return result
 
     def build_cancellation_event(self, *, event_id, cdc, reason, signing_timestamp):
@@ -240,15 +291,22 @@ class PySifenEventService:
 
 
 class PySifenCancellationService:
-    def __init__(self, env, *, event_service=None):
+    def __init__(self, env, *, event_service=None, durable_service=None):
         self.env = env
         self.event_service = event_service or PySifenEventService(env)
+        if durable_service is None:
+            from odoo.addons.einvoice_py.services.py_sifen_durable_cancellation_service import (
+                PySifenDurableCancellationService,
+            )
+            durable_service = PySifenDurableCancellationService(env)
+        self.durable_service = durable_service
 
     def cancel(self, *, document, reason, signing_timestamp=None):
         document.ensure_one()
-        self._lock(document)
         existing = self._existing(document)
-        if document.state == "cancelled" and existing:
+        if existing:
+            if document.state == "accepted":
+                self._project_acceptance(document, existing)
             return {"accepted": True, "transmission_id": existing.id, "idempotent": True}
         if self._unresolved(document):
             raise ValidationError(
@@ -257,28 +315,59 @@ class PySifenCancellationService:
         self._validate(document, reason)
         adapter = document.adapter_config_id
         event_id = self.event_service._next_id(adapter, 10)
-        transmission = self.env["fiscal.transmission"].sudo().create({
-            "document_id": document.id, "transmission_type": "cancel", "state": "pending",
-            "country_code": "PY", "environment": document.environment,
-            "country_identifier": document.country_identifier or document.py_cdc,
-            "attempt_number": len(document.transmission_ids.filtered(lambda tx: tx.transmission_type == "cancel")) + 1,
-            "started_at": fields.Datetime.now(),
-        })
         event_xml = self.event_service.build_cancellation_event(
             event_id=event_id, cdc=document.country_identifier or document.py_cdc,
             reason=reason.strip(), signing_timestamp=signing_timestamp or fields.Datetime.now(),
         )
         accepted_before = document.transmission_ids.filtered(lambda tx: tx.transmission_type == "submit" and tx.state == "accepted").ids
-        result = self.event_service.execute(adapter=adapter, event_xml_bytes=event_xml, audit_record=transmission, audit_model="fiscal.transmission", original_ids=accepted_before)
+        prepared_event = self.event_service.prepare(
+            adapter=adapter, event_xml_bytes=event_xml
+        )
+        prepared_attempt = self.durable_service.prepare(
+            document=document,
+            prepared_event=prepared_event,
+            original_evidence_ids=accepted_before,
+        )
+        self.durable_service.mark_post_started(
+            transmission_id=prepared_attempt.transmission_id
+        )
+        result = self.event_service.send(prepared_event)
+        self.durable_service.finalize(
+            transmission_id=prepared_attempt.transmission_id,
+            result=result,
+        )
+        transmission = self.env["fiscal.transmission"].sudo().browse(
+            prepared_attempt.transmission_id
+        )
+        transmission.invalidate_recordset()
         if result.get("accepted"):
-            document.with_context(einvoice_skip_fiscal_document_lock=True).write({"state": "cancelled", "cancelled_at": fields.Datetime.now()})
+            self._project_acceptance(document, transmission, result=result)
+        return dict(result, transmission_id=transmission.id, event_id=event_id)
+
+    def _project_acceptance(self, document, transmission, result=None):
+        result = result or {
+            "authority_code": transmission.authority_status_code,
+            "authority_message": transmission.authority_message,
+        }
+        document.with_context(einvoice_skip_fiscal_document_lock=True).write({
+            "state": "cancelled", "cancelled_at": fields.Datetime.now(),
+        })
+        if not document.event_ids.filtered(
+            lambda item: item.event_type == "sifen_cancellation"
+        ):
             self.env["fiscal.event"].sudo().create({
-                "document_id": document.id, "event_type": "sifen_cancellation", "from_state": "accepted", "to_state": "cancelled",
+                "document_id": document.id,
+                "event_type": "sifen_cancellation",
+                "from_state": "accepted", "to_state": "cancelled",
                 "message": result.get("authority_message") or "SIFEN cancellation accepted.",
                 "payload_hash": transmission.request_hash,
-                "metadata_json": json.dumps({"transmission_id": transmission.id, "authority_code": result.get("authority_code"), "authority_protocol": result.get("authority_protocol"), "authority_timestamp": result.get("authority_timestamp")}, sort_keys=True),
+                "metadata_json": json.dumps({
+                    "transmission_id": transmission.id,
+                    "authority_code": result.get("authority_code"),
+                    "authority_protocol": result.get("authority_protocol"),
+                    "authority_timestamp": result.get("authority_timestamp"),
+                }, sort_keys=True),
             })
-        return dict(result, transmission_id=transmission.id, event_id=event_id)
 
     def _validate(self, document, reason):
         if document.state != "accepted":

@@ -21,6 +21,13 @@ eligibility and state rules. Cancellation uses an independent `cancel`
 `fiscal.transmission` plus a successful `fiscal.event`; inutilization uses the
 Paraguay-specific `fiscal.py.inutilization` audit model.
 
+Cancellation validates its signed `rEve` against locally pinned official v150
+event schemas before transport. `PySifenDurableCancellationService` commits
+the exact request hash and event identity on a dedicated cursor, marks the POST
+boundary independently, and finalizes the same attempt. Opening or cancelling
+the operator confirmation wizard creates no attempt and performs no network
+operation.
+
 No generic core event protocol is introduced. The existing neutral
 `fiscal.event` remains a document lifecycle journal and is not stretched to
 represent unused number ranges.

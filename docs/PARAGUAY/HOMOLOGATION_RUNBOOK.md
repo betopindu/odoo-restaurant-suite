@@ -99,12 +99,17 @@ signed artifact instead of reusing stale XML.
 ### Emitter events
 
 Never cancel by changing the document state directly. Invoke
-`PySifenCancellationService` only after confirming the document remains accepted,
+the **Cancel in SIFEN** operator action only after confirming the document remains accepted,
 has no unresolved cancellation, and is inside the authority window. Preserve the
 accepted XML, KuDE, submission transmission and `accepted_at`. Stop after any
 explicit rejection. Timeout, HTTP/TLS uncertainty, SOAP Fault or malformed
 response is an ambiguous event outcome: keep the cancellation in manual review
 and do not POST again.
+
+Opening and cancelling the confirmation modal performs no POST. **Confirm and
+Cancel in SIFEN** performs exactly one guarded event attempt. The durable
+`post_started` marker, not an empty response, determines whether recovery is
+ambiguous.
 
 Before inutilization, confirm the timbrado, establishment, point, document type,
 range and occurrence date from operational evidence. Do not use a range that
@@ -274,8 +279,9 @@ credential references; none was hardcoded into the localization.
 * CSC plaintext storage remains an acknowledged MVP limitation in
   `fiscal.py.csc`; migrate through an approved secret boundary without changing
   QR consumers.
-* Cancellation, inutilization, receiver events, and Consulta DE do not yet use
-  the DE durable pre-POST primitive; their adoption requires separate review.
+* Cancellation has its own independently committed durable pre-POST boundary.
+  Inutilization, receiver events, and Consulta DE do not yet use an independent
+  durable cursor; their adoption requires separate review.
 * Payload monetary calculations use Decimal internally but the normalized
   payload currently carries numeric floats before deterministic XML
   quantization. Broader currency/precision profiles should be validated before

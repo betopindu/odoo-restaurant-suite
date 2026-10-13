@@ -14,6 +14,7 @@ from . import py_sifen_credential_provider
 from . import py_sifen_datetime_service
 from . import py_sifen_event_service
 from . import py_sifen_event_signature_service
+from . import py_sifen_event_xsd_validation_service
 from . import py_signing_pipeline_service
 from . import py_sifen_sandbox_transport
 from . import py_sifen_rde_assembler
@@ -52,6 +53,7 @@ from .py_sifen_event_service import (
     PySifenInutilizationService,
     PySifenReceiverEventService,
 )
+from .py_sifen_event_xsd_validation_service import PySifenEventXsdValidationService
 from .py_fiscal_document_delivery_service import (
     PyFiscalDeliveryFile,
     PyFiscalDocumentDeliveryBundle,
@@ -72,6 +74,7 @@ from .py_sifen_retry_eligibility_service import (
     PySifenRetryEligibilityService,
 )
 from .py_sifen_durable_attempt_service import PySifenDurableAttemptService
+from .py_sifen_durable_cancellation_service import PySifenDurableCancellationService
 from .py_sifen_ambiguous_reconciliation_service import (
     PySifenAmbiguousSubmissionReconciliationService,
     PySifenReconciliationService,
