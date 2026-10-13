@@ -33,7 +33,7 @@
                         type="object"
                         string="Preview KuDE"
                         class="btn-secondary"
-                        invisible="country_code != 'PY' or document_type not in ('invoice', 'credit_note', 'debit_note') or state in ('validation_error', 'cancelled')"/>
+                        invisible="country_code != 'PY' or document_type not in ('invoice', 'credit_note', 'debit_note', 'self_invoice') or state in ('validation_error', 'cancelled')"/>
                 <button name="action_download_paraguay_kude"
                         type="object"
                         string="Download KuDE"
@@ -50,6 +50,33 @@
                         class="btn-danger"
                         groups="einvoice_py.group_py_fiscal_operator"
                         invisible="country_code != 'PY' or state != 'accepted'"/>
+            </xpath>
+            <xpath expr="//sheet/group[field[@name='country_code']]" position="after">
+                <group string="Electronic Self-Invoice Snapshot" invisible="country_code != 'PY' or document_type != 'self_invoice'">
+                    <group string="Seller">
+                        <field name="py_seller_nature" readonly="1"/>
+                        <field name="py_seller_id_type" readonly="1"/>
+                        <field name="py_seller_id_number" readonly="1"/>
+                        <field name="py_seller_name" readonly="1"/>
+                        <field name="py_seller_address" readonly="1"/>
+                        <field name="py_seller_house_number" readonly="1"/>
+                        <field name="py_seller_department_code" readonly="1"/>
+                        <field name="py_seller_department_name" readonly="1"/>
+                        <field name="py_seller_district_code" readonly="1"/>
+                        <field name="py_seller_district_name" readonly="1"/>
+                        <field name="py_seller_city_code" readonly="1"/>
+                        <field name="py_seller_city_name" readonly="1"/>
+                    </group>
+                    <group string="Transaction Place">
+                        <field name="py_transaction_address" readonly="1"/>
+                        <field name="py_transaction_department_code" readonly="1"/>
+                        <field name="py_transaction_department_name" readonly="1"/>
+                        <field name="py_transaction_district_code" readonly="1"/>
+                        <field name="py_transaction_district_name" readonly="1"/>
+                        <field name="py_transaction_city_code" readonly="1"/>
+                        <field name="py_transaction_city_name" readonly="1"/>
+                    </group>
+                </group>
             </xpath>
             <xpath expr="//sheet/group[field[@name='country_code']]" position="after">
                 <group string="Credit/Debit Note" invisible="country_code != 'PY' or document_type not in ('credit_note', 'debit_note')">

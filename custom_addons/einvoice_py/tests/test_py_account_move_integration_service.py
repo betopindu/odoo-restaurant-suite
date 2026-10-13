@@ -132,6 +132,27 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
             "establishment_id": cls.establishment.id, "point_of_issue_id": cls.point.id,
             "document_type": "debit_note", "next_number": 7000000, "padding": 7,
         })
+        cls.self_invoice_timbrado = cls.env["fiscal.py.timbrado"].create({
+            "number": "4444444", "tenant_id": cls.tenant.id,
+            "company_id": cls.company.id, "environment": "test",
+            "document_type": "self_invoice", "valid_from": date(2026, 1, 1),
+            "allowed_point_of_issue_ids": [(6, 0, [cls.point.id])],
+        })
+        cls.self_invoice_sequence = cls.env["fiscal.py.sequence"].create({
+            "name": "Self-invoice sequence", "tenant_id": cls.tenant.id,
+            "company_id": cls.company.id, "timbrado_id": cls.self_invoice_timbrado.id,
+            "establishment_id": cls.establishment.id, "point_of_issue_id": cls.point.id,
+            "document_type": "self_invoice", "next_number": 6000000, "padding": 7,
+        })
+        cls.company.partner_id.write({
+            "vat": "4444444-0", "country_id": cls.env.ref("base.py").id,
+            "street": "Buyer address", "phone": "021000000", "email": "buyer@example.test",
+            "py_sifen_receiver_profile": "taxpayer",
+            "py_sifen_taxpayer_type": "2", "py_sifen_house_number": "1",
+            "py_sifen_department_code": "11", "py_sifen_department_name": "CENTRAL",
+            "py_sifen_district_code": "143", "py_sifen_district_name": "SAN LORENZO",
+            "py_sifen_city_code": "3756", "py_sifen_city_name": "SAN LORENZO",
+        })
         cls.tax_10 = cls._tax("IVA 10 explicit fixture", 10, "iva_10")
         cls.tax_5 = cls._tax("IVA 5 explicit fixture", 5, "iva_5")
         cls.tax_exempt = cls._tax("Exempt explicit fixture", 0, "exempt")
@@ -238,11 +259,91 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         )
         self.assertEqual(self.service.create(move=move), first)
 
-    def test_vendor_bill_and_general_entry_are_rejected(self):
-        for move_type in ("in_invoice", "entry"):
-            move = self._move(move_type=move_type, post=False)
-            with self.assertRaisesRegex(ValidationError, "customer invoices"):
-                self.service.create(move=move)
+    def test_general_entry_is_rejected(self):
+        move = self._move(move_type="entry", post=False)
+        with self.assertRaisesRegex(ValidationError, "vendor bills"):
+            self.service.create(move=move)
+
+    def _self_invoice_move(self, *, complete=True):
+        seller = self.env["res.partner"].create({
+            "name": "Rural non-taxpayer seller", "vat": "1234567",
+            "country_id": self.env.ref("base.py").id, "street": "Seller address",
+            "py_sifen_house_number": "0", "py_sifen_department_code": "11",
+            "py_sifen_department_name": "CENTRAL", "py_sifen_city_code": "3756",
+            "py_sifen_city_name": "SAN LORENZO",
+            "py_sifen_self_invoice_seller_nature": "1",
+            "py_sifen_self_invoice_id_type": "1",
+        })
+        move = self._move(move_type="in_invoice", partner=seller, post=False)
+        if complete:
+            move.write({
+                "py_self_invoice_transaction_address": "Purchase location",
+                "py_self_invoice_transaction_department_code": "11",
+                "py_self_invoice_transaction_department_name": "CENTRAL",
+                "py_self_invoice_transaction_city_code": "3756",
+                "py_self_invoice_transaction_city_name": "SAN LORENZO",
+            })
+        move.action_post()
+        return move
+
+    def test_posted_vendor_bill_creates_schema_valid_self_invoice(self):
+        move = self._self_invoice_move()
+        document = self.service.create(move=move)
+        payload = PyPayloadBuilder(self.env).build(document)
+        xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        from lxml import etree
+        root = etree.fromstring(xml_bytes)
+        ns = {"s": PyUnsignedXmlBuilder.SIFEN_NS}
+
+        self.assertEqual(document.document_type, "self_invoice")
+        self.assertEqual(document.account_move_id, move)
+        self.assertEqual(document.py_cdc[:2], "04")
+        self.assertEqual(document.py_seller_name, "Rural non-taxpayer seller")
+        self.assertEqual(payload["self_invoice"]["seller_nature"], "1")
+        self.assertEqual(root.xpath("string(.//s:gCamAE/s:dNumIDVen)", namespaces=ns), "1234567")
+        self.assertEqual(root.xpath("string(.//s:gCamAE/s:dDirProv)", namespaces=ns), "Purchase location")
+        self.assertEqual(len(root.xpath(".//s:gCamAE", namespaces=ns)), 1)
+        self.assertEqual(self.service.create(move=move), document)
+
+    def test_self_invoice_missing_seller_or_transaction_data_fails_closed(self):
+        with self.assertRaisesRegex(ValidationError, "transaction address"):
+            self.service.create(move=self._self_invoice_move(complete=False))
+
+    def test_self_invoice_preview_and_full_signed_pipeline_are_offline(self):
+        document = self.service.create(move=self._self_invoice_move())
+        preview = PyKudePreviewService(self.env).render(document=document)
+        self.assertTrue(preview.pdf_bytes.startswith(b"%PDF-"))
+        self.assertEqual(preview.filename, f"PREVIEW-AFE-{document.py_full_number}.pdf")
+
+        payload = PyPayloadBuilder(self.env).build(document)
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        subject = x509.Name([
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "PY"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "Offline AFE Fixture"),
+        ])
+        certificate = (
+            x509.CertificateBuilder().subject_name(subject).issuer_name(subject)
+            .public_key(private_key.public_key()).serial_number(x509.random_serial_number())
+            .not_valid_before(self.SNAPSHOT_TIME - timedelta(days=1))
+            .not_valid_after(self.SNAPSHOT_TIME + timedelta(days=30))
+            .sign(private_key=private_key, algorithm=hashes.SHA256())
+        )
+        submission = _OfflineNceSubmission()
+        result = PySifenSubmissionPipelineService(
+            self.env, submission_service=submission
+        ).submit_test(
+            document=document, payload=payload, signing_timestamp=self.SNAPSHOT_TIME,
+            certificate_bytes=certificate.public_bytes(serialization.Encoding.PEM),
+            private_key_bytes=private_key.private_bytes(
+                serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            ),
+            endpoint_url="https://offline.example.test/de",
+            mutual_tls_credential={"offline": True},
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(len(submission.calls), 1)
+        self.assertFalse(document.transmission_ids)
 
     def test_draft_and_cancelled_invoice_are_rejected(self):
         draft = self._move(post=False)

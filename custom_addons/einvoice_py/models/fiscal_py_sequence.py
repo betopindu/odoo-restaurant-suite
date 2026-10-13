@@ -26,6 +26,7 @@ class FiscalPySequence(models.Model):
             ("invoice", "Invoice"),
             ("credit_note", "Credit Note"),
             ("debit_note", "Debit Note"),
+            ("self_invoice", "Electronic Self-Invoice"),
             ("receipt", "Receipt"),
         ],
         required=True,

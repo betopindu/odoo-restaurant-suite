@@ -230,6 +230,30 @@ class FiscalDocument(models.Model):
         copy=False,
         help="Customer code snapshot for later SIFEN receiver data mapping.",
     )
+    py_seller_nature = fields.Selection(
+        [("1", "Non-taxpayer"), ("2", "Foreign")], string="Self-Invoice Seller Nature", copy=False
+    )
+    py_seller_id_type = fields.Selection(
+        [("1", "Paraguayan ID"), ("2", "Passport"), ("3", "Foreign ID"), ("4", "Residence Card")],
+        string="Self-Invoice Seller ID Type", copy=False,
+    )
+    py_seller_id_number = fields.Char(string="Self-Invoice Seller ID", copy=False)
+    py_seller_name = fields.Char(string="Self-Invoice Seller", copy=False)
+    py_seller_address = fields.Char(string="Self-Invoice Seller Address", copy=False)
+    py_seller_house_number = fields.Char(string="Self-Invoice Seller House Number", copy=False)
+    py_seller_department_code = fields.Char(string="Seller Department Code", copy=False)
+    py_seller_department_name = fields.Char(string="Seller Department", copy=False)
+    py_seller_district_code = fields.Char(string="Seller District Code", copy=False)
+    py_seller_district_name = fields.Char(string="Seller District", copy=False)
+    py_seller_city_code = fields.Char(string="Seller City Code", copy=False)
+    py_seller_city_name = fields.Char(string="Seller City", copy=False)
+    py_transaction_address = fields.Char(string="Transaction Address", copy=False)
+    py_transaction_department_code = fields.Char(string="Transaction Department Code", copy=False)
+    py_transaction_department_name = fields.Char(string="Transaction Department", copy=False)
+    py_transaction_district_code = fields.Char(string="Transaction District Code", copy=False)
+    py_transaction_district_name = fields.Char(string="Transaction District", copy=False)
+    py_transaction_city_code = fields.Char(string="Transaction City Code", copy=False)
+    py_transaction_city_name = fields.Char(string="Transaction City", copy=False)
     py_transaction_type_code = fields.Selection(
         [
             ("1", "Sale of goods"),

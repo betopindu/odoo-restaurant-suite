@@ -35,6 +35,20 @@ Current implemented Paraguay stages:
 * administrative UI stabilization for validation/support workflows
 * accepted synchronous SIFEN TEST interoperability baseline
 * operator-controlled submission and Consulta DE recovery from Odoo
+* Autofactura Electrónica (AFE) from posted vendor bills, end-to-end offline
+
+### Autofactura Electrónica
+
+A posted `in_invoice` can be prepared explicitly as `self_invoice`. The vendor
+is snapshotted as the AFE seller and the issuing company is the SIFEN receiver.
+Seller nature/identity and seller geography are configured on the vendor; the
+place of the transaction is entered explicitly on the vendor bill. Missing or
+ambiguous data fails closed: the integration does not invent geography.
+
+AFE uses its own timbrado and sequence, CDC document type `04`, `gCamAE` in the
+official v150 order, and the existing signing, QR, durable submission, retry,
+reconciliation, KuDE and delivery services. Preview and automated validation
+are offline; live SIFEN TEST AFE evidence remains pending.
 
 ## Operator-controlled Odoo workflow
 

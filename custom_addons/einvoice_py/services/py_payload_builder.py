@@ -57,6 +57,11 @@ class PyPayloadBuilder:
         "7": "Recupero de gasto",
         "8": "Ajuste de precio",
     }
+    SELLER_NATURES = {"1": "No contribuyente", "2": "Extranjero"}
+    SELLER_ID_TYPES = {
+        "1": "Cédula paraguaya", "2": "Pasaporte",
+        "3": "Cédula extranjera", "4": "Carnet de residencia",
+    }
 
     def __init__(self, env):
         self.env = env
@@ -84,6 +89,8 @@ class PyPayloadBuilder:
         if document.document_type in ("credit_note", "debit_note"):
             payload["credit_debit_note"] = self._credit_debit_note_section(document)
             payload["associated_document"] = self._associated_document_section(document)
+        if document.document_type == "self_invoice":
+            payload["self_invoice"] = self._self_invoice_section(document)
         return payload
 
     def _validate_required(self, document):
@@ -117,6 +124,25 @@ class PyPayloadBuilder:
                 or len(original.py_cdc) != 44
             ):
                 missing.append("An electronic original invoice with a valid CDC is required.")
+        if document.document_type == "self_invoice":
+            required = (
+                (document.py_seller_nature, "Self-invoice seller nature is required."),
+                (document.py_seller_id_type, "Self-invoice seller ID type is required."),
+                (document.py_seller_id_number, "Self-invoice seller ID is required."),
+                (document.py_seller_name, "Self-invoice seller name is required."),
+                (document.py_seller_address, "Self-invoice seller address is required."),
+                (document.py_seller_house_number, "Self-invoice seller house number is required."),
+                (document.py_seller_department_code, "Self-invoice seller department is required."),
+                (document.py_seller_department_name, "Self-invoice seller department description is required."),
+                (document.py_seller_city_code, "Self-invoice seller city is required."),
+                (document.py_seller_city_name, "Self-invoice seller city description is required."),
+                (document.py_transaction_address, "Self-invoice transaction address is required."),
+                (document.py_transaction_department_code, "Self-invoice transaction department is required."),
+                (document.py_transaction_department_name, "Self-invoice transaction department description is required."),
+                (document.py_transaction_city_code, "Self-invoice transaction city is required."),
+                (document.py_transaction_city_name, "Self-invoice transaction city description is required."),
+            )
+            missing.extend(message for value, message in required if not value)
         if missing:
             raise ValidationError("; ".join(missing))
 
@@ -285,6 +311,31 @@ class PyPayloadBuilder:
             "payment_amount": document.py_payment_amount or document.amount_total,
             "payment_currency": payment_currency,
             "payment_currency_description": self._currency_description(payment_currency),
+        }
+
+    def _self_invoice_section(self, document):
+        return {
+            "seller_nature": document.py_seller_nature,
+            "seller_nature_description": self.SELLER_NATURES.get(document.py_seller_nature),
+            "seller_id_type": document.py_seller_id_type,
+            "seller_id_type_description": self.SELLER_ID_TYPES.get(document.py_seller_id_type),
+            "seller_id_number": document.py_seller_id_number,
+            "seller_name": document.py_seller_name,
+            "seller_address": document.py_seller_address,
+            "seller_house_number": document.py_seller_house_number,
+            "seller_department_code": document.py_seller_department_code,
+            "seller_department_name": document.py_seller_department_name,
+            "seller_district_code": document.py_seller_district_code,
+            "seller_district_name": document.py_seller_district_name,
+            "seller_city_code": document.py_seller_city_code,
+            "seller_city_name": document.py_seller_city_name,
+            "transaction_address": document.py_transaction_address,
+            "transaction_department_code": document.py_transaction_department_code,
+            "transaction_department_name": document.py_transaction_department_name,
+            "transaction_district_code": document.py_transaction_district_code,
+            "transaction_district_name": document.py_transaction_district_name,
+            "transaction_city_code": document.py_transaction_city_code,
+            "transaction_city_name": document.py_transaction_city_name,
         }
 
     def _credit_debit_note_section(self, document):

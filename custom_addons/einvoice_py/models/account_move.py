@@ -36,6 +36,13 @@ class AccountMove(models.Model):
         string="SIFEN Debit Note Reason",
         readonly=False,
     )
+    py_self_invoice_transaction_address = fields.Char(string="Self-Invoice Transaction Address", copy=False)
+    py_self_invoice_transaction_department_code = fields.Char(string="Transaction Department Code", copy=False)
+    py_self_invoice_transaction_department_name = fields.Char(string="Transaction Department", copy=False)
+    py_self_invoice_transaction_district_code = fields.Char(string="Transaction District Code", copy=False)
+    py_self_invoice_transaction_district_name = fields.Char(string="Transaction District", copy=False)
+    py_self_invoice_transaction_city_code = fields.Char(string="Transaction City Code", copy=False)
+    py_self_invoice_transaction_city_name = fields.Char(string="Transaction City", copy=False)
     py_fiscal_document_id = fields.Many2one(
         "fiscal.document",
         compute="_compute_py_fiscal_ui_state",
@@ -87,6 +94,9 @@ class AccountMove(models.Model):
         }
 
     def action_prepare_paraguay_debit_note(self):
+        return self.action_prepare_paraguay_fiscal_document()
+
+    def action_prepare_paraguay_self_invoice(self):
         return self.action_prepare_paraguay_fiscal_document()
 
     def action_open_paraguay_sifen_submission(self):

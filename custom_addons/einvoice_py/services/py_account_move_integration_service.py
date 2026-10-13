@@ -35,7 +35,11 @@ class PyFiscalDocumentFromAccountMoveService:
         if move.currency_id.name != "PYG":
             raise ValidationError("Paraguay fiscal preparation currently supports PYG only.")
         self._validate_correction_note(move, document_type, original_document, config)
-        receiver = self._receiver_values(move.partner_id.commercial_partner_id)
+        if document_type == "self_invoice":
+            receiver = self._receiver_values(move.company_id.partner_id.commercial_partner_id)
+            receiver.update(self._self_invoice_values(move))
+        else:
+            receiver = self._receiver_values(move.partner_id.commercial_partner_id)
         snapshot_at = self.snapshot_time_provider()
         document = FiscalDocumentFromAccountMoveService(
             move.with_context(fiscal_snapshot_at=snapshot_at).env
@@ -59,13 +63,62 @@ class PyFiscalDocumentFromAccountMoveService:
     def _document_type(self, move):
         if move.move_type == "out_invoice" and move.debit_origin_id:
             return "debit_note"
-        mapping = {"out_invoice": "invoice", "out_refund": "credit_note"}
+        mapping = {"out_invoice": "invoice", "out_refund": "credit_note", "in_invoice": "self_invoice"}
         document_type = mapping.get(move.move_type)
         if not document_type:
             raise ValidationError(
-                "Only customer invoices, credit notes, and debit notes are supported."
+                "Only customer invoices, credit notes, debit notes, and vendor bills for self-invoices are supported."
             )
         return document_type
+
+    def _self_invoice_values(self, move):
+        seller = move.partner_id.commercial_partner_id
+        values = {
+            "py_seller_nature": seller.py_sifen_self_invoice_seller_nature,
+            "py_seller_id_type": seller.py_sifen_self_invoice_id_type,
+            "py_seller_id_number": seller.vat,
+            "py_seller_name": seller.name,
+            "py_seller_address": seller.street,
+            "py_seller_house_number": seller.py_sifen_house_number,
+            "py_seller_department_code": seller.py_sifen_department_code,
+            "py_seller_department_name": seller.py_sifen_department_name,
+            "py_seller_district_code": seller.py_sifen_district_code,
+            "py_seller_district_name": seller.py_sifen_district_name,
+            "py_seller_city_code": seller.py_sifen_city_code,
+            "py_seller_city_name": seller.py_sifen_city_name,
+            "py_transaction_address": move.py_self_invoice_transaction_address,
+            "py_transaction_department_code": move.py_self_invoice_transaction_department_code,
+            "py_transaction_department_name": move.py_self_invoice_transaction_department_name,
+            "py_transaction_district_code": move.py_self_invoice_transaction_district_code,
+            "py_transaction_district_name": move.py_self_invoice_transaction_district_name,
+            "py_transaction_city_code": move.py_self_invoice_transaction_city_code,
+            "py_transaction_city_name": move.py_self_invoice_transaction_city_name,
+        }
+        required = {
+            "seller nature": values["py_seller_nature"],
+            "seller ID type": values["py_seller_id_type"],
+            "seller ID number": values["py_seller_id_number"],
+            "seller name": values["py_seller_name"],
+            "seller address": values["py_seller_address"],
+            "seller house number": values["py_seller_house_number"],
+            "seller department code": values["py_seller_department_code"],
+            "seller department description": values["py_seller_department_name"],
+            "seller city code": values["py_seller_city_code"],
+            "seller city description": values["py_seller_city_name"],
+            "transaction address": values["py_transaction_address"],
+            "transaction department code": values["py_transaction_department_code"],
+            "transaction department description": values["py_transaction_department_name"],
+            "transaction city code": values["py_transaction_city_code"],
+            "transaction city description": values["py_transaction_city_name"],
+        }
+        missing = [label for label, value in required.items() if not value]
+        if values["py_seller_nature"] == "1" and (
+            not seller.country_id or seller.country_id.code != "PY"
+        ):
+            missing.append("Paraguay seller country")
+        if missing:
+            raise ValidationError("Self-invoice SIFEN data is missing: " + ", ".join(missing) + ".")
+        return values
 
     def _original_document(self, move, document_type):
         if document_type not in ("credit_note", "debit_note"):

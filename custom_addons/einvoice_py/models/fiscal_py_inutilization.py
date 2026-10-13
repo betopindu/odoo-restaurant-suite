@@ -14,7 +14,7 @@ class FiscalPyInutilization(models.Model):
     establishment_id = fields.Many2one("fiscal.py.establishment", required=True, ondelete="restrict", index=True)
     point_of_issue_id = fields.Many2one("fiscal.py.point.of.issue", required=True, ondelete="restrict", index=True)
     document_type = fields.Selection(
-        [("invoice", "Invoice"), ("credit_note", "Credit Note"), ("debit_note", "Debit Note")],
+        [("invoice", "Invoice"), ("credit_note", "Credit Note"), ("debit_note", "Debit Note"), ("self_invoice", "Electronic Self-Invoice")],
         required=True,
     )
     number_from = fields.Integer(required=True, index=True)

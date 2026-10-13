@@ -54,6 +54,7 @@ class PyFiscalDocumentDeliveryService:
         "invoice": "FE",
         "credit_note": "NCE",
         "debit_note": "NDE",
+        "self_invoice": "AFE",
     }
 
     def __init__(self, env, signature_verification_service=None):

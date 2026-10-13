@@ -189,6 +189,8 @@ class PyUnsignedXmlBuilder:
         document_type = payload["document"]["py_i_tide"]
         if document_type == "01":
             self._build_invoice_fields(group)
+        elif document_type == "04":
+            self._build_self_invoice_fields(group, payload)
         elif document_type in ("05", "06"):
             self._build_credit_debit_note_fields(group, payload)
         self._build_condition(group, payload)
@@ -199,6 +201,31 @@ class PyUnsignedXmlBuilder:
         group = self._sub(parent, "gCamFE")
         self._text(group, "iIndPres", "1")
         self._text(group, "dDesIndPres", "Operación presencial")
+
+    def _build_self_invoice_fields(self, parent, payload):
+        data = payload["self_invoice"]
+        group = self._sub(parent, "gCamAE")
+        self._text(group, "iNatVen", self._normalize_int_code(data["seller_nature"]))
+        self._text(group, "dDesNatVen", data["seller_nature_description"])
+        self._text(group, "iTipIDVen", self._normalize_int_code(data["seller_id_type"]))
+        self._text(group, "dDTipIDVen", data["seller_id_type_description"])
+        self._text(group, "dNumIDVen", data["seller_id_number"])
+        self._text(group, "dNomVen", data["seller_name"])
+        self._text(group, "dDirVen", data["seller_address"])
+        self._text(group, "dNumCasVen", data["seller_house_number"])
+        self._text(group, "cDepVen", data["seller_department_code"])
+        self._text(group, "dDesDepVen", data["seller_department_name"])
+        self._text(group, "cDisVen", data.get("seller_district_code"))
+        self._text(group, "dDesDisVen", data.get("seller_district_name"))
+        self._text(group, "cCiuVen", data["seller_city_code"])
+        self._text(group, "dDesCiuVen", data["seller_city_name"])
+        self._text(group, "dDirProv", data["transaction_address"])
+        self._text(group, "cDepProv", data["transaction_department_code"])
+        self._text(group, "dDesDepProv", data["transaction_department_name"])
+        self._text(group, "cDisProv", data.get("transaction_district_code"))
+        self._text(group, "dDesDisProv", data.get("transaction_district_name"))
+        self._text(group, "cCiuProv", data["transaction_city_code"])
+        self._text(group, "dDesCiuProv", data["transaction_city_name"])
 
     def _build_credit_debit_note_fields(self, parent, payload):
         note = payload.get("credit_debit_note") or {}
@@ -327,6 +354,28 @@ class PyUnsignedXmlBuilder:
             self._require(missing, note, "reason_code", "credit/debit note reason")
             self._require(missing, note, "reason_description", "credit/debit note reason description")
             self._require(missing, associated, "cdc", "associated invoice CDC")
+        if document_type == "04":
+            self_invoice = payload.get("self_invoice") or {}
+            for key, label in (
+                ("seller_nature", "seller nature"),
+                ("seller_nature_description", "seller nature description"),
+                ("seller_id_type", "seller ID type"),
+                ("seller_id_type_description", "seller ID type description"),
+                ("seller_id_number", "seller ID number"),
+                ("seller_name", "seller name"),
+                ("seller_address", "seller address"),
+                ("seller_house_number", "seller house number"),
+                ("seller_department_code", "seller department"),
+                ("seller_department_name", "seller department description"),
+                ("seller_city_code", "seller city"),
+                ("seller_city_name", "seller city description"),
+                ("transaction_address", "transaction address"),
+                ("transaction_department_code", "transaction department"),
+                ("transaction_department_name", "transaction department description"),
+                ("transaction_city_code", "transaction city"),
+                ("transaction_city_name", "transaction city description"),
+            ):
+                self._require(missing, self_invoice, key, f"self-invoice {label}")
 
         if payload.get("cdc") != document.get("py_cdc"):
             missing.append("payload CDC must match document CDC")

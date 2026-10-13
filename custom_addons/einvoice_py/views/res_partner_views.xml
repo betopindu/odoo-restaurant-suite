@@ -16,6 +16,8 @@
                         <field name="py_sifen_district_name"/>
                         <field name="py_sifen_city_code"/>
                         <field name="py_sifen_city_name"/>
+                        <field name="py_sifen_self_invoice_seller_nature"/>
+                        <field name="py_sifen_self_invoice_id_type" invisible="not py_sifen_self_invoice_seller_nature"/>
                     </group>
                 </page>
             </xpath>

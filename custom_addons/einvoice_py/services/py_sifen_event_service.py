@@ -397,7 +397,7 @@ class PySifenCancellationService:
 
 
 class PySifenInutilizationService:
-    TYPE_CODES = {"invoice": "1", "credit_note": "5", "debit_note": "6"}
+    TYPE_CODES = {"invoice": "1", "self_invoice": "4", "credit_note": "5", "debit_note": "6"}
 
     def __init__(self, env, *, event_service=None, durable_service=None):
         self.env = env

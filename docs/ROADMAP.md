@@ -11,6 +11,8 @@
 
 - [x] Posted Odoo customer invoices enter through a neutral immutable fiscal
   snapshot, explicit Paraguay mappings and offline KuDE Preview.
+- [x] Posted Odoo vendor bills can produce an immutable Paraguay Autofactura
+  Electrónica snapshot with CDC `04` and a schema-valid offline v150 pipeline.
 - [x] Authorized operators can explicitly submit prepared FE and invoke guarded
   Consulta DE recovery through confirmation dialogs in Odoo.
 
@@ -173,7 +175,9 @@ live validation pending)
 SIFEN TEST evidence pending)
 [~] NDE end-to-end accounting and SIFEN flow (offline pipeline complete; live
 SIFEN TEST evidence pending)
-[ ] Cancellation and inutilization completion for MVP
+[~] AFE end-to-end accounting and SIFEN flow (offline pipeline complete; live
+SIFEN TEST evidence pending)
+[x] Cancellation and inutilization completion for MVP (offline; live evidence pending)
 
 ## Future
 

@@ -50,6 +50,7 @@ class PyKudeService:
         "invoice": "FACTURA ELECTRONICA",
         "credit_note": "NOTA DE CREDITO ELECTRONICA",
         "debit_note": "NOTA DE DEBITO ELECTRONICA",
+        "self_invoice": "AUTOFACTURA ELECTRONICA",
     }
 
     def __init__(
@@ -384,14 +385,24 @@ class PyKudeService:
             ("Tipo de cambio", operation.get("exchange_rate")),
             ("Tipo de operacion", operation.get("transaction_type_description")),
         )
-        receiver_id = self._receiver_id(receiver)
-        right = (
-            ("RUC/Documento", receiver_id),
-            ("Nombre o razon social", receiver.get("name")),
-            ("Direccion", receiver.get("address")),
-            ("Telefono", receiver.get("phone")),
-            ("Correo electronico", receiver.get("email")),
-        )
+        if document.get("document_type") == "self_invoice":
+            seller = payload.get("self_invoice") or {}
+            right = (
+                ("Documento del vendedor", seller.get("seller_id_number")),
+                ("Nombre del vendedor", seller.get("seller_name")),
+                ("Direccion del vendedor", seller.get("seller_address")),
+                ("Lugar de transaccion", seller.get("transaction_address")),
+                ("Naturaleza", seller.get("seller_nature_description")),
+            )
+        else:
+            receiver_id = self._receiver_id(receiver)
+            right = (
+                ("RUC/Documento", receiver_id),
+                ("Nombre o razon social", receiver.get("name")),
+                ("Direccion", receiver.get("address")),
+                ("Telefono", receiver.get("phone")),
+                ("Correo electronico", receiver.get("email")),
+            )
         installments = condition.get("installments") or []
         left_count = sum(value not in (None, "") for _label, value in left)
         right_count = sum(value not in (None, "") for _label, value in right)

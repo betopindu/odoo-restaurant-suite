@@ -37,6 +37,7 @@ class FiscalDocument(models.Model):
             ("invoice", "Invoice"),
             ("credit_note", "Credit Note"),
             ("debit_note", "Debit Note"),
+            ("self_invoice", "Self Invoice"),
             ("receipt", "Receipt"),
         ],
         required=True,

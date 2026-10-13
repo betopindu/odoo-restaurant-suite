@@ -102,14 +102,15 @@ class FiscalDocumentFromAccountMoveService:
             "invoice": "out_invoice",
             "credit_note": "out_refund",
             "debit_note": "out_invoice",
+            "self_invoice": "in_invoice",
         }
         expected_move_type = expected_move_types.get(document_type)
         if not expected_move_type or move.move_type != expected_move_type:
             problems.append(
-                "Only matching customer invoices, credit notes, or debit notes can create fiscal documents."
+                "Only matching customer invoices, credit notes, debit notes, or vendor bills for self-invoices can create fiscal documents."
             )
         if move.state != "posted":
-            problems.append("The customer invoice must be posted first.")
+            problems.append("The accounting document must be posted first.")
         if move.company_id != tenant.company_id:
             problems.append("Fiscal tenant and invoice company do not match.")
         if move.company_id != adapter.company_id or tenant != adapter.tenant_id:
@@ -117,11 +118,11 @@ class FiscalDocumentFromAccountMoveService:
         if not adapter.active:
             problems.append("The fiscal adapter is inactive.")
         if move.amount_total <= 0 or not move.invoice_line_ids:
-            problems.append("The customer invoice must contain a positive fiscal amount.")
+            problems.append("The accounting document must contain a positive fiscal amount.")
         if not move.partner_id:
-            problems.append("The customer invoice requires a customer.")
+            problems.append("The accounting document requires a counterparty.")
         if not move.currency_id:
-            problems.append("The customer invoice requires a currency.")
+            problems.append("The accounting document requires a currency.")
         if document_type in ("credit_note", "debit_note") and not original_document:
             problems.append("A credit or debit note requires its original fiscal document.")
         if original_document and (

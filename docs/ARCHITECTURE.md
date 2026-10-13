@@ -382,3 +382,10 @@ currency and customer. The NCE receives its own timbrado sequence and CDC `05`,
 while `original_document_id` and the payload snapshot preserve the referenced
 FE CDC. The v150 builder emits exactly one `gCamNCDE` reason group and one
 electronic `gCamDEAsoc`; submission remains explicit and operator-controlled.
+
+Paraguay Autofactura Electrónica crosses the same neutral snapshot boundary
+from a posted vendor bill (`in_invoice`). The vendor is captured as the
+non-taxpayer/foreign seller while the issuing company is captured as receiver.
+Seller and transaction-place values become immutable fiscal fields. The
+country adapter emits CDC `04` and `gCamAE`; signing, QR, durable transport,
+retry/reconciliation, KuDE and delivery remain shared with FE/NCE/NDE.

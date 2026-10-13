@@ -34,6 +34,7 @@ class PyKudePreviewService:
         "invoice": "FE",
         "credit_note": "NCE",
         "debit_note": "NDE",
+        "self_invoice": "AFE",
     }
 
     def __init__(self, env, *, kude_service=None):

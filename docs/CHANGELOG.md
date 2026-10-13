@@ -1,5 +1,14 @@
 # Documentation Changelog
 
+## 2026-10-13 — Paraguay Autofactura Electrónica end-to-end offline foundation
+
+* Added the posted Odoo vendor-bill to immutable Paraguay AFE snapshot boundary
+  with explicit non-taxpayer/foreign seller identity and transaction-place data.
+* Added AFE timbrado/sequence/CDC `04`, official `gCamAE` v150 emission, AFE
+  Preview/KuDE/delivery naming and AFE number-inutilization support.
+* Proved XML generation, signing, XMLDSig, QR and final official v150 XSD
+  validation through stub transport only. Live SIFEN TEST validation is pending.
+
 ## 2026-10-13 — Operator-controlled durable SIFEN number inutilization
 
 * Added the Paraguay Fiscal Operator confirmation flow and read-only evidence

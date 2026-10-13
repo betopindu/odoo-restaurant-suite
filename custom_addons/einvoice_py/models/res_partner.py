@@ -18,3 +18,11 @@ class ResPartner(models.Model):
     py_sifen_district_name = fields.Char(string="SIFEN District")
     py_sifen_city_code = fields.Char(string="SIFEN City Code")
     py_sifen_city_name = fields.Char(string="SIFEN City")
+    py_sifen_self_invoice_seller_nature = fields.Selection(
+        [("1", "Non-taxpayer"), ("2", "Foreign")],
+        string="SIFEN Self-Invoice Seller Nature",
+    )
+    py_sifen_self_invoice_id_type = fields.Selection(
+        [("1", "Paraguayan ID"), ("2", "Passport"), ("3", "Foreign ID"), ("4", "Residence Card")],
+        string="SIFEN Self-Invoice Seller ID Type",
+    )
