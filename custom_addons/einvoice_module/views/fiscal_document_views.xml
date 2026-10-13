@@ -88,6 +88,7 @@
                     </group>
                     <group string="Source">
                         <field name="account_move_id"/>
+                        <field name="original_document_id"/>
                         <field name="source_system"/>
                         <field name="source_model"/>
                         <field name="source_res_id"/>

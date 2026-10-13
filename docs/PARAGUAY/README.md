@@ -1253,7 +1253,9 @@ Interpret failures as follows:
 * `soap_fault`: inspect the safe Fault code/reason and retain the raw response securely.
 * `rejected`, `duplicate`, or `unrecognized_official_code`: retain the official code/message and do not infer acceptance from HTTP 200.
 
-The current delivery baseline reports 589 counted tests across 523 test methods.
+The current delivery baseline reports 708 counted checks across 630 test
+methods for `einvoice_py`, and 760 checks across 672 methods for the combined
+fiscal core and Paraguay suites.
 Production service composition, configuration-driven
 sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission
 reconciliation, local homologation readiness, XMLDSig signing, QR/`gCamFuFD`,
@@ -1333,7 +1335,7 @@ result.attachment_id, result.sha256, result.page_count
 
 Preconditions are a current persisted payload and exact QR artifact for the
 same CDC. Missing, malformed or hash-inconsistent inputs fail safely. The
-initial renderer supports Factura Electrónica only; credit notes, debit notes,
+renderer supports Factura Electrónica and the offline NCE profile; debit notes,
 events and their distinct official representations remain unsupported.
 Historical documents without an exact QR artifact are not silently rebuilt
 from CSC.

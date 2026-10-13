@@ -83,6 +83,14 @@ class FiscalDocument(models.Model):
         index=True,
         copy=False,
     )
+    original_document_id = fields.Many2one(
+        "fiscal.document",
+        string="Original Fiscal Document",
+        ondelete="restrict",
+        index=True,
+        copy=False,
+        help="Original fiscal document referenced by a corrective document.",
+    )
     idempotency_key = fields.Char(copy=False, index=True)
 
     fiscal_number = fields.Char(index=True)

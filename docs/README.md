@@ -162,7 +162,8 @@ Operationally pending:
 * production enablement and electronic timbrado workflow
 * KuDE delivery and representations for additional Paraguay DTE types
 * Delivery by email or WhatsApp
-* NCE/NDE, asynchronous batch, Consulta RUC and received-DTE flows
+* NCE live TEST validation; NDE, asynchronous batch, Consulta RUC and
+  received-DTE flows
 * KDS production-clone, physical-printer, HTTPS and production operations
 
 ## Diagrams

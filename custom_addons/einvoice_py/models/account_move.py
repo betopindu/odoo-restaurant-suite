@@ -19,6 +19,18 @@ class AccountMove(models.Model):
     py_sale_condition_code = fields.Selection(
         [("1", "Cash"), ("2", "Credit")], string="SIFEN Sale Condition", default="1", copy=False
     )
+    py_credit_note_reason_code = fields.Selection(
+        [
+            ("1", "Return and price adjustment"),
+            ("2", "Return"),
+            ("3", "Discount"),
+            ("4", "Bonus"),
+            ("5", "Bad debt"),
+            ("8", "Price adjustment"),
+        ],
+        string="SIFEN Credit Note Reason",
+        copy=False,
+    )
     py_fiscal_document_id = fields.Many2one(
         "fiscal.document",
         compute="_compute_py_fiscal_ui_state",
@@ -44,6 +56,19 @@ class AccountMove(models.Model):
             move.py_fiscal_document_state = documents[:1].state or False
 
     def action_prepare_paraguay_fiscal_document(self):
+        from odoo.addons.einvoice_py.services.py_account_move_integration_service import (
+            PyFiscalDocumentFromAccountMoveService,
+        )
+
+        self.ensure_one()
+        document = PyFiscalDocumentFromAccountMoveService(self.env).create(move=self)
+        return {
+            "type": "ir.actions.act_window", "res_model": "fiscal.document",
+            "view_mode": "form", "views": [(False, "form")],
+            "res_id": document.id, "target": "current",
+        }
+
+    def action_prepare_paraguay_credit_note(self):
         from odoo.addons.einvoice_py.services.py_account_move_integration_service import (
             PyFiscalDocumentFromAccountMoveService,
         )

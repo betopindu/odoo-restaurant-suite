@@ -25,11 +25,13 @@ class FiscalDocumentFromAccountMoveService:
         adapter_config,
         document_values=None,
         line_value_provider=None,
+        document_type="invoice",
+        original_document=None,
     ):
         move.ensure_one()
         tenant.ensure_one()
         adapter_config.ensure_one()
-        self._validate(move, tenant, adapter_config)
+        self._validate(move, tenant, adapter_config, document_type, original_document)
         self._lock(move)
         existing = self._existing(move, adapter_config)
         if existing:
@@ -40,14 +42,16 @@ class FiscalDocumentFromAccountMoveService:
             self._line_values(line, line_value_provider)
             for line in invoice_lines
         ]
-        snapshot = self._snapshot(move, tenant, adapter_config, line_values)
+        snapshot = self._snapshot(
+            move, tenant, adapter_config, line_values, original_document
+        )
         values = {
             "name": move.name,
             "tenant_id": tenant.id,
             "company_id": move.company_id.id,
             "currency_id": move.currency_id.id,
             "adapter_config_id": adapter_config.id,
-            "document_type": "invoice",
+            "document_type": document_type,
             "state": "draft",
             "country_code": adapter_config.country_code.upper(),
             "environment": adapter_config.environment,
@@ -58,12 +62,13 @@ class FiscalDocumentFromAccountMoveService:
             "source_external_id": str(move.id),
             "source_reference": move.name,
             "account_move_id": move.id,
+            "original_document_id": original_document.id if original_document else False,
             "idempotency_key": FiscalIdempotencyService(self.env).build_key_from_source(
                 self.SOURCE_SYSTEM,
                 self.SOURCE_MODEL,
                 move.id,
                 source_external_id=str(adapter_config.id),
-                document_type="invoice",
+                document_type=document_type,
             ),
             "partner_id": move.partner_id.id,
             "customer_name": move.partner_id.commercial_partner_id.name,
@@ -91,10 +96,14 @@ class FiscalDocumentFromAccountMoveService:
                 return existing
             raise
 
-    def _validate(self, move, tenant, adapter):
+    def _validate(self, move, tenant, adapter, document_type, original_document):
         problems = []
-        if move.move_type != "out_invoice":
-            problems.append("Only customer invoices can create fiscal documents.")
+        expected_move_types = {"invoice": "out_invoice", "credit_note": "out_refund"}
+        expected_move_type = expected_move_types.get(document_type)
+        if not expected_move_type or move.move_type != expected_move_type:
+            problems.append(
+                "Only matching customer invoices or customer credit notes can create fiscal documents."
+            )
         if move.state != "posted":
             problems.append("The customer invoice must be posted first.")
         if move.company_id != tenant.company_id:
@@ -109,6 +118,14 @@ class FiscalDocumentFromAccountMoveService:
             problems.append("The customer invoice requires a customer.")
         if not move.currency_id:
             problems.append("The customer invoice requires a currency.")
+        if document_type == "credit_note" and not original_document:
+            problems.append("A credit note requires its original fiscal document.")
+        if original_document and (
+            original_document.company_id != move.company_id
+            or original_document.tenant_id != tenant
+            or original_document.adapter_config_id != adapter
+        ):
+            problems.append("Original fiscal document scope does not match the credit note.")
         if problems:
             raise ValidationError(" ".join(problems))
 
@@ -170,7 +187,7 @@ class FiscalDocumentFromAccountMoveService:
             values.update(provider(line, values.copy()) or {})
         return values
 
-    def _snapshot(self, move, tenant, adapter, line_values):
+    def _snapshot(self, move, tenant, adapter, line_values, original_document=None):
         partner = move.partner_id.commercial_partner_id
         snapshot_at = self.env.context.get("fiscal_snapshot_at") or move.write_date
         data = {
@@ -217,6 +234,12 @@ class FiscalDocumentFromAccountMoveService:
             },
             "line_source_ids": [values["source_line_id"] for values in line_values],
         }
+        if original_document:
+            data["correction"] = {
+                "original_fiscal_document_id": original_document.id,
+                "original_document_type": original_document.document_type,
+                "original_country_identifier": original_document.country_identifier,
+            }
         canonical = self._json(data).encode("utf-8")
         data["snapshot_sha256"] = hashlib.sha256(canonical).hexdigest()
         return data

@@ -241,7 +241,17 @@ class TestPyFakeAdapter(TransactionCase):
             establishment=establishment,
             point_of_issue=point_of_issue,
         )
-        document = self._create_document(document_type="credit_note")
+        original = self._create_document(extra_vals={
+            "py_cdc": "01444444017001001001452822017012515873260988",
+            "country_identifier": "01444444017001001001452822017012515873260988",
+        })
+        document = self._create_document(
+            document_type="credit_note",
+            extra_vals={
+                "original_document_id": original.id,
+                "py_credit_debit_reason_code": "2",
+            },
+        )
         document.py_point_of_issue_id = point_of_issue
 
         self._process(document)

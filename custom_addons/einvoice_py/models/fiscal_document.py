@@ -270,6 +270,20 @@ class FiscalDocument(models.Model):
         copy=False,
         help="Payment currency code used in the Paraguay payload. Default is PYG.",
     )
+    py_credit_debit_reason_code = fields.Selection(
+        [
+            ("1", "Return and price adjustment"),
+            ("2", "Return"),
+            ("3", "Discount"),
+            ("4", "Bonus"),
+            ("5", "Bad debt"),
+            ("6", "Cost recovery"),
+            ("7", "Expense recovery"),
+            ("8", "Price adjustment"),
+        ],
+        string="Credit/Debit Note Reason",
+        copy=False,
+    )
     py_last_transmission_id = fields.Many2one(
         "fiscal.transmission", compute="_compute_py_operator_status", string="Last SIFEN Attempt"
     )
@@ -288,6 +302,40 @@ class FiscalDocument(models.Model):
         compute="_compute_py_operator_status",
     )
     py_operator_guidance = fields.Char(compute="_compute_py_operator_status")
+
+    @api.constrains(
+        "document_type",
+        "original_document_id",
+        "tenant_id",
+        "company_id",
+        "environment",
+        "country_code",
+        "account_move_id",
+    )
+    def _check_py_corrective_document_origin(self):
+        for document in self.filtered(
+            lambda item: (item.country_code or "").upper() == "PY"
+            and item.account_move_id
+            and item.document_type in ("credit_note", "debit_note")
+        ):
+            original = document.original_document_id
+            if not original:
+                raise ValidationError(
+                    "Paraguay credit/debit notes require an original fiscal document."
+                )
+            if original.document_type != "invoice":
+                raise ValidationError(
+                    "Paraguay credit/debit notes must reference an original invoice."
+                )
+            if (
+                original.tenant_id != document.tenant_id
+                or original.company_id != document.company_id
+                or original.environment != document.environment
+                or (original.country_code or "").upper() != "PY"
+            ):
+                raise ValidationError(
+                    "Corrective document and original invoice must share fiscal scope."
+                )
 
     @api.depends(
         "state",

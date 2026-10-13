@@ -1,5 +1,10 @@
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
@@ -11,6 +16,30 @@ from odoo.addons.einvoice_py.services.py_account_move_integration_service import
     PyFiscalDocumentFromAccountMoveService,
 )
 from odoo.addons.einvoice_py.services.py_kude_preview_service import PyKudePreviewService
+from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder
+from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import PyUnsignedXmlBuilder
+from odoo.addons.einvoice_py.services.py_sifen_submission_pipeline_service import (
+    PySifenSubmissionPipelineService,
+)
+
+
+class _OfflineNceSubmission:
+    def __init__(self):
+        self.calls = []
+
+    def submit_final_xml(self, **kwargs):
+        self.calls.append(kwargs)
+        return {
+            "outcome": "accepted",
+            "authority_status_code": "0260",
+            "authority_message": "Offline NCE validation only",
+            "authority_receipt_ref": "OFFLINE-NCE",
+            "request_hash": "1" * 64,
+            "response_hash": "2" * 64,
+            "http_status": 0,
+            "duration_ms": 0,
+            "metadata_json": {},
+        }
 
 
 class TestPyAccountMoveIntegrationService(TransactionCase):
@@ -79,6 +108,18 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
             "establishment_id": cls.establishment.id, "point_of_issue_id": cls.point.id,
             "document_type": "invoice", "next_number": 9000000, "padding": 7,
         })
+        cls.credit_note_timbrado = cls.env["fiscal.py.timbrado"].create({
+            "number": "4444444", "tenant_id": cls.tenant.id,
+            "company_id": cls.company.id, "environment": "test",
+            "document_type": "credit_note", "valid_from": date(2026, 1, 1),
+            "allowed_point_of_issue_ids": [(6, 0, [cls.point.id])],
+        })
+        cls.credit_note_sequence = cls.env["fiscal.py.sequence"].create({
+            "name": "Credit note sequence", "tenant_id": cls.tenant.id,
+            "company_id": cls.company.id, "timbrado_id": cls.credit_note_timbrado.id,
+            "establishment_id": cls.establishment.id, "point_of_issue_id": cls.point.id,
+            "document_type": "credit_note", "next_number": 8000000, "padding": 7,
+        })
         cls.tax_10 = cls._tax("IVA 10 explicit fixture", 10, "iva_10")
         cls.tax_5 = cls._tax("IVA 5 explicit fixture", 5, "iva_5")
         cls.tax_exempt = cls._tax("Exempt explicit fixture", 0, "exempt")
@@ -102,7 +143,10 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
             self.env, snapshot_time_provider=lambda: self.SNAPSHOT_TIME
         )
 
-    def _move(self, taxes=None, *, partner=None, move_type="out_invoice", post=True, lines=None):
+    def _move(
+        self, taxes=None, *, partner=None, move_type="out_invoice", post=True,
+        lines=None, reversed_entry=None, credit_note_reason=None,
+    ):
         taxes = taxes if taxes is not None else self.tax_10
         lines = lines or [("Service line", 110000, taxes)]
         values = {
@@ -111,6 +155,8 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
             "py_fiscal_tenant_id": self.tenant.id, "py_fiscal_environment": "test",
             "py_fiscal_establishment_id": self.establishment.id,
             "py_fiscal_point_of_issue_id": self.point.id,
+            "reversed_entry_id": reversed_entry.id if reversed_entry else False,
+            "py_credit_note_reason_code": credit_note_reason,
         }
         if move_type != "entry":
             values["invoice_line_ids"] = [(0, 0, {
@@ -121,6 +167,28 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         if post:
             move.action_post()
         return move
+
+    def _business_partner(self):
+        return self.env["res.partner"].create({
+            "name": "Taxpayer Receiver", "vat": "80002201-7",
+            "country_id": self.env.ref("base.py").id,
+            "street": "Official address", "py_sifen_receiver_profile": "taxpayer",
+            "py_sifen_taxpayer_type": "2", "py_sifen_house_number": "1",
+            "py_sifen_department_code": "11", "py_sifen_department_name": "CENTRAL",
+            "py_sifen_district_code": "143", "py_sifen_district_name": "SAN LORENZO",
+            "py_sifen_city_code": "3756", "py_sifen_city_name": "SAN LORENZO",
+        })
+
+    def _accepted_invoice(self, *, amount=110000):
+        partner = self._business_partner()
+        move = self._move(partner=partner, lines=[("Original", amount, self.tax_10)])
+        document = self.service.create(move=move)
+        document.write({
+            "state": "accepted",
+            "authority_status": "0260",
+            "authority_receipt_ref": "OFFLINE-PROTOCOL",
+        })
+        return move, document
 
     def test_valid_posted_invoice_creates_ready_fiscal_snapshot(self):
         move = self._move()
@@ -203,14 +271,7 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
     def test_b2c_and_b2b_receiver_snapshots(self):
         b2c = self.service.create(move=self._move())
         self.assertEqual((b2c.py_receiver_nature, b2c.py_receiver_id_type), ("2", "5"))
-        business = self.env["res.partner"].create({
-            "name": "Taxpayer Receiver", "vat": "80002201-7", "country_id": self.env.ref("base.py").id,
-            "street": "Official address", "py_sifen_receiver_profile": "taxpayer",
-            "py_sifen_taxpayer_type": "2", "py_sifen_house_number": "1",
-            "py_sifen_department_code": "11", "py_sifen_department_name": "CENTRAL",
-            "py_sifen_district_code": "143", "py_sifen_district_name": "SAN LORENZO",
-            "py_sifen_city_code": "3756", "py_sifen_city_name": "SAN LORENZO",
-        })
+        business = self._business_partner()
         b2b = self.service.create(move=self._move(partner=business))
         self.assertEqual(b2b.customer_tax_id, "80002201-7")
         self.assertEqual((b2b.py_receiver_nature, b2b.py_receiver_operation_type), ("1", "1"))
@@ -283,3 +344,155 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
             FiscalDocumentFromAccountMoveService(self.env).create(
                 move=move, tenant=other_tenant, adapter_config=self.adapter,
             )
+
+    def test_posted_refund_creates_nce_linked_to_accepted_invoice(self):
+        original_move, original = self._accepted_invoice()
+        refund = self._move(
+            partner=original_move.partner_id,
+            move_type="out_refund",
+            reversed_entry=original_move,
+            credit_note_reason="2",
+            lines=[("Returned service", 55000, self.tax_10)],
+        )
+
+        note = self.service.create(move=refund)
+
+        self.assertEqual(note.document_type, "credit_note")
+        self.assertEqual(note.original_document_id, original)
+        self.assertEqual(note.py_credit_debit_reason_code, "2")
+        self.assertTrue(note.py_cdc.startswith("05"))
+        self.assertEqual(note.py_timbrado_id, self.credit_note_timbrado)
+        self.assertEqual(note.state, "ready")
+
+        repeated = self.service.create(move=refund)
+        self.assertEqual(repeated, note)
+        self.assertEqual(
+            self.env["fiscal.document"].search_count([
+                ("account_move_id", "=", refund.id),
+                ("document_type", "=", "credit_note"),
+            ]),
+            1,
+        )
+
+    def test_nce_requires_reversal_accepted_identified_original_and_reason(self):
+        original_move, original = self._accepted_invoice()
+        cases = (
+            ({"reversed_entry": None, "credit_note_reason": "2"}, "created from an original"),
+            ({"reversed_entry": original_move, "credit_note_reason": None}, "Select the SIFEN"),
+        )
+        for values, message in cases:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValidationError, message):
+                    self.service.create(move=self._move(
+                        partner=original_move.partner_id,
+                        move_type="out_refund",
+                        lines=[("Return", 10000, self.tax_10)],
+                        **values,
+                    ))
+        original.write({"state": "rejected"})
+        with self.assertRaisesRegex(ValidationError, "must be accepted"):
+            self.service.create(move=self._move(
+                partner=original_move.partner_id, move_type="out_refund",
+                reversed_entry=original_move, credit_note_reason="2",
+                lines=[("Return", 10000, self.tax_10)],
+            ))
+
+    def test_nce_amount_cannot_exceed_original_or_cumulative_balance(self):
+        original_move, original = self._accepted_invoice(amount=110000)
+        first = self.service.create(move=self._move(
+            partner=original_move.partner_id, move_type="out_refund",
+            reversed_entry=original_move, credit_note_reason="2",
+            lines=[("First return", 66000, self.tax_10)],
+        ))
+        self.assertEqual(first.original_document_id, original)
+        with self.assertRaisesRegex(ValidationError, "remaining amount"):
+            self.service.create(move=self._move(
+                partner=original_move.partner_id, move_type="out_refund",
+                reversed_entry=original_move, credit_note_reason="2",
+                lines=[("Excess return", 55000, self.tax_10)],
+            ))
+
+    def test_nce_payload_and_xml_contain_reason_and_single_original_cdc(self):
+        original_move, original = self._accepted_invoice()
+        note = self.service.create(move=self._move(
+            partner=original_move.partner_id, move_type="out_refund",
+            reversed_entry=original_move, credit_note_reason="3",
+            lines=[("Discount", 11000, self.tax_10)],
+        ))
+
+        payload = PyPayloadBuilder(self.env).build(note)
+        xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        from lxml import etree
+        root = etree.fromstring(xml_bytes)
+        ns = {"s": PyUnsignedXmlBuilder.SIFEN_NS}
+
+        self.assertEqual(payload["credit_debit_note"]["reason_code"], "3")
+        self.assertEqual(payload["associated_document"]["cdc"], original.py_cdc)
+        self.assertEqual(root.xpath("string(.//s:gCamNCDE/s:iMotEmi)", namespaces=ns), "3")
+        self.assertEqual(
+            root.xpath("string(.//s:gCamDEAsoc/s:dCdCDERef)", namespaces=ns),
+            original.py_cdc,
+        )
+        self.assertEqual(len(root.xpath(".//s:gCamDEAsoc", namespaces=ns)), 1)
+
+    def test_nce_preview_is_offline_and_uses_nce_filename(self):
+        original_move, _original = self._accepted_invoice()
+        note = self.service.create(move=self._move(
+            partner=original_move.partner_id, move_type="out_refund",
+            reversed_entry=original_move, credit_note_reason="2",
+            lines=[("Return", 11000, self.tax_10)],
+        ))
+
+        result = PyKudePreviewService(self.env).render(document=note)
+
+        self.assertTrue(result.pdf_bytes.startswith(b"%PDF-"))
+        self.assertEqual(result.filename, f"PREVIEW-NCE-{note.py_full_number}.pdf")
+        self.assertFalse(note.transmission_ids)
+
+    def test_nce_real_signing_qr_and_final_v150_xsd_pipeline_offline(self):
+        original_move, _original = self._accepted_invoice()
+        note = self.service.create(move=self._move(
+            partner=original_move.partner_id, move_type="out_refund",
+            reversed_entry=original_move, credit_note_reason="2",
+            lines=[("Return", 11000, self.tax_10)],
+        ))
+        payload = PyPayloadBuilder(self.env).build(note)
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        subject = x509.Name([
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "PY"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "Offline NCE Fixture"),
+        ])
+        certificate = (
+            x509.CertificateBuilder()
+            .subject_name(subject)
+            .issuer_name(subject)
+            .public_key(private_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(self.SNAPSHOT_TIME - timedelta(days=1))
+            .not_valid_after(self.SNAPSHOT_TIME + timedelta(days=30))
+            .sign(private_key=private_key, algorithm=hashes.SHA256())
+        )
+        submission = _OfflineNceSubmission()
+
+        result = PySifenSubmissionPipelineService(
+            self.env, submission_service=submission
+        ).submit_test(
+            document=note,
+            payload=payload,
+            signing_timestamp=self.SNAPSHOT_TIME,
+            certificate_bytes=certificate.public_bytes(serialization.Encoding.PEM),
+            private_key_bytes=private_key.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            ),
+            endpoint_url="https://offline.example.test/de",
+            mutual_tls_credential={"offline": True},
+        )
+
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["submission_status"], "accepted")
+        self.assertEqual(result["authority_code"], "0260")
+        self.assertTrue(result["final_xml_attachment_id"])
+        self.assertEqual(len(submission.calls), 1)
+        self.assertFalse(note.transmission_ids)

@@ -1,5 +1,17 @@
 # Documentation Changelog
 
+## 2026-10-13 — Paraguay NCE end-to-end offline foundation
+
+* Added the posted Odoo customer-credit-note to immutable Paraguay NCE
+  snapshot boundary, requiring an accepted identified-receiver FE and
+  preserving its CDC as the single associated electronic document.
+* Added independent NCE timbrado/sequence/CDC `05`, allow-listed correction
+  reasons, cumulative amount protection, `gCamNCDE`, `gCamDEAsoc`, NCE KuDE
+  preview and authoritative delivery compatibility.
+* Proved real signing, XMLDSig, QR and final official v150 XSD validation with
+  stubbed transport only. No SIFEN request or historical-data change occurred;
+  live TEST homologation remains pending.
+
 ## 2026-10-12 — Fiscal retry cron deduplication
 
 * Restricted the generic fiscal cron to the latest transmission evidence for

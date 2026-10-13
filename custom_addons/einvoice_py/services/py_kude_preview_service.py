@@ -32,6 +32,8 @@ class PyKudePreviewService:
     BLOCKED_STATES = frozenset({"validation_error", "cancelled"})
     DOCUMENT_PREFIXES = {
         "invoice": "FE",
+        "credit_note": "NCE",
+        "debit_note": "NDE",
     }
 
     def __init__(self, env, *, kude_service=None):
@@ -70,9 +72,9 @@ class PyKudePreviewService:
     def _validate_document(self, document):
         if (document.country_code or "").upper() != "PY":
             raise ValidationError("KuDE preview requires a Paraguay document.")
-        if document.document_type != "invoice":
+        if document.document_type not in self.DOCUMENT_PREFIXES:
             raise ValidationError(
-                "KuDE preview currently supports Paraguay invoices only."
+                "KuDE preview does not support this Paraguay document type."
             )
         if document.state in self.BLOCKED_STATES:
             raise ValidationError(

@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+from psycopg2 import errors
+
 from odoo import fields
 from odoo.exceptions import ValidationError
 
@@ -27,9 +29,12 @@ class PyFiscalDocumentFromAccountMoveService:
 
     def create(self, *, move):
         move.ensure_one()
-        config = self._configuration(move)
+        document_type = self._document_type(move)
+        original_document = self._original_document(move, document_type)
+        config = self._configuration(move, document_type)
         if move.currency_id.name != "PYG":
-            raise ValidationError("Paraguay invoice preparation currently supports PYG only.")
+            raise ValidationError("Paraguay fiscal preparation currently supports PYG only.")
+        self._validate_credit_note(move, document_type, original_document, config)
         receiver = self._receiver_values(move.partner_id.commercial_partner_id)
         snapshot_at = self.snapshot_time_provider()
         document = FiscalDocumentFromAccountMoveService(
@@ -40,6 +45,8 @@ class PyFiscalDocumentFromAccountMoveService:
             adapter_config=config["adapter"],
             document_values=self._document_values(move, config, receiver, snapshot_at),
             line_value_provider=self._line_values,
+            document_type=document_type,
+            original_document=original_document,
         )
         PyNumberingService(self.env).assign_number(document)
         PyCdcService(self.env).generate(document)
@@ -49,7 +56,36 @@ class PyFiscalDocumentFromAccountMoveService:
             document.write({"state": "ready", "fiscal_number": document.py_full_number})
         return document
 
-    def _configuration(self, move):
+    def _document_type(self, move):
+        mapping = {"out_invoice": "invoice", "out_refund": "credit_note"}
+        document_type = mapping.get(move.move_type)
+        if not document_type:
+            raise ValidationError(
+                "Only customer invoices and customer credit notes are supported."
+            )
+        return document_type
+
+    def _original_document(self, move, document_type):
+        if document_type != "credit_note":
+            return self.env["fiscal.document"]
+        original_move = move.reversed_entry_id
+        if not original_move:
+            raise ValidationError(
+                "Paraguay electronic credit notes must be created from an original customer invoice."
+            )
+        documents = original_move.fiscal_document_ids.filtered(
+            lambda item: item.active
+            and item.document_type == "invoice"
+            and (item.country_code or "").upper() == "PY"
+            and item.environment == move.py_fiscal_environment
+        )
+        if len(documents) != 1:
+            raise ValidationError(
+                "The original invoice must have exactly one Paraguay fiscal document."
+            )
+        return documents
+
+    def _configuration(self, move, document_type):
         tenant = move.py_fiscal_tenant_id
         if not tenant:
             tenants = self.env["fiscal.tenant"].search([
@@ -84,8 +120,8 @@ class PyFiscalDocumentFromAccountMoveService:
         timbrado = self._one("fiscal.py.timbrado", [
             ("active", "=", True), ("tenant_id", "=", tenant.id),
             ("company_id", "=", move.company_id.id), ("environment", "=", environment),
-            ("document_type", "=", "invoice"),
-        ], "Exactly one active Paraguay invoice timbrado is required.")
+            ("document_type", "=", document_type),
+        ], f"Exactly one active Paraguay {document_type} timbrado is required.")
         if timbrado.allowed_point_of_issue_ids and point not in timbrado.allowed_point_of_issue_ids:
             raise ValidationError("The SIFEN point of issue is not allowed by the timbrado.")
         csc = self._one("fiscal.py.csc", [
@@ -96,10 +132,12 @@ class PyFiscalDocumentFromAccountMoveService:
             ("active", "=", True), ("tenant_id", "=", tenant.id),
             ("company_id", "=", move.company_id.id), ("timbrado_id", "=", timbrado.id),
             ("establishment_id", "=", establishment.id),
-            ("point_of_issue_id", "=", point.id), ("document_type", "=", "invoice"),
+            ("point_of_issue_id", "=", point.id), ("document_type", "=", document_type),
         ])
         if len(sequence) != 1:
-            raise ValidationError("Exactly one active Paraguay invoice sequence is required.")
+            raise ValidationError(
+                f"Exactly one active Paraguay {document_type} sequence is required."
+            )
         return {"tenant": tenant, "adapter": adapter, "issuer": issuer,
                 "establishment": establishment, "point": point,
                 "timbrado": timbrado, "csc": csc}
@@ -163,7 +201,62 @@ class PyFiscalDocumentFromAccountMoveService:
             "py_payment_type_code": "1" if move.py_sale_condition_code == "1" else False,
             "py_payment_amount": move.amount_total if move.py_sale_condition_code == "1" else 0,
             "py_payment_currency": move.currency_id.name,
+            "py_credit_debit_reason_code": move.py_credit_note_reason_code or False,
         })
+
+    def _validate_credit_note(self, move, document_type, original, config):
+        if document_type != "credit_note":
+            return
+        self._lock_original_document(original)
+        problems = []
+        if original.state != "accepted" or not original.authority_receipt_ref:
+            problems.append("The original Paraguay invoice must be accepted by SIFEN.")
+        if not original.py_cdc or len(original.py_cdc) != 44:
+            problems.append("The original Paraguay invoice requires a valid CDC.")
+        if original.adapter_config_id != config["adapter"]:
+            problems.append("Original invoice and credit note adapter scope do not match.")
+        if original.currency_id != move.currency_id:
+            problems.append("Credit note currency must match the original invoice.")
+        if original.partner_id.commercial_partner_id != move.partner_id.commercial_partner_id:
+            problems.append("Credit note customer must match the original invoice customer.")
+        if original.py_receiver_nature != "1":
+            problems.append(
+                "The original invoice receiver must be identified for a Paraguay credit note."
+            )
+        if not move.py_credit_note_reason_code:
+            problems.append("Select the SIFEN credit note reason.")
+        existing_amount = sum(
+            self.env["fiscal.document"].sudo().search([
+                ("original_document_id", "=", original.id),
+                ("document_type", "=", "credit_note"),
+                ("active", "=", True),
+                ("state", "!=", "cancelled"),
+                ("account_move_id", "!=", move.id),
+            ]).mapped("amount_total")
+        )
+        if Decimal(str(existing_amount)) + Decimal(str(move.amount_total)) > Decimal(
+            str(original.amount_total)
+        ):
+            problems.append(
+                "Credit notes cannot exceed the remaining amount of the original invoice."
+            )
+        if problems:
+            raise ValidationError(" ".join(problems))
+
+    def _lock_original_document(self, original):
+        try:
+            with self.env.cr.savepoint():
+                self.env.cr.execute(
+                    "SELECT id FROM fiscal_document WHERE id = %s FOR UPDATE NOWAIT",
+                    [original.id],
+                )
+                locked = self.env.cr.fetchone()
+        except errors.LockNotAvailable:
+            raise ValidationError(
+                "Another credit-note preparation is already evaluating this original invoice."
+            ) from None
+        if not locked:
+            raise ValidationError("The original fiscal document no longer exists.")
 
     def _line_values(self, line, _neutral):
         if len(line.tax_ids) != 1:

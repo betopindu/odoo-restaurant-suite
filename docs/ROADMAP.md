@@ -137,8 +137,9 @@ accepted payload `40329`, QR `59581` and final rDE `59582`.
 
 ## Current Validation Status
 
-After accepted-document delivery validation, the full `einvoice_py` suite
-reports **702 counted checks across 624 test methods**. Automated coverage is
+After the offline NCE implementation, the full `einvoice_py` suite reports
+**708 counted checks across 630 test methods**; the combined fiscal core and
+Paraguay suites report **760 checks across 672 methods**. Automated coverage is
 network-free.
 It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
 1.2 wrapping, mocked mTLS transport, response classification, readiness, and
@@ -162,8 +163,12 @@ limited to the exercised invoice profile.
 [ ] Operational monitoring and alerting
 [ ] Production go-live
 [x] Operational authoritative KuDE/XML resolution for accepted FE
-[ ] KuDE profiles for additional SIFEN DTE types
-[ ] NCE end-to-end accounting and SIFEN flow
+[~] KuDE profiles for additional SIFEN DTE types (NCE implemented offline;
+NDE and live validation pending)
+[~] NCE end-to-end accounting and SIFEN flow (offline pipeline complete; live
+SIFEN TEST evidence pending)
+[ ] NDE end-to-end accounting and SIFEN flow
+[ ] Cancellation and inutilization completion for MVP
 
 ## Future
 

@@ -47,6 +47,16 @@ class PyPayloadBuilder:
     CURRENCIES = {
         "PYG": "Guarani",
     }
+    CREDIT_DEBIT_REASONS = {
+        "1": "Devolución y Ajuste de precios",
+        "2": "Devolución",
+        "3": "Descuento",
+        "4": "Bonificación",
+        "5": "Crédito incobrable",
+        "6": "Recupero de costo",
+        "7": "Recupero de gasto",
+        "8": "Ajuste de precio",
+    }
 
     def __init__(self, env):
         self.env = env
@@ -71,6 +81,9 @@ class PyPayloadBuilder:
             "paraguay": self._paraguay_section(document),
             "warnings": warnings,
         }
+        if document.document_type in ("credit_note", "debit_note"):
+            payload["credit_debit_note"] = self._credit_debit_note_section(document)
+            payload["associated_document"] = self._associated_document_section(document)
         return payload
 
     def _validate_required(self, document):
@@ -93,6 +106,17 @@ class PyPayloadBuilder:
             missing.append("Paraguay timbrado is required.")
         if not document.line_ids:
             missing.append("At least one fiscal document line is required.")
+        if document.document_type in ("credit_note", "debit_note"):
+            if not document.py_credit_debit_reason_code:
+                missing.append("Credit/debit note reason is required.")
+            original = document.original_document_id
+            if (
+                not original
+                or original.document_type != "invoice"
+                or not original.py_cdc
+                or len(original.py_cdc) != 44
+            ):
+                missing.append("An electronic original invoice with a valid CDC is required.")
         if missing:
             raise ValidationError("; ".join(missing))
 
@@ -261,6 +285,26 @@ class PyPayloadBuilder:
             "payment_amount": document.py_payment_amount or document.amount_total,
             "payment_currency": payment_currency,
             "payment_currency_description": self._currency_description(payment_currency),
+        }
+
+    def _credit_debit_note_section(self, document):
+        if document.document_type not in ("credit_note", "debit_note"):
+            return None
+        code = document.py_credit_debit_reason_code
+        return {
+            "reason_code": code,
+            "reason_description": self.CREDIT_DEBIT_REASONS.get(code),
+        }
+
+    def _associated_document_section(self, document):
+        original = document.original_document_id
+        if document.document_type not in ("credit_note", "debit_note") or not original:
+            return None
+        return {
+            "type_code": "1",
+            "type_description": "Electrónico",
+            "cdc": original.py_cdc or original.country_identifier,
+            "document_id": original.id,
         }
 
     def _items_section(self, document, warnings):

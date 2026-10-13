@@ -61,6 +61,7 @@ class PyUnsignedXmlBuilder:
         self._build_general_operation(de, payload)
         self._build_document_type(de, payload)
         self._build_totals(de, payload)
+        self._build_associated_document(de, payload)
 
         ET.indent(root, space="  ")
         return ET.tostring(root, encoding="utf-8", xml_declaration=True)
@@ -185,8 +186,11 @@ class PyUnsignedXmlBuilder:
 
     def _build_document_type(self, parent, payload):
         group = self._sub(parent, "gDtipDE")
-        if payload["document"]["py_i_tide"] == "01":
+        document_type = payload["document"]["py_i_tide"]
+        if document_type == "01":
             self._build_invoice_fields(group)
+        elif document_type in ("05", "06"):
+            self._build_credit_debit_note_fields(group, payload)
         self._build_condition(group, payload)
         for item in payload["items"]:
             self._build_item(group, item)
@@ -195,6 +199,21 @@ class PyUnsignedXmlBuilder:
         group = self._sub(parent, "gCamFE")
         self._text(group, "iIndPres", "1")
         self._text(group, "dDesIndPres", "Operación presencial")
+
+    def _build_credit_debit_note_fields(self, parent, payload):
+        note = payload.get("credit_debit_note") or {}
+        group = self._sub(parent, "gCamNCDE")
+        self._text(group, "iMotEmi", note.get("reason_code"))
+        self._text(group, "dDesMotEmi", note.get("reason_description"))
+
+    def _build_associated_document(self, parent, payload):
+        associated = payload.get("associated_document")
+        if not associated:
+            return
+        group = self._sub(parent, "gCamDEAsoc")
+        self._text(group, "iTipDocAso", associated.get("type_code"))
+        self._text(group, "dDesTipDocAso", associated.get("type_description"))
+        self._text(group, "dCdCDERef", associated.get("cdc"))
 
     def _build_condition(self, parent, payload):
         condition = payload["condition"]
@@ -277,6 +296,7 @@ class PyUnsignedXmlBuilder:
         condition = payload.get("condition") or {}
         items = payload.get("items") or []
         totals = payload.get("totals") or {}
+        document_type = document.get("py_i_tide")
 
         self._require(missing, payload, "version", "payload version")
         self._require(missing, payload, "cdc", "payload CDC")
@@ -301,6 +321,12 @@ class PyUnsignedXmlBuilder:
         self._require(missing, operation, "currency", "currency")
         self._require(missing, condition, "sale_condition_code", "sale condition")
         self._require(missing, totals, "total_general", "total general")
+        if document_type in ("05", "06"):
+            note = payload.get("credit_debit_note") or {}
+            associated = payload.get("associated_document") or {}
+            self._require(missing, note, "reason_code", "credit/debit note reason")
+            self._require(missing, note, "reason_description", "credit/debit note reason description")
+            self._require(missing, associated, "cdc", "associated invoice CDC")
 
         if payload.get("cdc") != document.get("py_cdc"):
             missing.append("payload CDC must match document CDC")

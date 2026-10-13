@@ -265,8 +265,8 @@ class TestPyKudeService(TransactionCase):
 
         self._persist_payload()
         self._persist_qr()
-        self.document.document_type = "credit_note"
-        with self.assertRaisesRegex(ValidationError, "invoices only"):
+        self.document.document_type = "receipt"
+        with self.assertRaisesRegex(ValidationError, "does not support"):
             self.service.generate(document=self.document)
 
     def test_result_repr_does_not_include_pdf_bytes(self):

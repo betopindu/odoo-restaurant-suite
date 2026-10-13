@@ -46,6 +46,11 @@ class PyKudeService:
     PAGE_SIZE = A4
     MARGIN = 15 * mm
     QR_SIZE = 28 * mm
+    DOCUMENT_TITLES = {
+        "invoice": "FACTURA ELECTRONICA",
+        "credit_note": "NOTA DE CREDITO ELECTRONICA",
+        "debit_note": "NOTA DE DEBITO ELECTRONICA",
+    }
 
     def __init__(
         self,
@@ -112,9 +117,9 @@ class PyKudeService:
     def _validate_document(self, document):
         if (document.country_code or "").upper() != "PY":
             raise ValidationError("KuDE requires a Paraguay fiscal document.")
-        if document.document_type != "invoice":
+        if document.document_type not in self.DOCUMENT_TITLES:
             raise ValidationError(
-                "KuDE currently supports Paraguay electronic invoices only."
+                "KuDE does not support this Paraguay document type."
             )
 
     def load_payload(self, document):
@@ -160,6 +165,21 @@ class PyKudeService:
         )
         if not payload["items"] or any(value in (None, "") for value in mandatory):
             raise ValidationError("Persisted Paraguay payload is incomplete for KuDE.")
+        if document.document_type in ("credit_note", "debit_note"):
+            note = payload.get("credit_debit_note") or {}
+            associated = payload.get("associated_document") or {}
+            original_cdc = (
+                document.original_document_id.py_cdc
+                or document.original_document_id.country_identifier
+            )
+            if (
+                not note.get("reason_code")
+                or associated.get("type_code") != "1"
+                or associated.get("cdc") != original_cdc
+            ):
+                raise ValidationError(
+                    "Persisted Paraguay credit/debit note association is incomplete for KuDE."
+                )
 
     def load_company_logo(self, document):
         encoded = document.company_id.logo
@@ -191,11 +211,10 @@ class PyKudeService:
             invariant=1,
             pageCompression=1,
         )
-        pdf.setTitle(
-            "Preview de Factura Electronica"
-            if preview
-            else "KuDE de Factura Electronica"
+        title = self.DOCUMENT_TITLES.get(
+            payload["document"].get("document_type"), "DOCUMENTO ELECTRONICO"
         )
+        pdf.setTitle(f"Preview de {title.title()}" if preview else f"KuDE de {title.title()}")
         pdf.setAuthor("Fiscal e-Invoice Platform")
         for page_index, page_items in enumerate(pages):
             y = self._draw_document_header(
@@ -301,7 +320,13 @@ class PyKudeService:
             y -= 10
         y -= 2
         pdf.setFont("Helvetica-Bold", 11)
-        pdf.drawCentredString(right_x + right_width / 2, y, "FACTURA ELECTRONICA")
+        pdf.drawCentredString(
+            right_x + right_width / 2,
+            y,
+            self.DOCUMENT_TITLES.get(
+                document.get("document_type"), "DOCUMENTO ELECTRONICO"
+            ),
+        )
         y -= 13
         pdf.setFont("Helvetica-Bold", 10)
         pdf.drawCentredString(
@@ -352,6 +377,8 @@ class PyKudeService:
         document = payload["document"]
         left = (
             ("Fecha y hora de emision", document.get("issue_datetime")),
+            ("Motivo", (payload.get("credit_debit_note") or {}).get("reason_description")),
+            ("CDC factura asociada", (payload.get("associated_document") or {}).get("cdc")),
             ("Condicion de venta", condition.get("sale_condition_description")),
             ("Moneda", operation.get("currency_description") or operation.get("currency")),
             ("Tipo de cambio", operation.get("exchange_rate")),
@@ -576,7 +603,7 @@ class PyKudeService:
             parsed = urlsplit(qr_payload)
             consultation_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
             lines = (
-                "Consulte la validez de esta Factura Electronica con el numero de CDC",
+                "Consulte la validez de este Documento Electronico con el numero de CDC",
                 f"impreso abajo en: {consultation_url}",
                 f"CDC: {self._group_cdc(payload['cdc'])}",
             )

@@ -24,7 +24,9 @@ both logical credential bindings, XMLDSig, QR/CSC, final XSD validation, SOAP
 1.2, mTLS, response classification, and transmission/document persistence.
 This is evidence of interoperability for the tested invoice profile, not
 production certification or coverage of every authority scenario. The suite at
-current delivery baseline reports 589 counted tests across 523 test methods.
+current delivery baseline reports 708 counted checks across 630 test methods
+for `einvoice_py`, and 760 checks across 672 methods for the combined fiscal
+core and Paraguay suites.
 
 Production preflight, cron activation, monitoring, and production go-live
 remain pending.
@@ -372,3 +374,11 @@ posted account.move
 The core owns source locking, scope, provenance and uniqueness. Localizations
 own national configuration and mappings. No authority transport is invoked.
 See [ADR-018](ADR/ADR-018-account-move-fiscal-snapshot-boundary.md).
+
+For Paraguay NCE, a posted `out_refund` created from an original customer
+invoice crosses the same immutable boundary. The service requires one accepted
+Paraguay FE with an identified receiver, matching tenant/company/environment,
+currency and customer. The NCE receives its own timbrado sequence and CDC `05`,
+while `original_document_id` and the payload snapshot preserve the referenced
+FE CDC. The v150 builder emits exactly one `gCamNCDE` reason group and one
+electronic `gCamDEAsoc`; submission remains explicit and operator-controlled.

@@ -71,7 +71,7 @@ Status meanings:
 | Mixed exempt/5%/10% FE | PARTIAL | Builder aggregates separate buckets, but there is no focused full-pipeline mixed-rate regression vector or live evidence. |
 | Cash sale | READY | `gCamCond/gPaConEIni`, payment and accepted live baseline. |
 | Credit sale with installments | NOT IMPLEMENTED | Selection fields exist, but the builder always emits initial-payment `gPaConEIni`; credit schedule/installment groups and models are absent. |
-| Credit note | NOT IMPLEMENTED | Neutral type and Paraguay CDC code exist, but NCE-specific associated-document/reason XML groups and end-to-end tests are absent. |
+| Credit note | REQUIRES LIVE TEST | Posted Odoo refunds now create an immutable NCE linked to one accepted identified-receiver FE; independent CDC `05`, reason, cumulative amount guard, `gCamNCDE`, `gCamDEAsoc`, signing, XMLDSig, QR, final v150 XSD, KuDE preview and stubbed submission are covered offline. Authority TEST evidence is pending. |
 | Debit note | NOT IMPLEMENTED | Neutral type and Paraguay CDC code exist, but NDE-specific associated-document/reason XML groups and end-to-end tests are absent. |
 | Duplicate submission | PARTIAL | Response parser distinguishes configured duplicate codes and persistence blocks accidental resend of accepted CDCs. There is no operator-safe intentional duplicate homologation operation. |
 | Explicit rejection | READY | Parser/persistence tests plus preserved live rejection evidence demonstrate non-ambiguous rejection handling. |
