@@ -171,6 +171,15 @@ class _DeliveryCompletionStub:
         return SimpleNamespace(attachment_id=777)
 
 
+class _EmailDeliveryStub:
+    def __init__(self):
+        self.documents = []
+
+    def enqueue_automatic_if_enabled(self, *, document):
+        self.documents.append(document)
+        return False
+
+
 class TestPySifenTransmissionPersistenceService(TransactionCase):
     CDC = "01444444017001001001452822017012515873260988"
 
@@ -298,11 +307,13 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
 
     def test_accepted_result_completes_authoritative_delivery_artifacts(self):
         completion = _DeliveryCompletionStub()
+        email_delivery = _EmailDeliveryStub()
         self.pipeline.result["final_xml_attachment_id"] = 5
         service = PySifenTransmissionPersistenceService(
             self.env,
             submission_pipeline_service=self.pipeline,
             delivery_completion_service=completion,
+            email_delivery_service=email_delivery,
         )
 
         result = service.submit_and_persist(
@@ -317,6 +328,7 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
 
         self.assertTrue(result["transmission_id"])
         self.assertEqual(completion.documents, [self.document])
+        self.assertEqual(email_delivery.documents, [self.document])
 
     def test_production_boundary_uses_independent_cursor_and_commit(self):
         cursor = _IndependentCursor()

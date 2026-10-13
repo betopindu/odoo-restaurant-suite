@@ -1296,8 +1296,8 @@ Interpret failures as follows:
 * `soap_fault`: inspect the safe Fault code/reason and retain the raw response securely.
 * `rejected`, `duplicate`, or `unrecognized_official_code`: retain the official code/message and do not infer acceptance from HTTP 200.
 
-The current delivery baseline reports 708 counted checks across 630 test
-methods for `einvoice_py`, and 760 checks across 672 methods for the combined
+The current delivery baseline reports 758 counted checks across 698 test
+methods for `einvoice_py`, and 810 checks across 740 methods for the combined
 fiscal core and Paraguay suites.
 Production service composition, configuration-driven
 sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission
@@ -1433,11 +1433,25 @@ transmission `46822` (`0260`, protocol `49933128`), payload `40329`, QR `59581`,
 final rDE `59582` and authoritative KuDE `59605`. Recipient filenames are
 `FE-001-001-0000008.xml` and `FE-001-001-0000008.pdf`.
 
-`prepare_email()` suggests the persisted receiver email, a short subject/body,
-and exactly those two immutable attachments. It does not send mail or create an
-audit record. Rejected, ambiguous, unfinished, failed, and cancelled documents
-are not final-recipient deliverables. Cancellation behavior remains pending
-the authority event/cancellation implementation.
+`prepare_email()` uses only the persisted receiver-email snapshot, a short
+subject/body, and exactly those two immutable attachments. It never falls back
+to a later-edited partner address. Rejected, ambiguous, unfinished, failed, and
+cancelled documents are not final-recipient deliverables.
+
+Authorized fiscal operators can use **Email KuDE and XML** on an accepted
+document. A mandatory confirmation queues one Odoo email; opening or cancelling
+the wizard has no side effect. Each delivery record preserves mode, recipient,
+sender, source artifact IDs and SHA-256 hashes, requesting user/time, and the
+linked Odoo mail state. Re-confirming the same wizard is idempotent; a new
+wizard is an explicit manual resend.
+
+Companies may enable automatic delivery after authority acceptance. It is
+disabled by default and uses the same eligibility and artifact checks as manual
+delivery. Automatic queueing is idempotent for the accepted authority evidence.
+Preparation or SMTP failures remain delivery evidence only and never alter the
+accepted fiscal document or its SIFEN evidence. Odoo's standard outgoing-mail
+configuration and queue perform the actual SMTP send; this module never sends
+mail synchronously inside the SIFEN transaction.
 
 ## KuDE preview
 

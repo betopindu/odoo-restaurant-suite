@@ -112,6 +112,7 @@
 [x] Safe SIFEN authority-incident observability and guarded manual retry
 [x] Secure recipient delivery of current accepted Paraguay rDE and KuDE artifacts
 [x] Automatic/offline authoritative KuDE completion after synchronous FE acceptance
+[x] Manual and optional company-controlled email delivery of authoritative KuDE/XML
 [x] Non-authoritative, ephemeral Paraguay KuDE Preview separated from delivery
 [x] Paraguay retry signing freshness and payload/unsigned artifact provenance hardening
 [x] Guarded manual resend of the same DE/CDC after ambiguous POST and linked Consulta DE `0420`
@@ -146,8 +147,8 @@ accepted payload `40329`, QR `59581` and final rDE `59582`.
 ## Current Validation Status
 
 After the offline NCE implementation, the full `einvoice_py` suite reports
-**708 counted checks across 630 test methods**; the combined fiscal core and
-Paraguay suites report **760 checks across 672 methods**. Automated coverage is
+**758 counted checks across 698 test methods**; the combined fiscal core and
+Paraguay suites report **810 checks across 740 methods**. Automated coverage is
 network-free.
 It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
 1.2 wrapping, mocked mTLS transport, response classification, readiness, and
@@ -185,7 +186,7 @@ SIFEN TEST evidence pending)
 
 [ ] SIFEN error normalization
 [ ] Fiscal representation download security
-[ ] Email delivery
+[x] Email delivery (Odoo mail queue; automatic mode disabled by default)
 [ ] WhatsApp delivery
 [ ] Costa Rica addon
 [ ] Argentina addon

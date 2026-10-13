@@ -106,7 +106,9 @@ class PyFiscalDocumentDeliveryService:
 
     def prepare_email(self, *, document):
         bundle = self.resolve(document=document)
-        recipient = (document.customer_email or document.partner_id.email or "").strip()
+        # Delivery follows the immutable fiscal receiver snapshot.  A later edit to
+        # res.partner must never redirect an already accepted fiscal document.
+        recipient = (document.customer_email or "").strip()
         number = bundle.document["document_number"]
         return PyFiscalDocumentEmailPreparation(
             recipient_email=recipient,

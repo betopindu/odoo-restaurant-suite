@@ -33,6 +33,10 @@
                         string="Submit Electronic Self-Invoice" class="btn-primary"
                         groups="einvoice_py.group_py_fiscal_operator"
                         invisible="move_type != 'in_invoice' or py_fiscal_document_state not in ('ready', 'rejected', 'failed_retryable', 'manual_review')"/>
+                <button name="action_open_paraguay_fiscal_email_delivery" type="object"
+                        string="Email Fiscal Documents" class="btn-secondary"
+                        groups="einvoice_py.group_py_fiscal_operator"
+                        invisible="py_fiscal_document_state != 'accepted'"/>
             </xpath>
             <xpath expr="//field[@name='invoice_date']" position="after">
                 <field name="py_fiscal_environment" invisible="move_type not in ('out_invoice', 'out_refund', 'in_invoice')"/>

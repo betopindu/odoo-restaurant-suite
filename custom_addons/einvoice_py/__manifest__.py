@@ -3,7 +3,7 @@
     "summary": "Paraguay fiscal configuration for the e-Invoice core",
     "version": "17.0.1.0.0",
     "category": "Accounting/Accounting",
-    "depends": ["einvoice_module", "account_debit_note"],
+    "depends": ["einvoice_module", "account_debit_note", "mail"],
     "external_dependencies": {
         "python": ["reportlab"],
     },
@@ -20,7 +20,9 @@
         "views/fiscal_py_csc_views.xml",
         "views/fiscal_py_sequence_views.xml",
         "views/fiscal_document_views.xml",
+        "views/res_company_views.xml",
         "views/account_move_views.xml",
+        "views/py_fiscal_email_delivery_wizard_views.xml",
         "views/py_sifen_operator_wizard_views.xml",
         "views/py_sifen_cancellation_wizard_views.xml",
         "views/py_sifen_inutilization_views.xml",

@@ -109,3 +109,14 @@ class AccountMove(models.Model):
                 "SIFEN submission requires exactly one active Paraguay fiscal document."
             )
         return documents.action_open_py_sifen_submission()
+
+    def action_open_paraguay_fiscal_email_delivery(self):
+        self.ensure_one()
+        documents = self.fiscal_document_ids.filtered(
+            lambda item: item.active and (item.country_code or "").upper() == "PY"
+        )
+        if len(documents) != 1 or documents.state != "accepted":
+            raise ValidationError(
+                "Fiscal email delivery requires exactly one accepted Paraguay document."
+            )
+        return documents.action_open_py_fiscal_email_delivery()

@@ -24,8 +24,8 @@ both logical credential bindings, XMLDSig, QR/CSC, final XSD validation, SOAP
 1.2, mTLS, response classification, and transmission/document persistence.
 This is evidence of interoperability for the tested invoice profile, not
 production certification or coverage of every authority scenario. The suite at
-current delivery baseline reports 708 counted checks across 630 test methods
-for `einvoice_py`, and 760 checks across 672 methods for the combined fiscal
+current delivery baseline reports 758 counted checks across 698 test methods
+for `einvoice_py`, and 810 checks across 740 methods for the combined fiscal
 core and Paraguay suites.
 
 Production preflight, cron activation, monitoring, and production go-live
@@ -166,10 +166,18 @@ invariant through the delivery service; controllers contain no weaker copy.
 Cancellation delivery semantics remain pending the future authority-event implementation.
 Downloads use authenticated UUID-scoped routes and re-run document record-rule
 and company checks; callers cannot address arbitrary attachment IDs. Email
-preparation is side-effect-free and returns only the PDF/XML pair. No delivery
-audit model is added: pure resolution and preparation remain idempotent and do
-not create records; a future actual mail/send operation may justify an audit
-event at that side-effect boundary.
+preparation is side-effect-free and returns only the PDF/XML pair.
+
+`PyFiscalEmailDeliveryService` owns the mail side-effect boundary. An authorized
+operator can open a confirmation wizard and queue exactly the authoritative PDF
+and XML. Opening or cancelling the wizard creates no mail. Optional automatic
+queueing is company-scoped and disabled by default; it runs only after accepted
+artifacts have been completed. Both modes use the immutable receiver-email
+snapshot, persist an auditable delivery record with source artifact hashes, and
+leave SMTP delivery to Odoo's standard mail queue. Mail preparation or SMTP
+failure never changes or rolls back fiscal acceptance. Automatic queueing is
+idempotent per accepted authority evidence and a repeated confirmation on the
+same wizard cannot create a duplicate mail.
 
 Fiscal preview is a separate boundary, not a delivery mode.
 `PyKudePreviewService` reads the current persisted normalized payload and calls

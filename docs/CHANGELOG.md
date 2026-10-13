@@ -1,5 +1,12 @@
 # Documentation Changelog
 
+## 2026-10-13 — Authoritative Paraguay fiscal email delivery
+
+* Added operator-confirmed and optional company-controlled automatic email
+  delivery of authoritative Paraguay KuDE/XML through Odoo's standard mail
+  queue. Automatic delivery is disabled by default, uses the immutable receiver
+  snapshot, is idempotent, and cannot change fiscal acceptance on mail failure.
+
 ## 2026-10-13 — Odoo payment-term snapshots for Paraguay credit operations
 
 * Added immutable PYG installment schedules sourced from posted Odoo

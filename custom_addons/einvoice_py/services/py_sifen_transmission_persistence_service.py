@@ -26,6 +26,9 @@ from odoo.addons.einvoice_py.services.py_sifen_retry_eligibility_service import 
 from odoo.addons.einvoice_py.services.py_accepted_delivery_completion_service import (
     PyAcceptedDeliveryCompletionService,
 )
+from odoo.addons.einvoice_py.services.py_fiscal_email_delivery_service import (
+    PyFiscalEmailDeliveryService,
+)
 
 
 class PySifenTransmissionPersistenceService:
@@ -41,6 +44,7 @@ class PySifenTransmissionPersistenceService:
         source_artifact_service=None,
         durable_attempt_service=None,
         delivery_completion_service=None,
+        email_delivery_service=None,
         failure_injector=None,
     ):
         self.env = env
@@ -59,6 +63,9 @@ class PySifenTransmissionPersistenceService:
         self.delivery_completion_service = (
             delivery_completion_service
             or PyAcceptedDeliveryCompletionService(env)
+        )
+        self.email_delivery_service = (
+            email_delivery_service or PyFiscalEmailDeliveryService(env)
         )
         self.failure_injector = failure_injector
 
@@ -135,6 +142,7 @@ class PySifenTransmissionPersistenceService:
             and result.get("final_xml_attachment_id")
         ):
             self.delivery_completion_service.ensure(document=document)
+            self.email_delivery_service.enqueue_automatic_if_enabled(document=document)
         return {
             "result": result,
             "transmission_id": transmission_id,

@@ -11,6 +11,8 @@ from . import fiscal_document
 from . import fiscal_document_line
 from . import fiscal_attachment
 from . import fiscal_transmission
+from . import py_fiscal_email_delivery
+from . import res_company
 from . import py_sifen_retry_runner
 from . import account_move
 from . import account_tax
@@ -18,3 +20,4 @@ from . import res_partner
 from . import py_sifen_operator_wizard
 from . import py_sifen_cancellation_wizard
 from . import py_sifen_inutilization_wizard
+from . import py_fiscal_email_delivery_wizard

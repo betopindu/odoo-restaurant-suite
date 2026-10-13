@@ -6,17 +6,23 @@ from odoo.exceptions import ValidationError
 from odoo.addons.einvoice_py.services.py_sifen_consulta_de_service import (
     PySifenConsultaDeService,
 )
+from odoo.addons.einvoice_py.services.py_fiscal_email_delivery_service import (
+    PyFiscalEmailDeliveryService,
+)
 
 
 class PySifenReconciliationService:
     """Resolve an ambiguous TEST submission through SIFEN Consulta DE."""
 
-    def __init__(self, env, *, consulta_de_service=None):
+    def __init__(self, env, *, consulta_de_service=None, email_delivery_service=None):
         self.env = env
         self.consulta_de_service = (
             consulta_de_service
             if consulta_de_service is not None
             else PySifenConsultaDeService(env)
+        )
+        self.email_delivery_service = (
+            email_delivery_service or PyFiscalEmailDeliveryService(env)
         )
 
     def reconcile(self, *, document=None, cdc=None, operator_requested=False):
@@ -83,6 +89,7 @@ class PySifenReconciliationService:
         document.with_context(
             einvoice_skip_fiscal_document_lock=True
         ).write(document_values)
+        self.email_delivery_service.enqueue_automatic_if_enabled(document=document)
         return {
             "resolution_status": "accepted",
             "document_id": document.id,

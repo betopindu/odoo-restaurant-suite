@@ -44,12 +44,33 @@
                         string="Download XML"
                         class="btn-secondary"
                         invisible="country_code != 'PY' or state != 'accepted'"/>
+                <button name="action_open_py_fiscal_email_delivery"
+                        type="object"
+                        string="Email KuDE and XML"
+                        class="btn-secondary"
+                        groups="einvoice_py.group_py_fiscal_operator"
+                        invisible="country_code != 'PY' or state != 'accepted'"/>
                 <button name="action_open_py_sifen_cancellation"
                         type="object"
                         string="Cancel in SIFEN"
                         class="btn-danger"
                         groups="einvoice_py.group_py_fiscal_operator"
                         invisible="country_code != 'PY' or state != 'accepted'"/>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="Email Delivery" invisible="country_code != 'PY'">
+                    <field name="py_email_delivery_ids" readonly="1">
+                        <tree create="0" delete="0">
+                            <field name="requested_at"/>
+                            <field name="mode"/>
+                            <field name="recipient_email"/>
+                            <field name="mail_state"/>
+                            <field name="preparation_status"/>
+                            <field name="error_detail" optional="hide"/>
+                            <field name="requested_by_id"/>
+                        </tree>
+                    </field>
+                </page>
             </xpath>
             <xpath expr="//sheet/group[field[@name='country_code']]" position="after">
                 <group string="Electronic Self-Invoice Snapshot" invisible="country_code != 'PY' or document_type != 'self_invoice'">
