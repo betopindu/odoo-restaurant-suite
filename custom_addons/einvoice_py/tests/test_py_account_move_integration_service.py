@@ -1,5 +1,6 @@
 import json
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -161,6 +162,14 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
             "name": "Offline Consumer", "py_sifen_receiver_profile": "unnamed_consumer",
             "country_id": cls.env.ref("base.py").id,
         })
+        cls.three_installments = cls.env["account.payment.term"].create({
+            "name": "Three monthly installments fixture",
+            "line_ids": [
+                (0, 0, {"value": "percent", "value_amount": 33, "nb_days": 30}),
+                (0, 0, {"value": "percent", "value_amount": 33, "nb_days": 60}),
+                (0, 0, {"value": "percent", "value_amount": 34, "nb_days": 90}),
+            ],
+        })
 
     @classmethod
     def _tax(cls, name, amount, mapping):
@@ -176,9 +185,43 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
             self.env, snapshot_time_provider=lambda: self.SNAPSHOT_TIME
         )
 
+    def _offline_signed_pipeline(self, document):
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        subject = x509.Name([
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "PY"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "Offline credit fixture"),
+        ])
+        certificate = (
+            x509.CertificateBuilder().subject_name(subject).issuer_name(subject)
+            .public_key(private_key.public_key()).serial_number(x509.random_serial_number())
+            .not_valid_before(self.SNAPSHOT_TIME - timedelta(days=1))
+            .not_valid_after(self.SNAPSHOT_TIME + timedelta(days=30))
+            .sign(private_key=private_key, algorithm=hashes.SHA256())
+        )
+        submission = _OfflineNceSubmission()
+        result = PySifenSubmissionPipelineService(
+            self.env, submission_service=submission
+        ).submit_test(
+            document=document,
+            payload=PyPayloadBuilder(self.env).build(document),
+            signing_timestamp=self.SNAPSHOT_TIME,
+            certificate_bytes=certificate.public_bytes(serialization.Encoding.PEM),
+            private_key_bytes=private_key.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            ),
+            endpoint_url="https://offline.example.test/de",
+            mutual_tls_credential={"offline": True},
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(len(submission.calls), 1)
+        self.assertFalse(document.transmission_ids)
+
     def _move(
         self, taxes=None, *, partner=None, move_type="out_invoice", post=True,
         lines=None, reversed_entry=None, debit_origin=None, credit_note_reason=None,
+        payment_term=None, sale_condition="1",
     ):
         taxes = taxes if taxes is not None else self.tax_10
         lines = lines or [("Service line", 110000, taxes)]
@@ -191,6 +234,8 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
             "reversed_entry_id": reversed_entry.id if reversed_entry else False,
             "debit_origin_id": debit_origin.id if debit_origin else False,
             "py_credit_note_reason_code": credit_note_reason,
+            "invoice_payment_term_id": payment_term.id if payment_term else False,
+            "py_sale_condition_code": sale_condition,
         }
         if move_type != "entry":
             values["invoice_line_ids"] = [(0, 0, {
@@ -406,6 +451,37 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         self.assertAlmostEqual(document.amount_untaxed, move.amount_untaxed)
         self.assertAlmostEqual(document.amount_tax, move.amount_tax)
         self.assertAlmostEqual(document.amount_total, move.amount_total)
+
+    def test_credit_payment_term_is_snapshotted_as_schema_ordered_installments(self):
+        move = self._move(
+            lines=[("Credit service", 300000, self.tax_exempt)],
+            payment_term=self.three_installments,
+            sale_condition="2",
+        )
+        document = self.service.create(move=move)
+        payload = PyPayloadBuilder(self.env).build(document)
+        xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        from lxml import etree
+        root = etree.fromstring(xml_bytes)
+        ns = {"s": PyUnsignedXmlBuilder.SIFEN_NS}
+        installments = payload["condition"]["installments"]
+
+        self.assertEqual(document.py_credit_condition_code, "2")
+        self.assertEqual(document.py_installment_count, 3)
+        self.assertEqual(len(installments), 3)
+        self.assertEqual(sum(Decimal(item["amount"]) for item in installments), Decimal("300000.0"))
+        self.assertEqual(root.xpath("string(.//s:gCamCond/s:iCondOpe)", namespaces=ns), "2")
+        self.assertEqual(root.xpath("string(.//s:gPagCred/s:iCondCred)", namespaces=ns), "2")
+        self.assertEqual(root.xpath("string(.//s:gPagCred/s:dCuotas)", namespaces=ns), "3")
+        self.assertEqual(len(root.xpath(".//s:gPagCred/s:gCuotas", namespaces=ns)), 3)
+        self.assertFalse(root.xpath(".//s:gCamCond/s:gPaConEIni", namespaces=ns))
+        self._offline_signed_pipeline(document)
+
+    def test_credit_payload_without_installment_snapshot_fails_closed(self):
+        document = self.service.create(move=self._move())
+        document.write({"py_sale_condition_code": "2", "py_installments_json": False})
+        with self.assertRaisesRegex(ValidationError, "snapshot is required"):
+            PyPayloadBuilder(self.env).build(document)
 
     def test_cdc_date_uses_paraguay_civil_date_from_utc_snapshot(self):
         service = PyFiscalDocumentFromAccountMoveService(

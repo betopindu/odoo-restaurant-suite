@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from odoo.exceptions import ValidationError
@@ -303,7 +304,7 @@ class PyPayloadBuilder:
             warnings.append("Defaulted payment type for Paraguay payload.")
         if not document.py_payment_currency:
             warnings.append("Defaulted payment currency for Paraguay payload.")
-        return {
+        condition = {
             "sale_condition_code": sale_condition_code,
             "sale_condition_description": self.SALE_CONDITIONS.get(sale_condition_code),
             "payment_type_code": payment_type_code,
@@ -312,6 +313,62 @@ class PyPayloadBuilder:
             "payment_currency": payment_currency,
             "payment_currency_description": self._currency_description(payment_currency),
         }
+        if sale_condition_code == "2":
+            try:
+                installments = json.loads(document.py_installments_json or "[]")
+            except (TypeError, ValueError) as error:
+                raise ValidationError("Credit installment snapshot is invalid.") from error
+            if not isinstance(installments, list) or not installments:
+                if document.source_model == "account.move":
+                    raise ValidationError("Credit installment snapshot is required.")
+                warnings.append(
+                    "Legacy credit document has no immutable accounting installment snapshot."
+                )
+                return condition
+            if document.py_installment_count != len(installments):
+                raise ValidationError("Credit installment count does not match its snapshot.")
+            try:
+                installment_total = sum(
+                    (Decimal(str(item["amount"])) for item in installments),
+                    Decimal("0"),
+                )
+            except (KeyError, TypeError, InvalidOperation) as error:
+                raise ValidationError("Credit installment amounts are invalid.") from error
+            if document.currency_id.compare_amounts(
+                float(installment_total), document.amount_total
+            ) != 0:
+                raise ValidationError(
+                    "Credit installment amounts do not reconcile with the fiscal total."
+                )
+            if any(
+                not isinstance(item, dict)
+                or not item.get("due_date")
+                or item.get("currency") != "PYG"
+                or Decimal(str(item.get("amount") or 0)) <= 0
+                for item in installments
+            ):
+                raise ValidationError("Credit installment snapshot is incomplete or invalid.")
+            condition.update({
+                "credit_condition_code": document.py_credit_condition_code,
+                "credit_condition_description": (
+                    "Cuota" if document.py_credit_condition_code == "2" else "Plazo"
+                ),
+                "credit_term": document.py_credit_term or None,
+                "installment_count": document.py_installment_count,
+                "initial_payment": document.py_payment_amount or 0,
+                "installments": [
+                    {
+                        "sequence": item.get("sequence"),
+                        "currency": item.get("currency"),
+                        "currency_description": self._currency_description(item.get("currency")),
+                        "amount": item.get("amount"),
+                        "due_date": item.get("due_date"),
+                        "source_move_line_id": item.get("source_move_line_id"),
+                    }
+                    for item in installments
+                ],
+            })
+        return condition
 
     def _self_invoice_section(self, document):
         return {

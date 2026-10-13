@@ -1,5 +1,14 @@
 # Documentation Changelog
 
+## 2026-10-13 — Odoo payment-term snapshots for Paraguay credit operations
+
+* Added immutable PYG installment schedules sourced from posted Odoo
+  receivable/payable maturity lines for explicitly selected credit operations.
+* Added SIFEN v150 `gPagCred`/`gCuotas` emission, exact total reconciliation and
+  KuDE due-date visibility while leaving cash documents unchanged.
+* Proved signing, XMLDSig, QR and final official XSD validation offline; no
+  automatic submission, payment mutation or SIFEN request was introduced.
+
 ## 2026-10-13 — Paraguay Autofactura Electrónica end-to-end offline foundation
 
 * Added the posted Odoo vendor-bill to immutable Paraguay AFE snapshot boundary

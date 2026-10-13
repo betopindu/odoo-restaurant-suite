@@ -50,6 +50,20 @@ official v150 order, and the existing signing, QR, durable submission, retry,
 reconciliation, KuDE and delivery services. Preview and automated validation
 are offline; live SIFEN TEST AFE evidence remains pending.
 
+### Credit terms and installments
+
+When an operator explicitly selects **Credit**, preparation reads the posted
+Odoo receivable/payable maturity lines and stores an immutable PYG schedule on
+the fiscal document. The amounts must be positive, carry due dates and sum
+exactly to the fiscal total. The payload and XML emit `gPagCred` with condition
+`Cuota` and one ordered `gCuotas` per accounting maturity. KuDE renders the due
+dates. Missing, malformed or unreconciled schedules fail closed.
+
+Selecting **Cash** preserves the existing `gPaConEIni` behavior. This stage
+does not register payments, financing interest, advances or foreign-currency
+credit, and it does not infer credit merely because an Odoo payment-term record
+is present.
+
 ## Operator-controlled Odoo workflow
 
 Posted customer invoices can be prepared as immutable fiscal snapshots and

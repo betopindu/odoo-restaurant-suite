@@ -212,6 +212,10 @@
                 <page string="Payment Information" invisible="country_code != 'PY'">
                     <group>
                         <field name="py_sale_condition_code"/>
+                        <field name="py_credit_condition_code" readonly="1" invisible="py_sale_condition_code != '2'"/>
+                        <field name="py_credit_term" readonly="1" invisible="py_sale_condition_code != '2'"/>
+                        <field name="py_installment_count" readonly="1" invisible="py_sale_condition_code != '2'"/>
+                        <field name="py_installments_json" readonly="1" invisible="py_sale_condition_code != '2'"/>
                         <field name="py_payment_type_code"/>
                         <field name="py_payment_amount"/>
                         <field name="py_payment_currency"/>

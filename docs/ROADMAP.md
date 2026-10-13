@@ -13,6 +13,8 @@
   snapshot, explicit Paraguay mappings and offline KuDE Preview.
 - [x] Posted Odoo vendor bills can produce an immutable Paraguay Autofactura
   Electrónica snapshot with CDC `04` and a schema-valid offline v150 pipeline.
+- [x] Explicit PYG credit operations snapshot Odoo accounting maturities and
+  emit schema-valid SIFEN installment schedules without changing cash flows.
 - [x] Authorized operators can explicitly submit prepared FE and invoke guarded
   Consulta DE recovery through confirmation dialogs in Odoo.
 
@@ -201,5 +203,4 @@ SIFEN TEST evidence pending)
 
 * [Paraguay Documentation](PARAGUAY/README.md)
 * [Architecture](ARCHITECTURE.md)
-- [ ] Extend accounting integration to credit/debit notes, tax-exclusive prices
-  and explicit fiscal correction workflows.
+- [ ] Extend accounting integration to tax-exclusive prices.

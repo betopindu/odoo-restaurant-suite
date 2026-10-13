@@ -389,3 +389,10 @@ non-taxpayer/foreign seller while the issuing company is captured as receiver.
 Seller and transaction-place values become immutable fiscal fields. The
 country adapter emits CDC `04` and `gCamAE`; signing, QR, durable transport,
 retry/reconciliation, KuDE and delivery remain shared with FE/NCE/NDE.
+
+For an explicitly selected PYG credit operation, the accounting boundary
+captures posted receivable/payable maturity lines as an immutable ordered
+schedule. Preparation requires positive amounts, due dates and exact
+reconciliation to the document total. Paraguay maps that snapshot to
+`gPagCred/gCuotas`; cash documents continue to use `gPaConEIni`. Later payment
+or reconciliation activity never rewrites the fiscal snapshot.

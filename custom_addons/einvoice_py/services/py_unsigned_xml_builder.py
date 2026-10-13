@@ -247,12 +247,26 @@ class PyUnsignedXmlBuilder:
         group = self._sub(parent, "gCamCond")
         self._text(group, "iCondOpe", self._normalize_int_code(condition["sale_condition_code"]))
         self._text(group, "dDCondOpe", condition.get("sale_condition_description"))
-        payment = self._sub(group, "gPaConEIni")
-        self._text(payment, "iTiPago", self._normalize_int_code(condition.get("payment_type_code")))
-        self._text(payment, "dDesTiPag", condition.get("payment_type_description"))
-        self._text(payment, "dMonTiPag", self._format_money(condition.get("payment_amount")))
-        self._text(payment, "cMoneTiPag", condition.get("payment_currency"))
-        self._text(payment, "dDMoneTiPag", condition.get("payment_currency_description"))
+        if condition["sale_condition_code"] == "1" or not condition.get("credit_condition_code"):
+            payment = self._sub(group, "gPaConEIni")
+            self._text(payment, "iTiPago", self._normalize_int_code(condition.get("payment_type_code")))
+            self._text(payment, "dDesTiPag", condition.get("payment_type_description"))
+            self._text(payment, "dMonTiPag", self._format_money(condition.get("payment_amount")))
+            self._text(payment, "cMoneTiPag", condition.get("payment_currency"))
+            self._text(payment, "dDMoneTiPag", condition.get("payment_currency_description"))
+        else:
+            credit = self._sub(group, "gPagCred")
+            self._text(credit, "iCondCred", self._normalize_int_code(condition.get("credit_condition_code")))
+            self._text(credit, "dDCondCred", condition.get("credit_condition_description"))
+            self._text(credit, "dPlazoCre", condition.get("credit_term"))
+            self._text(credit, "dCuotas", condition.get("installment_count"))
+            self._text(credit, "dMonEnt", self._format_money(condition.get("initial_payment")))
+            for installment in condition.get("installments") or []:
+                installment_group = self._sub(credit, "gCuotas")
+                self._text(installment_group, "cMoneCuo", installment.get("currency"))
+                self._text(installment_group, "dDMoneCuo", installment.get("currency_description"))
+                self._text(installment_group, "dMonCuota", self._format_money(installment.get("amount")))
+                self._text(installment_group, "dVencCuo", installment.get("due_date"))
 
     def _build_item(self, parent, item):
         group = self._sub(parent, "gCamItem")
@@ -347,6 +361,19 @@ class PyUnsignedXmlBuilder:
         self._require(missing, operation, "tax_type_code", "tax type")
         self._require(missing, operation, "currency", "currency")
         self._require(missing, condition, "sale_condition_code", "sale condition")
+        if condition.get("sale_condition_code") == "2" and condition.get("credit_condition_code"):
+            self._require(missing, condition, "credit_condition_code", "credit condition")
+            self._require(missing, condition, "credit_condition_description", "credit condition description")
+            installments = condition.get("installments") or []
+            if not installments:
+                missing.append("at least one credit installment")
+            if condition.get("installment_count") != len(installments):
+                missing.append("credit installment count must match schedule")
+            for index, installment in enumerate(installments, start=1):
+                self._require(missing, installment, "currency", f"installment {index} currency")
+                self._require(missing, installment, "currency_description", f"installment {index} currency description")
+                self._require(missing, installment, "amount", f"installment {index} amount")
+                self._require(missing, installment, "due_date", f"installment {index} due date")
         self._require(missing, totals, "total_general", "total general")
         if document_type in ("05", "06"):
             note = payload.get("credit_debit_note") or {}

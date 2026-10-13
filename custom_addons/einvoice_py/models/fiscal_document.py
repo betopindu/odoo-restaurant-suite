@@ -319,6 +319,16 @@ class FiscalDocument(models.Model):
         copy=False,
         help="Payment currency code used in the Paraguay payload. Default is PYG.",
     )
+    py_credit_condition_code = fields.Selection(
+        [("1", "Term"), ("2", "Installments")],
+        string="Credit Condition", copy=False,
+    )
+    py_credit_term = fields.Char(string="Credit Term", copy=False)
+    py_installment_count = fields.Integer(string="Installment Count", copy=False)
+    py_installments_json = fields.Text(
+        string="Credit Installment Snapshot", copy=False,
+        help="Immutable normalized installment schedule captured from posted accounting maturities.",
+    )
     py_credit_debit_reason_code = fields.Selection(
         [
             ("1", "Return and price adjustment"),

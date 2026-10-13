@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 
 from psycopg2 import errors
@@ -247,7 +248,7 @@ class PyFiscalDocumentFromAccountMoveService:
 
     def _document_values(self, move, config, receiver, snapshot_at):
         issuer = config["issuer"]
-        return dict(receiver, **{
+        values = dict(receiver, **{
             "issue_datetime": snapshot_at, "py_issuer_id": issuer.id,
             "py_issuer_ruc": issuer.ruc, "py_issuer_ruc_dv": issuer.ruc_dv,
             "py_issuer_taxpayer_type": issuer.taxpayer_type,
@@ -262,6 +263,57 @@ class PyFiscalDocumentFromAccountMoveService:
             "py_payment_currency": move.currency_id.name,
             "py_credit_debit_reason_code": move.py_credit_note_reason_code or False,
         })
+        values.update(self._credit_values(move))
+        return values
+
+    def _credit_values(self, move):
+        if move.py_sale_condition_code != "2":
+            return {
+                "py_credit_condition_code": False,
+                "py_credit_term": False,
+                "py_installment_count": 0,
+                "py_installments_json": False,
+            }
+        term_lines = move.line_ids.filtered(
+            lambda line: line.account_id.account_type
+            in ("asset_receivable", "liability_payable")
+        ).sorted(lambda line: (line.date_maturity or move.invoice_date, line.id))
+        if not term_lines:
+            raise ValidationError(
+                "Credit fiscal documents require posted accounting maturity lines."
+            )
+        installments = []
+        total = Decimal("0")
+        for line in term_lines:
+            if not line.date_maturity:
+                raise ValidationError("Every credit installment requires a maturity date.")
+            amount = abs(Decimal(str(
+                line.amount_currency
+                if line.currency_id == move.currency_id and line.amount_currency
+                else line.balance
+            )))
+            if amount <= 0:
+                raise ValidationError("Every credit installment must have a positive amount.")
+            installments.append({
+                "sequence": len(installments) + 1,
+                "currency": move.currency_id.name,
+                "amount": format(amount, "f"),
+                "due_date": line.date_maturity.isoformat(),
+                "source_move_line_id": line.id,
+            })
+            total += amount
+        if not move.currency_id.is_zero(float(total - Decimal(str(move.amount_total)))):
+            raise ValidationError(
+                "Credit installment amounts must reconcile exactly with the fiscal total."
+            )
+        return {
+            "py_credit_condition_code": "2",
+            "py_credit_term": False,
+            "py_installment_count": len(installments),
+            "py_installments_json": json.dumps(
+                installments, ensure_ascii=True, sort_keys=True, separators=(",", ":")
+            ),
+        }
 
     def _validate_correction_note(self, move, document_type, original, config):
         if document_type not in ("credit_note", "debit_note"):
