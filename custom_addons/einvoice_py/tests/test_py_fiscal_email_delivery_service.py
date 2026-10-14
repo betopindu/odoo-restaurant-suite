@@ -1,3 +1,4 @@
+import hashlib
 from unittest.mock import patch
 
 from odoo.exceptions import AccessError, ValidationError
@@ -50,6 +51,51 @@ class TestPyFiscalEmailDeliveryService(TestPyFiscalDocumentDeliveryService):
             sorted(delivery.mail_id.attachment_ids.mapped("name")),
             ["FE-001-001-0000006.pdf", "FE-001-001-0000006.xml"],
         )
+
+    def test_manual_delivery_outgoing_mime_contains_pdf_and_xml(self):
+        delivery = self._email_service().enqueue(
+            document=self.document.with_user(self.operator), mode="manual"
+        )
+
+        outgoing = delivery.mail_id._prepare_outgoing_list()
+
+        self.assertEqual(len(outgoing), 1)
+        attachments = {
+            name: (content, mimetype)
+            for name, content, mimetype in outgoing[0]["attachments"]
+        }
+        self.assertEqual(
+            sorted(attachments),
+            ["FE-001-001-0000006.pdf", "FE-001-001-0000006.xml"],
+        )
+        self.assertEqual(attachments["FE-001-001-0000006.pdf"][1], "application/pdf")
+        # Odoo deliberately downgrades XML uploaded by non-technical users to
+        # text/plain as an XSS safeguard.  The bytes and recipient filename are
+        # authoritative and must still be present in the outgoing MIME.
+        self.assertIn(
+            attachments["FE-001-001-0000006.xml"][1],
+            ("application/xml", "text/xml", "text/plain"),
+        )
+        self.assertEqual(
+            hashlib.sha256(attachments["FE-001-001-0000006.pdf"][0]).hexdigest(),
+            self.pdf.sha256,
+        )
+        self.assertEqual(
+            hashlib.sha256(attachments["FE-001-001-0000006.xml"][0]).hexdigest(),
+            self.xml.sha256,
+        )
+
+    def test_manual_delivery_fails_closed_when_mime_loses_attachments(self):
+        mail_model = type(self.env["mail.mail"])
+        with patch.object(
+            mail_model,
+            "_prepare_outgoing_list",
+            return_value=[{"attachments": []}],
+        ):
+            with self.assertRaisesRegex(ValidationError, "authoritative KuDE PDF and XML"):
+                self._email_service().enqueue(
+                    document=self.document.with_user(self.operator), mode="manual"
+                )
 
     def test_recipient_uses_immutable_snapshot_not_current_partner(self):
         partner = self.env["res.partner"].create({

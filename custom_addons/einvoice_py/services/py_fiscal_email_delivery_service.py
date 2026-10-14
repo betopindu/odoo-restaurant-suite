@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import logging
 
 from markupsafe import escape
@@ -88,8 +89,24 @@ class PyFiscalEmailDeliveryService:
             "attachment_ids": [(6, 0, attachment_ids)],
             "auto_delete": False,
         })
+        self._validate_outgoing_attachments(mail=mail, prepared=prepared)
         delivery.write({"mail_id": mail.id})
         return delivery
+
+    @staticmethod
+    def _validate_outgoing_attachments(*, mail, prepared):
+        outgoing = mail._prepare_outgoing_list()
+        if len(outgoing) != 1:
+            raise ValidationError("Fiscal email MIME preparation is inconsistent.")
+        actual = {
+            name: hashlib.sha256(content).hexdigest()
+            for name, content, _mimetype in outgoing[0]["attachments"]
+        }
+        expected = {item.filename: item.sha256 for item in prepared.attachments}
+        if actual != expected:
+            raise ValidationError(
+                "Fiscal email MIME does not contain the authoritative KuDE PDF and XML."
+            )
 
     def enqueue_automatic_if_enabled(self, *, document):
         document.ensure_one()
