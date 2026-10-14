@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timedelta
+from unittest.mock import Mock
 
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
@@ -294,3 +295,39 @@ class TestPySifenManualRetryService(TransactionCase):
         self.assertEqual(authorization.rejected_submission_id, rejected.id)
         self.assertTrue(authorization.manual_retry_allowed)
         self.assertFalse(authorization.automatic_retry_allowed)
+
+    def test_explicit_rejection_does_not_lock_document_before_durable_prepare(self):
+        self.env["fiscal.transmission"].search([
+            ("document_id", "=", self.document.id),
+        ]).unlink()
+        self._transmission(
+            code="1216",
+            message="Explicit authority rejection",
+            metadata=json.dumps({
+                "ambiguous": False,
+                "post_started": True,
+                "durability_phase": "completed",
+                "submission_status": "rejected",
+            }),
+        ).write({
+            "request_hash": "a" * 64,
+            "response_hash": "b" * 64,
+            "http_status": 200,
+        })
+        rebuilt = dict(self.payload, corrected=True)
+        source_artifacts = Mock(wraps=self.service.source_artifact_service)
+        service = PySifenManualRetryService(
+            self.env,
+            persistence_service=self.persistence,
+            payload_builder=_PayloadBuilderStub(rebuilt),
+            source_artifact_service=source_artifacts,
+        )
+
+        service.retry(
+            document=self.document,
+            signing_timestamp=datetime(2026, 8, 7, 14, 0, 0),
+        )
+
+        source_artifacts.persist_payload.assert_not_called()
+        source_artifacts.read_current_payload.assert_not_called()
+        self.assertEqual(self.persistence.calls[0]["payload"], rebuilt)

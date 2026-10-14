@@ -58,16 +58,13 @@ class PySifenManualRetryService:
             == self.retry_eligibility_service.EXPLICIT_REJECTION_EVIDENCE_TYPE
         ):
             payload = self.payload_builder.build(document)
-        if payload is not None:
-            self.source_artifact_service.persist_payload(
-                document=document, payload=payload
+        if payload is None:
+            _current_attachment, payload = (
+                self.source_artifact_service.read_current_payload(document=document)
             )
-        _current_attachment, current_payload = (
-            self.source_artifact_service.read_current_payload(document=document)
-        )
         return self.persistence_service.submit_and_persist(
             document=document,
-            payload=current_payload,
+            payload=payload,
             signing_timestamp=fresh_timestamp,
             manual_retry_authorization=(
                 authorization
