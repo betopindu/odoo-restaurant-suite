@@ -618,6 +618,9 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
 
         self.assertEqual(payload["credit_debit_note"]["reason_code"], "3")
         self.assertEqual(payload["associated_document"]["cdc"], original.py_cdc)
+        self.assertIsNone(payload["operation"]["transaction_type_code"])
+        self.assertFalse(root.xpath(".//s:gOpeCom/s:iTipTra", namespaces=ns))
+        self.assertFalse(root.xpath(".//s:gOpeCom/s:dDesTipTra", namespaces=ns))
         self.assertEqual(root.xpath("string(.//s:gCamNCDE/s:iMotEmi)", namespaces=ns), "3")
         self.assertEqual(
             root.xpath("string(.//s:gCamDEAsoc/s:dCdCDERef)", namespaces=ns),
@@ -664,6 +667,9 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         self.assertEqual(note.py_timbrado_id, self.debit_note_timbrado)
         self.assertEqual(note.state, "ready")
         self.assertEqual(payload["associated_document"]["cdc"], original.py_cdc)
+        self.assertIsNone(payload["operation"]["transaction_type_code"])
+        self.assertFalse(root.xpath(".//s:gOpeCom/s:iTipTra", namespaces=ns))
+        self.assertFalse(root.xpath(".//s:gOpeCom/s:dDesTipTra", namespaces=ns))
         self.assertEqual(root.xpath("string(.//s:gCamNCDE/s:iMotEmi)", namespaces=ns), "8")
         self.assertEqual(
             root.xpath("string(.//s:gCamDEAsoc/s:dCdCDERef)", namespaces=ns),

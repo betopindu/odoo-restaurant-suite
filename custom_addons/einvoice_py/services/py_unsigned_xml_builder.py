@@ -107,8 +107,13 @@ class PyUnsignedXmlBuilder:
     def _build_commercial_operation(self, parent, payload):
         operation = payload["operation"]
         group = self._sub(parent, "gOpeCom")
-        self._text(group, "iTipTra", self._normalize_int_code(operation["transaction_type_code"]))
-        self._text(group, "dDesTipTra", operation.get("transaction_type_description"))
+        if operation.get("transaction_type_code"):
+            self._text(
+                group,
+                "iTipTra",
+                self._normalize_int_code(operation["transaction_type_code"]),
+            )
+            self._text(group, "dDesTipTra", operation.get("transaction_type_description"))
         self._text(group, "iTImp", self._normalize_int_code(operation["tax_type_code"]))
         self._text(group, "dDesTImp", operation.get("tax_type_description"))
         self._text(group, "cMoneOpe", operation["currency"])
@@ -357,7 +362,8 @@ class PyUnsignedXmlBuilder:
         self._require(missing, receiver, "nature_code", "receiver nature")
         self._require(missing, receiver, "type_code", "receiver operation type")
         self._require(missing, receiver, "name", "receiver name")
-        self._require(missing, operation, "transaction_type_code", "transaction type")
+        if document_type in ("01", "04"):
+            self._require(missing, operation, "transaction_type_code", "transaction type")
         self._require(missing, operation, "tax_type_code", "tax type")
         self._require(missing, operation, "currency", "currency")
         self._require(missing, condition, "sale_condition_code", "sale condition")

@@ -1296,9 +1296,8 @@ Interpret failures as follows:
 * `soap_fault`: inspect the safe Fault code/reason and retain the raw response securely.
 * `rejected`, `duplicate`, or `unrecognized_official_code`: retain the official code/message and do not infer acceptance from HTTP 200.
 
-The current delivery baseline reports 758 counted checks across 698 test
-methods for `einvoice_py`, and 810 checks across 740 methods for the combined
-fiscal core and Paraguay suites.
+The current delivery baseline reports 761 counted checks across 701 test
+methods for `einvoice_py`.
 Production service composition, configuration-driven
 sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission
 reconciliation, local homologation readiness, XMLDSig signing, QR/`gCamFuFD`,

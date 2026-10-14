@@ -169,10 +169,15 @@ class PyPayloadBuilder:
         }
 
     def _operation_section(self, document, warnings):
-        transaction_type_code = document.py_transaction_type_code or "2"
+        transaction_type_required = document.document_type in ("invoice", "self_invoice")
+        transaction_type_code = (
+            document.py_transaction_type_code or "2"
+            if transaction_type_required
+            else None
+        )
         tax_type_code = document.py_tax_type_code or "1"
         currency = document.py_currency or (document.currency_id.name if document.currency_id else "PYG")
-        if not document.py_transaction_type_code:
+        if transaction_type_required and not document.py_transaction_type_code:
             warnings.append("Defaulted transaction type for Paraguay payload.")
         if not document.py_tax_type_code:
             warnings.append("Defaulted tax type for Paraguay payload.")
@@ -182,7 +187,11 @@ class PyPayloadBuilder:
             warnings.append("Currency is not PYG; exchange rate is not modeled yet.")
         return {
             "transaction_type_code": transaction_type_code,
-            "transaction_type_description": self.TRANSACTION_TYPES.get(transaction_type_code),
+            "transaction_type_description": (
+                self.TRANSACTION_TYPES.get(transaction_type_code)
+                if transaction_type_code
+                else None
+            ),
             "tax_type_code": tax_type_code,
             "tax_type_description": self.TAX_TYPES.get(tax_type_code),
             "currency": currency or "PYG",

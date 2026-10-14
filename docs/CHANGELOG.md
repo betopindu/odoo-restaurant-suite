@@ -1,5 +1,14 @@
 # Documentation Changelog
 
+## 2026-10-14 — SIFEN v150 transaction type conditionality
+
+* Corrected NCE/NDE XML generation to omit `iTipTra` and `dDesTipTra`, as the
+  v150 Manual requires those fields only for FE (`01`) and AFE (`04`).
+* Preserved the first controlled NCE TEST rejection as document `34199`,
+  transmission `61042`, authority code `1216`; no retry was performed.
+* Revalidated the real NCE document end to end with its configured credential,
+  final v150 XSD and stub transport only.
+
 ## 2026-10-13 — Authoritative Paraguay fiscal email delivery
 
 * Added operator-confirmed and optional company-controlled automatic email
