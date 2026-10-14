@@ -20,6 +20,9 @@ from odoo.addons.einvoice_py.services.py_sifen_retry_eligibility_service import 
     PySifenRetryEligibilityService,
 )
 from odoo.addons.einvoice_py.services import py_sifen_durable_attempt_service
+from odoo.addons.einvoice_py.services import (
+    py_sifen_transmission_persistence_service,
+)
 
 
 class _SubmissionPipelineStub:
@@ -329,6 +332,30 @@ class TestPySifenTransmissionPersistenceService(TransactionCase):
         self.assertTrue(result["transmission_id"])
         self.assertEqual(completion.documents, [self.document])
         self.assertEqual(email_delivery.documents, [self.document])
+
+    def test_production_acceptance_defers_delivery_until_postcommit(self):
+        completion = _DeliveryCompletionStub()
+        email_delivery = _EmailDeliveryStub()
+        scheduled = []
+        service = PySifenTransmissionPersistenceService(
+            self.env,
+            delivery_completion_service=completion,
+            email_delivery_service=email_delivery,
+            postcommit_scheduler=scheduled.append,
+        )
+
+        with patch.object(
+            py_sifen_transmission_persistence_service.module,
+            "current_test",
+            None,
+        ):
+            service._complete_or_schedule_accepted_delivery(
+                document=self.document
+            )
+
+        self.assertEqual(len(scheduled), 1)
+        self.assertFalse(completion.documents)
+        self.assertFalse(email_delivery.documents)
 
     def test_production_boundary_uses_independent_cursor_and_commit(self):
         cursor = _IndependentCursor()

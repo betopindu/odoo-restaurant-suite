@@ -1,7 +1,8 @@
 import json
+import logging
 from urllib.parse import urlsplit, urlunsplit
 
-from odoo import fields
+from odoo import SUPERUSER_ID, api, fields
 from odoo.exceptions import ValidationError
 from odoo.modules import module
 
@@ -31,6 +32,9 @@ from odoo.addons.einvoice_py.services.py_fiscal_email_delivery_service import (
 )
 
 
+_logger = logging.getLogger(__name__)
+
+
 class PySifenTransmissionPersistenceService:
     """Persist SIFEN submission pipeline results without storing secrets."""
 
@@ -45,6 +49,7 @@ class PySifenTransmissionPersistenceService:
         durable_attempt_service=None,
         delivery_completion_service=None,
         email_delivery_service=None,
+        postcommit_scheduler=None,
         failure_injector=None,
     ):
         self.env = env
@@ -66,6 +71,9 @@ class PySifenTransmissionPersistenceService:
         )
         self.email_delivery_service = (
             email_delivery_service or PyFiscalEmailDeliveryService(env)
+        )
+        self.postcommit_scheduler = (
+            postcommit_scheduler or self.env.cr.postcommit.add
         )
         self.failure_injector = failure_injector
 
@@ -141,12 +149,58 @@ class PySifenTransmissionPersistenceService:
             result.get("submission_status") == "accepted"
             and result.get("final_xml_attachment_id")
         ):
-            self.delivery_completion_service.ensure(document=document)
-            self.email_delivery_service.enqueue_automatic_if_enabled(document=document)
+            self._complete_or_schedule_accepted_delivery(document=document)
         return {
             "result": result,
             "transmission_id": transmission_id,
         }
+
+    def _complete_or_schedule_accepted_delivery(self, *, document):
+        # Tests keep the durable boundary in the caller transaction, so the
+        # acceptance evidence is immediately visible.  In normal operation the
+        # durable attempt is finalized through an independent cursor.  Odoo's
+        # repeatable-read caller transaction cannot see that commit, and delivery
+        # eligibility must therefore run only after the caller commits its
+        # document projection and artifact chain.
+        if module.current_test:
+            self.delivery_completion_service.ensure(document=document)
+            self.email_delivery_service.enqueue_automatic_if_enabled(
+                document=document
+            )
+            return
+
+        registry = self.env.registry
+        document_id = document.id
+        company_id = document.company_id.id
+
+        def complete_after_commit():
+            with registry.cursor() as cr:
+                completion_env = api.Environment(
+                    cr,
+                    SUPERUSER_ID,
+                    {"allowed_company_ids": [company_id]},
+                )
+                accepted_document = completion_env["fiscal.document"].browse(
+                    document_id
+                ).exists()
+                if not accepted_document:
+                    return
+                try:
+                    PyAcceptedDeliveryCompletionService(completion_env).ensure(
+                        document=accepted_document
+                    )
+                    PyFiscalEmailDeliveryService(
+                        completion_env
+                    ).enqueue_automatic_if_enabled(document=accepted_document)
+                    cr.commit()
+                except Exception:
+                    cr.rollback()
+                    _logger.exception(
+                        "Accepted Paraguay delivery completion failed for document %s",
+                        document_id,
+                    )
+
+        self.postcommit_scheduler(complete_after_commit)
 
     def _validate_not_accepted(self, document):
         if document.state == "accepted":
