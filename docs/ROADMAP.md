@@ -146,7 +146,7 @@ accepted payload `40329`, QR `59581` and final rDE `59582`.
 
 ## Current Validation Status
 
-The full `einvoice_py` suite reports **765 counted checks across 705 test
+The full `einvoice_py` suite reports **767 counted checks across 707 test
 methods**. Automated coverage is network-free.
 It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
 1.2 wrapping, mocked mTLS transport, response classification, readiness, and
@@ -173,8 +173,9 @@ limited to the exercised invoice profile.
 [~] KuDE profiles for additional SIFEN DTE types (NCE/NDE implemented offline;
 live validation pending)
 [~] NCE end-to-end accounting and SIFEN flow (offline pipeline complete; live
-TEST rejection `34199`/`61042`/`1216` drove a Manual-v150 conditional-field
-correction; acceptance evidence remains pending)
+TEST rejections `34199`/`61042`/`1216` and `34199`/`61043`/`1501` drove
+Manual-v150 conditional-field corrections for `iTipTra` and `gCamCond`;
+acceptance evidence remains pending)
 [~] NDE end-to-end accounting and SIFEN flow (offline pipeline complete; live
 SIFEN TEST evidence pending)
 [~] AFE end-to-end accounting and SIFEN flow (offline pipeline complete; live

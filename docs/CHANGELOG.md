@@ -1,5 +1,16 @@
 # Documentation Changelog
 
+## 2026-10-14 — SIFEN v150 sale-condition document-type rules
+
+* Corrected NCE/NDE payload and XML generation to omit the complete
+  `gCamCond` subtree, which Manual v150 permits only for FE (`01`) and AFE
+  (`04`).
+* Added fail-closed semantic validation so a credit/debit-note payload carrying
+  a sale condition is rejected locally even though the generic XSD marks the
+  group as optional.
+* Preserved document `34199` and transmission `61043` as the explicit SIFEN
+  TEST rejection `1501`; no additional live operation was performed.
+
 ## 2026-10-14 — SIFEN v150 transaction type conditionality
 
 * Corrected NCE/NDE XML generation to omit `iTipTra` and `dDesTipTra`, as the

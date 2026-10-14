@@ -198,7 +198,8 @@ class PyUnsignedXmlBuilder:
             self._build_self_invoice_fields(group, payload)
         elif document_type in ("05", "06"):
             self._build_credit_debit_note_fields(group, payload)
-        self._build_condition(group, payload)
+        if document_type in ("01", "04"):
+            self._build_condition(group, payload)
         for item in payload["items"]:
             self._build_item(group, item)
 
@@ -366,8 +367,15 @@ class PyUnsignedXmlBuilder:
             self._require(missing, operation, "transaction_type_code", "transaction type")
         self._require(missing, operation, "tax_type_code", "tax type")
         self._require(missing, operation, "currency", "currency")
-        self._require(missing, condition, "sale_condition_code", "sale condition")
-        if condition.get("sale_condition_code") == "2" and condition.get("credit_condition_code"):
+        if document_type in ("01", "04"):
+            self._require(missing, condition, "sale_condition_code", "sale condition")
+        elif document_type in ("05", "06") and "condition" in payload:
+            missing.append("sale condition is not permitted for credit/debit notes")
+        if (
+            document_type in ("01", "04")
+            and condition.get("sale_condition_code") == "2"
+            and condition.get("credit_condition_code")
+        ):
             self._require(missing, condition, "credit_condition_code", "credit condition")
             self._require(missing, condition, "credit_condition_description", "credit condition description")
             installments = condition.get("installments") or []
@@ -463,6 +471,9 @@ class PyUnsignedXmlBuilder:
             missing.append("official tax type description mapping")
         if operation.get("currency") and not operation.get("currency_description"):
             missing.append("currency description")
+        document_type = document.get("py_i_tide")
+        if document_type in ("05", "06") and "condition" in payload:
+            missing.append("sale condition is prohibited for credit/debit notes")
         if condition.get("sale_condition_code") and not condition.get("sale_condition_description"):
             missing.append("official sale condition description mapping")
         if condition.get("payment_type_code") and not condition.get("payment_type_description"):

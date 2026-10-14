@@ -1,3 +1,4 @@
+import copy
 import json
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -619,8 +620,10 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         self.assertEqual(payload["credit_debit_note"]["reason_code"], "3")
         self.assertEqual(payload["associated_document"]["cdc"], original.py_cdc)
         self.assertIsNone(payload["operation"]["transaction_type_code"])
+        self.assertNotIn("condition", payload)
         self.assertFalse(root.xpath(".//s:gOpeCom/s:iTipTra", namespaces=ns))
         self.assertFalse(root.xpath(".//s:gOpeCom/s:dDesTipTra", namespaces=ns))
+        self.assertFalse(root.xpath(".//s:gCamCond", namespaces=ns))
         self.assertEqual(root.xpath("string(.//s:gCamNCDE/s:iMotEmi)", namespaces=ns), "3")
         self.assertEqual(
             root.xpath("string(.//s:gCamDEAsoc/s:dCdCDERef)", namespaces=ns),
@@ -641,6 +644,28 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         self.assertTrue(result.pdf_bytes.startswith(b"%PDF-"))
         self.assertEqual(result.filename, f"PREVIEW-NCE-{note.py_full_number}.pdf")
         self.assertFalse(note.transmission_ids)
+
+    def test_nce_payload_with_sale_condition_fails_closed(self):
+        original_move, _original = self._accepted_invoice()
+        note = self.service.create(move=self._move(
+            partner=original_move.partner_id,
+            move_type="out_refund",
+            reversed_entry=original_move,
+            credit_note_reason="2",
+            lines=[("Return", 11000, self.tax_10)],
+        ))
+        payload = PyPayloadBuilder(self.env).build(note)
+        invalid_payload = copy.deepcopy(payload)
+        invalid_payload["condition"] = {
+            "sale_condition_code": "1",
+            "sale_condition_description": "Contado",
+        }
+
+        with self.assertRaisesRegex(
+            ValidationError,
+            "sale condition is not permitted for credit/debit notes",
+        ):
+            PyUnsignedXmlBuilder(self.env).build_from_payload(invalid_payload)
 
     def test_posted_odoo_debit_note_creates_schema_valid_nde(self):
         original_move, original = self._accepted_invoice()
@@ -668,8 +693,10 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         self.assertEqual(note.state, "ready")
         self.assertEqual(payload["associated_document"]["cdc"], original.py_cdc)
         self.assertIsNone(payload["operation"]["transaction_type_code"])
+        self.assertNotIn("condition", payload)
         self.assertFalse(root.xpath(".//s:gOpeCom/s:iTipTra", namespaces=ns))
         self.assertFalse(root.xpath(".//s:gOpeCom/s:dDesTipTra", namespaces=ns))
+        self.assertFalse(root.xpath(".//s:gCamCond", namespaces=ns))
         self.assertEqual(root.xpath("string(.//s:gCamNCDE/s:iMotEmi)", namespaces=ns), "8")
         self.assertEqual(
             root.xpath("string(.//s:gCamDEAsoc/s:dCdCDERef)", namespaces=ns),

@@ -81,12 +81,13 @@ class PyPayloadBuilder:
             "operation": self._operation_section(document, warnings),
             "issuer": self._issuer_section(document, warnings),
             "receiver": self._receiver_section(document, warnings),
-            "condition": self._condition_section(document, warnings),
             "items": items,
             "totals": self._totals_section(document, warnings, items),
             "paraguay": self._paraguay_section(document),
             "warnings": warnings,
         }
+        if document.document_type in ("invoice", "self_invoice"):
+            payload["condition"] = self._condition_section(document, warnings)
         if document.document_type in ("credit_note", "debit_note"):
             payload["credit_debit_note"] = self._credit_debit_note_section(document)
             payload["associated_document"] = self._associated_document_section(document)

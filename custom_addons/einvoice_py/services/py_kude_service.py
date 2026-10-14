@@ -132,7 +132,6 @@ class PyKudeService:
             "operation",
             "issuer",
             "receiver",
-            "condition",
             "items",
             "totals",
         )
@@ -154,6 +153,16 @@ class PyKudeService:
             or cdc != (document.py_cdc or document.country_identifier)
         ):
             raise ValidationError("Persisted Paraguay payload CDC is invalid for KuDE.")
+        document_type = payload["document"].get("document_type")
+        condition = payload.get("condition") or {}
+        if document_type in ("invoice", "self_invoice") and not isinstance(
+            payload.get("condition"), dict
+        ):
+            raise ValidationError("Persisted Paraguay payload is incomplete for KuDE.")
+        if document_type in ("credit_note", "debit_note") and "condition" in payload:
+            raise ValidationError(
+                "Persisted Paraguay credit/debit note must not include a sale condition."
+            )
         mandatory = (
             payload["document"].get("py_full_number"),
             payload["document"].get("issue_datetime"),
@@ -161,9 +170,10 @@ class PyKudeService:
             payload["issuer"].get("full_ruc"),
             payload["issuer"].get("timbrado_number"),
             payload["receiver"].get("name"),
-            payload["condition"].get("sale_condition_description"),
             payload["operation"].get("currency"),
         )
+        if document_type in ("invoice", "self_invoice"):
+            mandatory += (condition.get("sale_condition_description"),)
         if not payload["items"] or any(value in (None, "") for value in mandatory):
             raise ValidationError("Persisted Paraguay payload is incomplete for KuDE.")
         if document.document_type in ("credit_note", "debit_note"):
@@ -374,7 +384,7 @@ class PyKudeService:
         width, _height = self.PAGE_SIZE
         receiver = payload["receiver"]
         operation = payload["operation"]
-        condition = payload["condition"]
+        condition = payload.get("condition") or {}
         document = payload["document"]
         left = (
             ("Fecha y hora de emision", document.get("issue_datetime")),
