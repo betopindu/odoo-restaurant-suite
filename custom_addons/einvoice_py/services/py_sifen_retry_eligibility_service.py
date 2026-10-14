@@ -14,15 +14,18 @@ class PySifenRetryEligibility:
     ambiguous_submission_id: int = 0
     reconciliation_query_id: int = 0
     local_failure_submission_id: int = 0
+    rejected_submission_id: int = 0
     cdc: str = ""
     reason: str = ""
 
 
 class PySifenRetryEligibilityService:
-    """Classify the narrow 0420 recovery path without rewriting history."""
+    """Classify narrow manual-retry evidence without rewriting history."""
 
     EVIDENCE_TYPE = "reconciled_not_found_manual_retry_allowed"
     LOCAL_FAILURE_EVIDENCE_TYPE = "local_pre_post_failure_manual_retry_allowed"
+    EXPLICIT_REJECTION_EVIDENCE_TYPE = "explicit_rejection_manual_retry_allowed"
+    ACCEPTED_AUTHORITY_CODES = {"0260", "0422"}
     LOCAL_PRE_POST_STAGES = {
         "signing",
         "signed_xml_attachment",
@@ -46,7 +49,7 @@ class PySifenRetryEligibilityService:
         }
         if (
             (document.country_code or "").upper() != "PY"
-            or document.environment != "test"
+            or document.environment not in ("test", "production")
             or not re.fullmatch(r"\d{44}", cdc)
         ):
             return self._blocked(base, "document_scope_invalid")
@@ -57,7 +60,7 @@ class PySifenRetryEligibilityService:
             ("tenant_id", "=", document.tenant_id.id),
             ("company_id", "=", document.company_id.id),
             ("country_code", "=", "PY"),
-            ("environment", "=", "test"),
+            ("environment", "=", document.environment),
             ("country_identifier", "=", cdc),
         ]
         submits = transmissions.search(
@@ -72,10 +75,19 @@ class PySifenRetryEligibilityService:
             return self._blocked(base, "submission_missing")
         if document.state == "accepted" or transmissions.search_count([
             ("document_id", "=", document.id),
-            ("transmission_type", "=", "submit"),
             ("state", "=", "accepted"),
         ]):
             return self._blocked(base, "acceptance_exists")
+        explicit_rejection = self._explicit_rejection(document, submits, queries)
+        if explicit_rejection:
+            return PySifenRetryEligibility(
+                evidence_type=self.EXPLICIT_REJECTION_EVIDENCE_TYPE,
+                manual_retry_allowed=True,
+                automatic_retry_allowed=False,
+                document_id=document.id,
+                rejected_submission_id=explicit_rejection.id,
+                cdc=cdc,
+            )
         local_failure = self._local_pre_post_failure(submits, queries)
         if local_failure:
             return PySifenRetryEligibility(
@@ -88,6 +100,8 @@ class PySifenRetryEligibilityService:
             )
         if not queries:
             return self._blocked(base, "reconciliation_missing")
+        if document.environment != "test":
+            return self._blocked(base, "reconciliation_scope_invalid")
 
         query = queries[-1]
         query_metadata = self._metadata(query)
@@ -197,4 +211,29 @@ class PySifenRetryEligibilityService:
             and metadata.get("durability_phase") == "completed"
             and metadata.get("post_started") is False
             and metadata.get("ambiguous") is False
+        ) else False
+
+    def _explicit_rejection(self, document, submits, queries):
+        latest = submits[-1]
+        metadata = self._metadata(latest)
+        if document.state != "rejected":
+            return False
+        if self.env["fiscal.transmission"].sudo().search_count([
+            ("document_id", "=", document.id),
+            ("id", ">", latest.id),
+            ("transmission_type", "in", ("submit", "status_query")),
+        ]):
+            return False
+        return latest if (
+            latest.state == "rejected"
+            and bool(latest.authority_status_code)
+            and latest.authority_status_code not in self.ACCEPTED_AUTHORITY_CODES
+            and bool(latest.authority_message)
+            and 200 <= (latest.http_status or 0) < 300
+            and self.HASH_RE.fullmatch(latest.request_hash or "")
+            and self.HASH_RE.fullmatch(latest.response_hash or "")
+            and metadata.get("durability_phase") == "completed"
+            and metadata.get("post_started") is True
+            and metadata.get("ambiguous") is False
+            and metadata.get("submission_status") == "rejected"
         ) else False

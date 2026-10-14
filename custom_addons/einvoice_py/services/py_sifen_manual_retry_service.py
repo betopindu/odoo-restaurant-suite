@@ -5,6 +5,7 @@ from odoo.exceptions import ValidationError
 from odoo.addons.einvoice_py.services.py_sifen_authority_incident_service import (
     PySifenAuthorityIncidentService,
 )
+from odoo.addons.einvoice_py.services.py_payload_builder import PyPayloadBuilder
 from odoo.addons.einvoice_py.services.py_sifen_retry_signing_time_service import (
     PySifenRetrySigningTimeService,
 )
@@ -31,6 +32,7 @@ class PySifenManualRetryService:
         signing_time_service=None,
         source_artifact_service=None,
         retry_eligibility_service=None,
+        payload_builder=None,
     ):
         self.env = env
         self.persistence_service = persistence_service or PySifenTransmissionPersistenceService(env)
@@ -40,6 +42,7 @@ class PySifenManualRetryService:
         self.retry_eligibility_service = (
             retry_eligibility_service or PySifenRetryEligibilityService(env)
         )
+        self.payload_builder = payload_builder or PyPayloadBuilder(env)
 
     def retry(self, *, document, payload=None, signing_timestamp=None):
         fresh_timestamp = self.signing_time_service.fresh(
@@ -50,6 +53,11 @@ class PySifenManualRetryService:
             document=document,
             signing_timestamp=fresh_timestamp,
         )
+        if (
+            getattr(authorization, "evidence_type", "")
+            == self.retry_eligibility_service.EXPLICIT_REJECTION_EVIDENCE_TYPE
+        ):
+            payload = self.payload_builder.build(document)
         if payload is not None:
             self.source_artifact_service.persist_payload(
                 document=document, payload=payload

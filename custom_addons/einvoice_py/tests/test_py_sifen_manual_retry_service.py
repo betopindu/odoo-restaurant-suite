@@ -27,6 +27,16 @@ class _PersistenceStub:
         return {"transmission_id": 999, "result": {"submission_status": "rejected"}}
 
 
+class _PayloadBuilderStub:
+    def __init__(self, payload):
+        self.payload = payload
+        self.calls = []
+
+    def build(self, document):
+        self.calls.append(document.id)
+        return self.payload
+
+
 class TestPySifenManualRetryService(TransactionCase):
     CDC = "01444444017001001001452822017012515873260988"
 
@@ -238,3 +248,49 @@ class TestPySifenManualRetryService(TransactionCase):
             query.id,
         )
         self.assertEqual(call["signing_timestamp"], reference)
+
+    def test_explicit_rejection_rebuilds_current_payload_and_delegates_manual_only(self):
+        self.env["fiscal.transmission"].search([
+            ("document_id", "=", self.document.id),
+        ]).unlink()
+        rejected = self._transmission(
+            code="1216",
+            message="Explicit authority rejection",
+            metadata=json.dumps({
+                "ambiguous": False,
+                "post_started": True,
+                "durability_phase": "completed",
+                "submission_status": "rejected",
+            }),
+        )
+        rejected.write({
+            "request_hash": "a" * 64,
+            "response_hash": "b" * 64,
+            "http_status": 200,
+        })
+        rebuilt = dict(self.payload, corrected=True)
+        payload_builder = _PayloadBuilderStub(rebuilt)
+        service = PySifenManualRetryService(
+            self.env,
+            persistence_service=self.persistence,
+            payload_builder=payload_builder,
+        )
+
+        result = service.retry(
+            document=self.document,
+            payload={"cdc": self.CDC, "stale": True},
+            signing_timestamp=datetime(2026, 8, 7, 14, 0, 0),
+        )
+
+        self.assertEqual(result["transmission_id"], 999)
+        self.assertEqual(payload_builder.calls, [self.document.id])
+        call = self.persistence.calls[0]
+        self.assertEqual(call["payload"], rebuilt)
+        authorization = call["manual_retry_authorization"]
+        self.assertEqual(
+            authorization.evidence_type,
+            "explicit_rejection_manual_retry_allowed",
+        )
+        self.assertEqual(authorization.rejected_submission_id, rejected.id)
+        self.assertTrue(authorization.manual_retry_allowed)
+        self.assertFalse(authorization.automatic_retry_allowed)

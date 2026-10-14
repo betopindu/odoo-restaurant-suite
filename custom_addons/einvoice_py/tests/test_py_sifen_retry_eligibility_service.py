@@ -243,9 +243,103 @@ class TestPySifenRetryEligibilityService(TransactionCase):
                 "ambiguous": False,
                 "post_started": True,
                 "durability_phase": "completed",
+                "submission_status": "rejected",
             }),
         })
 
         self.assertFalse(
             self.service.classify(document=self.document).manual_retry_allowed
         )
+
+    def test_explicit_completed_rejection_allows_manual_only(self):
+        self.submission.unlink()
+        self.query.unlink()
+        self.document.state = "rejected"
+        rejected = self.env["fiscal.transmission"].create({
+            "document_id": self.document.id,
+            "transmission_type": "submit",
+            "state": "rejected",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": self.CDC,
+            "request_hash": "d" * 64,
+            "response_hash": "e" * 64,
+            "http_status": 200,
+            "authority_status_code": "1216",
+            "authority_message": "Explicit authority rejection",
+            "metadata_json": json.dumps({
+                "ambiguous": False,
+                "post_started": True,
+                "durability_phase": "completed",
+                "submission_status": "rejected",
+            }),
+        })
+
+        result = self.service.classify(document=self.document)
+
+        self.assertEqual(
+            result.evidence_type,
+            "explicit_rejection_manual_retry_allowed",
+        )
+        self.assertEqual(result.rejected_submission_id, rejected.id)
+        self.assertTrue(result.manual_retry_allowed)
+        self.assertFalse(result.automatic_retry_allowed)
+        self.assertFalse(PySifenRetrySchedulerService(self.env).is_retryable(rejected))
+
+    def test_explicit_rejection_incomplete_or_ambiguous_is_blocked(self):
+        self.submission.unlink()
+        self.query.unlink()
+        self.document.state = "rejected"
+        rejected = self.env["fiscal.transmission"].create({
+            "document_id": self.document.id,
+            "transmission_type": "submit",
+            "state": "rejected",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": self.CDC,
+            "request_hash": "d" * 64,
+            "response_hash": "",
+            "http_status": 200,
+            "authority_status_code": "1216",
+            "authority_message": "Explicit authority rejection",
+            "metadata_json": json.dumps({
+                "ambiguous": False,
+                "post_started": True,
+                "durability_phase": "completed",
+            }),
+        })
+        self.assertFalse(self.service.classify(document=self.document).manual_retry_allowed)
+        rejected.response_hash = "e" * 64
+        rejected.metadata_json = json.dumps({
+            "ambiguous": True,
+            "post_started": True,
+            "durability_phase": "completed",
+            "submission_status": "rejected",
+        })
+        self.assertFalse(self.service.classify(document=self.document).manual_retry_allowed)
+
+    def test_query_after_explicit_rejection_blocks_retry(self):
+        self.submission.unlink()
+        self.query.unlink()
+        self.document.state = "rejected"
+        rejected = self.env["fiscal.transmission"].create({
+            "document_id": self.document.id,
+            "transmission_type": "submit",
+            "state": "rejected",
+            "country_code": "PY",
+            "environment": "test",
+            "country_identifier": self.CDC,
+            "request_hash": "d" * 64,
+            "response_hash": "e" * 64,
+            "http_status": 200,
+            "authority_status_code": "1216",
+            "authority_message": "Explicit authority rejection",
+            "metadata_json": json.dumps({
+                "ambiguous": False,
+                "post_started": True,
+                "durability_phase": "completed",
+                "submission_status": "rejected",
+            }),
+        })
+        self._query(rejected)
+        self.assertFalse(self.service.classify(document=self.document).manual_retry_allowed)

@@ -273,6 +273,14 @@ the document eligible for delivery.
 | `1306` after historical `0100` | The controlled diagnostic receiver remains absent from TEST, while normal fiscal validation is available again. | Document `17886`, transmission `31903`, HTTP `200`, explicit non-ambiguous `1306` on 2026-08-13. | Separates authority availability from receiver-dataset validity without changing fiscal data. |
 | `0260` B2B | The DNIT-published receiver was present and the complete synchronous B2B FE satisfied SIFEN TEST. | Document `17894`, transmission `31916`, CDC `01032224796001001000000622026080718002274817`, protocol `49882799`, signing timestamp `2026-08-13T13:11:04`, HTTP `200` in `2150 ms`, non-ambiguous. | Live-validates the same generic pipeline with a taxpayer receiver; no receiver/document literal was added to code. |
 
+An explicit, non-ambiguous rejection with complete durable request/response
+evidence may authorize one operator-controlled correction retry with the same
+CDC when the correction does not alter CDC inputs. The retry rebuilds the
+canonical payload and all derived artifacts with a fresh signing timestamp.
+Accepted evidence, ambiguous evidence, incomplete hashes, a non-2xx transport
+result, or a later status query blocks this path. Automatic retry remains
+forbidden.
+
 ### Closeout conclusions
 
 The accepted request used the current signed attachment, SOAP 1.2, qualified

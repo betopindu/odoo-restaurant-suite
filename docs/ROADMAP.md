@@ -146,7 +146,7 @@ accepted payload `40329`, QR `59581` and final rDE `59582`.
 
 ## Current Validation Status
 
-The full `einvoice_py` suite reports **761 counted checks across 701 test
+The full `einvoice_py` suite reports **765 counted checks across 705 test
 methods**. Automated coverage is network-free.
 It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
 1.2 wrapping, mocked mTLS transport, response classification, readiness, and

@@ -8,6 +8,10 @@
   transmission `61042`, authority code `1216`; no retry was performed.
 * Revalidated the real NCE document end to end with its configured credential,
   final v150 XSD and stub transport only.
+* Added a fail-closed, operator-only recovery classification for complete,
+  explicit SIFEN rejections. It preserves the same CDC, rebuilds the canonical
+  payload and artifact chain, requires a fresh signature, and never enables
+  automatic retry.
 
 ## 2026-10-13 — Authoritative Paraguay fiscal email delivery
 
