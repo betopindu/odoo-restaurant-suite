@@ -1,5 +1,15 @@
 # Documentation Changelog
 
+## 2026-10-14 — Paraguay NCE accepted in SIFEN TEST
+
+* Closed the first controlled NCE live-validation cycle with document `34199`,
+  transmission `61044`, authority `0260` and protocol `50237584`.
+* Preserved the earlier explicit rejections (`61042`/`1216` and
+  `61043`/`1501`) as interoperability evidence for the corrections that led to
+  acceptance.
+* Recorded current authoritative final rDE `74631` and NCE KuDE `74632`; NDE
+  live validation remains the next document-type milestone.
+
 ## 2026-10-14 — SIFEN v150 sale-condition document-type rules
 
 * Corrected NCE/NDE payload and XML generation to omit the complete

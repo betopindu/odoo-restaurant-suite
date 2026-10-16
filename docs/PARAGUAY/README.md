@@ -112,9 +112,14 @@ earlier B2B receiver `380****-*` remains preserved as evidence of the stale
 TEST taxpayer dataset. DNIT instructed homologation participants to use its
 published electronic-taxpayer list; the accepted B2B used a taxpayer from that
 list. No operational identifier is embedded in production services or test
-fixtures. See the
-[homologation matrix](HOMOLOGATION_MATRIX.md) and
+fixtures. See the [homologation matrix](HOMOLOGATION_MATRIX.md) and
 [runbook](HOMOLOGATION_RUNBOOK.md#handling-receiver-rejection-1306).
+
+The synchronous NCE profile is also live-validated in SIFEN TEST. Credit note
+document `34199`, transmission `61044`, was accepted with authority code `0260`
+and protocol `50237584` after the Manual-v150 conditional-field corrections.
+Its current authoritative final rDE is attachment `74631` and its KuDE is
+attachment `74632`. NDE remains validated offline but has no live acceptance.
 
 ## Configuration
 

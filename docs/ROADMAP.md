@@ -170,12 +170,11 @@ limited to the exercised invoice profile.
 [ ] Operational monitoring and alerting
 [ ] Production go-live
 [x] Operational authoritative KuDE/XML resolution for accepted FE
-[~] KuDE profiles for additional SIFEN DTE types (NCE/NDE implemented offline;
-live validation pending)
-[~] NCE end-to-end accounting and SIFEN flow (offline pipeline complete; live
-TEST rejections `34199`/`61042`/`1216` and `34199`/`61043`/`1501` drove
-Manual-v150 conditional-field corrections for `iTipTra` and `gCamCond`;
-acceptance evidence remains pending)
+[~] KuDE profiles for additional SIFEN DTE types (NCE live-validated; NDE
+implemented offline with live validation pending)
+[x] NCE end-to-end accounting and SIFEN flow (document `34199`, transmission
+`61044`, authority `0260`, protocol `50237584`; earlier `1216` and `1501`
+rejections remain preserved as interoperability evidence)
 [~] NDE end-to-end accounting and SIFEN flow (offline pipeline complete; live
 SIFEN TEST evidence pending)
 [~] AFE end-to-end accounting and SIFEN flow (offline pipeline complete; live
