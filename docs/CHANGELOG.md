@@ -1,5 +1,23 @@
 # Documentation Changelog
 
+## 2026-10-22 — Paraguay synchronous correction/event MVP closure
+
+* Live-validated NDE document `34200`, transmission `61045`, authority `0260`
+  and protocol `50276074`.
+* Corrected the SIFEN event wire boundary: eight-digit timbrado, unprefixed
+  event data, official schema locations on the event containers, standalone
+  `rEve` signing and SOAP 1.2 encapsulation without changing inclusive XMLDSig
+  canonicalization.
+* Live-validated cancellation transmission `61051` (`0600`, protocol
+  `1169485`) and controlled NDE inutilization record `92`, event `47` (`0600`,
+  protocol `1169487`).
+* Preserved all earlier explicit rejections and added idempotent projection of
+  a durable accepted cancellation without rereading an independently committed
+  transmission through the caller's stale cursor.
+* Closed only the synchronous FE/NCE/NDE plus cancellation/inutilization MVP;
+  AFE live validation, receiver events, batch services and production
+  hardening remain pending.
+
 ## 2026-10-14 — Paraguay NCE accepted in SIFEN TEST
 
 * Closed the first controlled NCE live-validation cycle with document `34199`,

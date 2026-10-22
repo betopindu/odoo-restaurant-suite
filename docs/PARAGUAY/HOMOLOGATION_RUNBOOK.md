@@ -171,8 +171,9 @@ historical `signing_time` into a retry command.
 The observed `0100 - Error Inesperado(PKI)` is retained as historical evidence,
 not an active blocker. Controlled document `17886` returned to normal fiscal
 validation with `1306`, and B2B document `17894` was then accepted with `0260`.
-Cancellation, inutilization and receiver events remain partial until their
-outstanding live/protocol validation gaps are closed.
+Cancellation and number inutilization are live-validated for the exercised NDE
+TEST scenarios. Receiver events remain partial until their independent durable
+operator workflow and live/protocol validation gaps are closed.
 
 ## Expected accepted response
 
@@ -317,14 +318,15 @@ serialization, a generic artifact-current/superseded lifecycle, secret-backed
 country parameters, and durable external-call orchestration. These are review
 candidates only, not approved abstractions or implementation work.
 
-## Completed synchronous FE profiles
+## Completed synchronous MVP profiles
 
 Paraguay synchronous FE TEST is live-validated for both the B2C innominado
 baseline (`16106`/`17896`) and B2B taxpayer profile (`17894`/`31916`). Do not
-resubmit either accepted CDC. The next scenario must be chosen from the
-remaining matrix under separate authorization; NCE/NDE, asynchronous batch,
-cancellation, inutilization and receiver-event coverage are not completed by
-these acceptances.
+resubmit either accepted CDC. NCE `34199`/`61044` and NDE `34200`/`61045` are
+also accepted live. NDE cancellation `61051` and number inutilization `92`
+provide accepted `0600` emitter-event evidence. Do not repeat these accepted
+operations. AFE, asynchronous batch, remaining official case counts and
+receiver-event coverage remain outside this closed MVP slice.
 
 ## Handling receiver rejection 1306
 

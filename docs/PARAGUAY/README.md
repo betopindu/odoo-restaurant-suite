@@ -119,7 +119,23 @@ The synchronous NCE profile is also live-validated in SIFEN TEST. Credit note
 document `34199`, transmission `61044`, was accepted with authority code `0260`
 and protocol `50237584` after the Manual-v150 conditional-field corrections.
 Its current authoritative final rDE is attachment `74631` and its KuDE is
-attachment `74632`. NDE remains validated offline but has no live acceptance.
+attachment `74632`.
+
+The synchronous NDE profile and the MVP issuer-event path are live-validated
+in SIFEN TEST as of 2026-10-22:
+
+* NDE document `34200`, CDC
+  `06032224796001001000000122026102217549779160`, transmission `61045`,
+  authority `0260`, protocol `50276074`;
+* cancellation transmission `61051`, authority `0600`, protocol `1169485`;
+* NDE inutilization record `92`, number `0000003`, event `47`, authority
+  `0600`, protocol `1169487`.
+
+All three final responses were HTTP 200 and non-ambiguous. Earlier rejected
+event attempts remain preserved as interoperability evidence. This closes the
+synchronous FE/NCE/NDE plus cancellation/inutilization MVP scope; AFE live
+validation, receiver events, batch services and production hardening remain
+future work.
 
 ## Configuration
 
@@ -1099,6 +1115,13 @@ the existing `mutual_tls` binding. They persist only safe endpoint, HTTP status,
 duration, request/response hashes, event identity, authority code/message,
 protocol and timestamp. Raw event XML and secret material are excluded.
 
+The live TEST correction established the exact interoperable event boundary:
+`rEve` is signed as an autonomous SIFEN event, validated against the pinned
+v150 schema, and only then embedded in SOAP 1.2. Both `rGesEve` and
+`gGroupGesEve` carry the official schema location, while SIFEN data elements
+remain unprefixed. This preserves inclusive-canonicalization XMLDSig validity
+and is regression-tested without network access.
+
 ## SIFEN TEST homologation readiness
 
 Stage 8.25 checks the existing document-scoped TEST profile without making a network call:
@@ -1301,7 +1324,7 @@ Interpret failures as follows:
 * `soap_fault`: inspect the safe Fault code/reason and retain the raw response securely.
 * `rejected`, `duplicate`, or `unrecognized_official_code`: retain the official code/message and do not infer acceptance from HTTP 200.
 
-The current delivery baseline reports 767 counted checks across 707 test
+The current delivery baseline reports 768 counted checks across 708 test
 methods for `einvoice_py`.
 Production service composition, configuration-driven
 sandbox preflight, SOAP 1.2 synchronous framing, TEST-only ambiguous-submission

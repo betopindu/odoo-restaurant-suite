@@ -148,6 +148,8 @@ Implemented:
 * offline qualified-certificate installation and readiness validation
 * first accepted real SIFEN TEST synchronous DE (`0260`)
 * B2C and B2B synchronous FE live acceptance evidence
+* NCE and NDE synchronous live acceptance evidence
+* live-validated NDE cancellation and number inutilization
 * durable pre-POST submission evidence and conservative reconciliation
 * operator-controlled FE readiness, submit, manual retry and Consulta DE UI
 * posted `account.move` to immutable neutral fiscal snapshot
@@ -160,9 +162,9 @@ Operationally pending:
 * completion of the official TEST homologation case matrix
 * production credential, CSC, timbrado, endpoint, and operational approval
 * production enablement and electronic timbrado workflow
-* KuDE delivery and representations for additional Paraguay DTE types
-* Delivery by email or WhatsApp
-* NCE/NDE live TEST validation; asynchronous batch, Consulta RUC and received-DTE flows
+* AFE live TEST validation and remaining official homologation case counts
+* WhatsApp delivery
+* asynchronous batch, Consulta RUC and received-DTE flows
 * KDS production-clone, physical-printer, HTTPS and production operations
 
 ## Diagrams

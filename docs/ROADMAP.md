@@ -87,9 +87,9 @@
 [ ] Live TEST validation of receiver events
 [x] Paraguay SIFEN cancellation and number inutilization flows
 [x] Operator-controlled, XSD-valid and independently durable cancellation offline
-[ ] Live TEST validation of cancellation
+[x] Live TEST validation of cancellation
 [x] Operator-controlled, XSD-valid and independently durable number inutilization offline
-[ ] Live TEST validation of number inutilization
+[x] Live TEST validation of number inutilization
 [x] Stage 8.25 SIFEN TEST homologation profile and readiness status
 [x] Stage 8.26 SIFEN XMLDSig signing engine
 [x] Stage 8.27 SIFEN QR payload and gCamFuFD builder
@@ -144,9 +144,18 @@ transmission `46822`, authority `0260` and protocol `49933128` provide the live
 acceptance evidence; KuDE artifact `59605` was completed offline from its exact
 accepted payload `40329`, QR `59581` and final rDE `59582`.
 
+The accounting-correction MVP is also live-validated in SIFEN TEST. NCE
+document `34199` was accepted as transmission `61044` (`0260`, protocol
+`50237584`), and NDE document `34200` was accepted as transmission `61045`
+(`0260`, protocol `50276074`). The same NDE was then cancelled by accepted
+event transmission `61051` (`0600`, protocol `1169485`). The controlled unused
+NDE number `0000003` was accepted as inutilization record `92`, event `47`
+(`0600`, protocol `1169487`). Earlier explicit event rejections remain
+immutable interoperability evidence.
+
 ## Current Validation Status
 
-The full `einvoice_py` suite reports **767 counted checks across 707 test
+The full `einvoice_py` suite reports **768 counted checks across 708 test
 methods**. Automated coverage is network-free.
 It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
 1.2 wrapping, mocked mTLS transport, response classification, readiness, and
@@ -170,16 +179,16 @@ limited to the exercised invoice profile.
 [ ] Operational monitoring and alerting
 [ ] Production go-live
 [x] Operational authoritative KuDE/XML resolution for accepted FE
-[~] KuDE profiles for additional SIFEN DTE types (NCE live-validated; NDE
-implemented offline with live validation pending)
+[x] KuDE profiles for NCE and NDE (both document types live-validated)
 [x] NCE end-to-end accounting and SIFEN flow (document `34199`, transmission
 `61044`, authority `0260`, protocol `50237584`; earlier `1216` and `1501`
 rejections remain preserved as interoperability evidence)
-[~] NDE end-to-end accounting and SIFEN flow (offline pipeline complete; live
-SIFEN TEST evidence pending)
+[x] NDE end-to-end accounting and SIFEN flow (document `34200`, transmission
+`61045`, authority `0260`, protocol `50276074`)
 [~] AFE end-to-end accounting and SIFEN flow (offline pipeline complete; live
 SIFEN TEST evidence pending)
-[x] Cancellation and inutilization completion for MVP (offline; live evidence pending)
+[x] Cancellation and inutilization completion for MVP with live TEST evidence
+(`61051` / `1169485` and inutilization `92` / `1169487`)
 
 ## Future
 

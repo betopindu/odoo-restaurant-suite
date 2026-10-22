@@ -176,7 +176,12 @@ class TestPySifenEventService(TransactionCase):
         request = etree.fromstring(transport.calls[0]["body"])
         self.assertIsNotNone(request.find(".//{http://ekuatia.set.gov.py/sifen/xsd}rEnviEventoDe"))
         self.assertIsNotNone(request.find(".//{http://ekuatia.set.gov.py/sifen/xsd}rGeVeCan"))
+        self.assertNotIn(b"sifen:", transport.calls[0]["body"])
         self.assertNotIn(b"CSC", transport.calls[0]["body"])
+        event = self.document.event_ids.filtered(
+            lambda item: item.event_type == "sifen_cancellation"
+        )
+        self.assertEqual(event.payload_hash, cancellation.request_hash)
 
     def test_durable_cancellation_is_marked_started_before_transport(self):
         transport = _InspectingTransport(
@@ -264,7 +269,34 @@ class TestPySifenEventService(TransactionCase):
         self.assertEqual(self.document.state, "cancelled")
         self.assertEqual(transport.calls, [])
 
+    def test_fresh_acceptance_projection_does_not_reload_durable_attempt(self):
+        class DurableAttemptReference:
+            id = 987654
+
+            @property
+            def request_hash(self):
+                raise AssertionError("The caller cursor must not reload durable evidence")
+
+        PySifenCancellationService(self.env)._project_acceptance(
+            self.document,
+            DurableAttemptReference(),
+            result={
+                "authority_code": "0600",
+                "authority_message": "Evento registrado correctamente",
+                "authority_protocol": "123456",
+                "authority_timestamp": "2026-10-22T20:00:00-03:00",
+                "request_hash": "c" * 64,
+            },
+        )
+
+        self.assertEqual(self.document.state, "cancelled")
+        event = self.document.event_ids.filtered(
+            lambda item: item.event_type == "sifen_cancellation"
+        )
+        self.assertEqual(event.payload_hash, "c" * 64)
+
     def test_valid_inutilization_and_idempotency(self):
+        self.timbrado.number = "3222479"
         service, transport = self._inutilization(self._response("0600", "Evento registrado correctamente"))
         kwargs = self._inutilization_kwargs(10, 12)
         first = service.inutilize(**kwargs)
@@ -280,6 +312,14 @@ class TestPySifenEventService(TransactionCase):
         self.assertTrue(record.request_hash)
         self.assertTrue(record.response_hash)
         self.assertEqual(len(transport.calls), 1)
+        request = etree.fromstring(transport.calls[0]["body"])
+        self.assertEqual(
+            request.findtext(
+                ".//{http://ekuatia.set.gov.py/sifen/xsd}dNumTim"
+            ),
+            "03222479",
+        )
+        self.assertNotIn(b"sifen:", transport.calls[0]["body"])
 
     def test_inutilization_is_durable_before_transport(self):
         transport = _InspectingInutilizationTransport(
@@ -386,6 +426,12 @@ class TestPySifenEventService(TransactionCase):
             ),
         )
         root = etree.fromstring(result.signed_xml_bytes)
+        self.assertEqual(
+            root.get(
+                "{http://www.w3.org/2001/XMLSchema-instance}schemaLocation"
+            ),
+            "http://ekuatia.set.gov.py/sifen/xsd siRecepEvento_v150.xsd",
+        )
         signature = root.find("{http://www.w3.org/2000/09/xmldsig#}Signature")
         self.assertEqual(
             signature.find(".//{http://www.w3.org/2000/09/xmldsig#}Reference").get("URI"),
@@ -402,6 +448,35 @@ class TestPySifenEventService(TransactionCase):
         self.assertTrue(
             PySifenEventXsdValidationService().validate_signed_event(
                 result.signed_xml_bytes
+            )
+        )
+        event_service = PySifenEventService(self.env)
+        envelope_bytes = event_service._envelope(
+            self.adapter, result.signed_xml_bytes
+        )
+        self.assertNotIn(b"sifen:", envelope_bytes)
+        self.assertNotIn(b"soap:", envelope_bytes)
+        envelope = etree.fromstring(envelope_bytes)
+        group = envelope.find(
+            ".//{http://ekuatia.set.gov.py/sifen/xsd}gGroupGesEve"
+        )
+        self.assertEqual(
+            group.get(
+                "{http://www.w3.org/2001/XMLSchema-instance}schemaLocation"
+            ),
+            "http://ekuatia.set.gov.py/sifen/xsd siRecepEvento_v150.xsd",
+        )
+        embedded_signature = envelope.find(
+            ".//{http://www.w3.org/2000/09/xmldsig#}Signature"
+        )
+        xmlsec.tree.add_ids(envelope, ["Id"])
+        embedded_context = xmlsec.SignatureContext()
+        embedded_context.key = verify_key
+        embedded_context.verify(embedded_signature)
+        signed_fragment_bytes = event_service._signed_event_fragment(envelope_bytes)
+        self.assertTrue(
+            PySifenEventXsdValidationService().validate_signed_event(
+                signed_fragment_bytes
             )
         )
 

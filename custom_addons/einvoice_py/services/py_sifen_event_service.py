@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -33,12 +34,19 @@ class PySifenPreparedEventRequest:
 
 class PySifenEventService:
     SIFEN_NS = "http://ekuatia.set.gov.py/sifen/xsd"
+    XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
+    EVENT_SCHEMA_LOCATION = (
+        "http://ekuatia.set.gov.py/sifen/xsd siRecepEvento_v150.xsd"
+    )
     SOAP_NS = "http://www.w3.org/2003/05/soap-envelope"
     ENDPOINTS = {
         "test": "https://sifen-test.set.gov.py/de/ws/eventos/evento.wsdl",
         "production": "https://sifen.set.gov.py/de/ws/eventos/evento.wsdl",
     }
     ACCEPTED_CODE = "0600"
+    XML_DECLARATION_RE = re.compile(
+        br"^\s*<\?xml\s+[^?]*\?>\s*", re.IGNORECASE
+    )
 
     def __init__(
         self, env, *, credential_provider=None, signer=None, event_validator=None,
@@ -132,7 +140,8 @@ class PySifenEventService:
         group = self._event_root(event_id, signing_timestamp)
         kind = etree.SubElement(group, self._tag("rGeVeInu"))
         for name, value in (
-            ("dNumTim", timbrado), ("dEst", establishment), ("dPunExp", point),
+            ("dNumTim", str(timbrado).zfill(8)),
+            ("dEst", establishment), ("dPunExp", point),
             ("dNumIn", str(number_from).zfill(7)), ("dNumFin", str(number_to).zfill(7)),
             ("iTiDE", document_type_code), ("mOtEve", reason),
         ):
@@ -177,21 +186,64 @@ class PySifenEventService:
             self._text(parent, "dNumID", values["receiver_id_number"])
 
     def _event_root(self, event_id, signing_timestamp):
-        root = etree.Element(self._tag("rGesEve"), nsmap={None: self.SIFEN_NS})
+        root = etree.Element(
+            self._tag("rGesEve"),
+            nsmap={None: self.SIFEN_NS, "xsi": self.XSI_NS},
+        )
+        root.set(
+            f"{{{self.XSI_NS}}}schemaLocation",
+            self.EVENT_SCHEMA_LOCATION,
+        )
         event = etree.SubElement(root, self._tag("rEve"), Id=event_id)
         self._text(event, "dFecFirma", PySifenDatetimeService.format_signing_datetime(signing_timestamp))
         self._text(event, "dVerFor", "150")
         return etree.SubElement(event, self._tag("gGroupTiEvt"))
 
-    def _envelope(self, adapter, signed_event):
-        root = etree.Element(self._soap_tag("Envelope"), nsmap={"soap": self.SOAP_NS, "sifen": self.SIFEN_NS})
-        body = etree.SubElement(root, self._soap_tag("Body"))
-        request = etree.SubElement(body, self._tag("rEnviEventoDe"))
-        self._text(request, "dId", self._next_id(adapter, 15))
-        registered = etree.SubElement(request, self._tag("dEvReg"))
-        group = etree.SubElement(registered, self._tag("gGroupGesEve"))
-        group.append(etree.fromstring(signed_event))
-        return etree.tostring(root, encoding="UTF-8", xml_declaration=True)
+    def _envelope(self, adapter, event_xml):
+        submission_id = self._next_id(adapter, 15)
+        fragment = self.XML_DECLARATION_RE.sub(b"", event_xml, count=1).strip()
+        request = (
+            b'<?xml version="1.0" encoding="UTF-8"?>'
+            b'<Envelope xmlns="' + self.SOAP_NS.encode("ascii") + b'">'
+            b"<Header/><Body>"
+            b'<rEnviEventoDe xmlns="' + self.SIFEN_NS.encode("ascii") + b'">'
+            b"<dId>" + submission_id.encode("ascii") + b"</dId>"
+            b'<dEvReg><gGroupGesEve xmlns:xsi="' + self.XSI_NS.encode("ascii")
+            + b'" xsi:schemaLocation="' + self.EVENT_SCHEMA_LOCATION.encode("ascii")
+            + b'">' + fragment
+            + b"</gGroupGesEve></dEvReg></rEnviEventoDe>"
+            b"</Body></Envelope>"
+        )
+        try:
+            etree.fromstring(
+                request,
+                parser=etree.XMLParser(
+                    resolve_entities=False, load_dtd=False, no_network=True
+                ),
+            )
+        except etree.XMLSyntaxError:
+            raise ValidationError("Malformed SIFEN event SOAP request.") from None
+        return request
+
+    def _signed_event_fragment(self, request_xml):
+        try:
+            root = etree.fromstring(
+                request_xml,
+                parser=etree.XMLParser(
+                    resolve_entities=False, load_dtd=False, no_network=True
+                ),
+            )
+        except etree.XMLSyntaxError:
+            raise ValidationError("Malformed signed SIFEN event request.") from None
+        events = root.xpath(
+            ".//*[local-name()='rGesEve' and namespace-uri()=$namespace]",
+            namespace=self.SIFEN_NS,
+        )
+        if len(events) != 1:
+            raise ValidationError(
+                "Signed SIFEN event request must contain exactly one rGesEve."
+            )
+        return etree.tostring(events[0], encoding="UTF-8", xml_declaration=True)
 
     def _parse_response(self, response):
         status = int(response.get("status_code") or 0)
@@ -345,6 +397,11 @@ class PySifenCancellationService:
         return dict(result, transmission_id=transmission.id, event_id=event_id)
 
     def _project_acceptance(self, document, transmission, result=None):
+        payload_hash = (
+            result.get("request_hash")
+            if result is not None
+            else transmission.request_hash
+        )
         result = result or {
             "authority_code": transmission.authority_status_code,
             "authority_message": transmission.authority_message,
@@ -360,7 +417,7 @@ class PySifenCancellationService:
                 "event_type": "sifen_cancellation",
                 "from_state": "accepted", "to_state": "cancelled",
                 "message": result.get("authority_message") or "SIFEN cancellation accepted.",
-                "payload_hash": transmission.request_hash,
+                "payload_hash": payload_hash,
                 "metadata_json": json.dumps({
                     "transmission_id": transmission.id,
                     "authority_code": result.get("authority_code"),

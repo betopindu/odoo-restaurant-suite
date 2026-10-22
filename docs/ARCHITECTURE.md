@@ -24,7 +24,7 @@ both logical credential bindings, XMLDSig, QR/CSC, final XSD validation, SOAP
 1.2, mTLS, response classification, and transmission/document persistence.
 This is evidence of interoperability for the tested invoice profile, not
 production certification or coverage of every authority scenario. The suite at
-current delivery baseline reports 758 counted checks across 698 test methods
+current delivery baseline reports 768 counted checks across 708 test methods
 for `einvoice_py`, and 810 checks across 740 methods for the combined fiscal
 core and Paraguay suites.
 
