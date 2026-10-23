@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import re
 import time
 
@@ -19,6 +20,9 @@ from odoo.addons.einvoice_py.services.py_sifen_test_submission_service import (
 from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import (
     PyUnsignedXmlBuilder,
 )
+
+
+_logger = logging.getLogger(__name__)
 
 
 class PySifenRucQueryService:
@@ -116,6 +120,7 @@ class PySifenRucQueryService:
     def normalize_response(self, *, response, expected_ruc):
         status_code = self._status_code(response)
         content = self._content(response)
+        diagnostic = self._response_diagnostic(response=response, content=content)
         base = {
             "status": "manual_required",
             "authority_code": "",
@@ -123,8 +128,15 @@ class PySifenRucQueryService:
             "reason": "authority_invalid_response",
             "response_hash": hashlib.sha256(content).hexdigest() if content else "",
             "http_status": status_code,
+            "response_diagnostic": diagnostic,
         }
         if not content or not 200 <= status_code < 300:
+            _logger.warning(
+                "SIFEN Consulta RUC returned an invalid HTTP response: "
+                "status=%s diagnostic=%s",
+                status_code,
+                diagnostic,
+            )
             return base
         try:
             root = etree.fromstring(
@@ -132,6 +144,11 @@ class PySifenRucQueryService:
                 parser=etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True),
             )
         except (TypeError, ValueError, etree.XMLSyntaxError):
+            _logger.warning(
+                "SIFEN Consulta RUC returned malformed XML: status=%s diagnostic=%s",
+                status_code,
+                diagnostic,
+            )
             return base
         node = root.find(f".//{{{self.SIFEN_NS}}}rResEnviConsRUC")
         if node is None:
@@ -165,6 +182,67 @@ class PySifenRucQueryService:
             "electronic_issuer": electronic_issuer,
         })
         return base
+
+    @classmethod
+    def _response_diagnostic(cls, *, response, content):
+        """Return allow-listed response structure without response payload data."""
+        headers = response.get("headers", {}) if isinstance(response, dict) else {}
+        normalized_headers = {
+            str(key).lower(): str(value)
+            for key, value in (headers or {}).items()
+        }
+        raw_content_type = normalized_headers.get("content-type", "")
+        media_type = raw_content_type.split(";", 1)[0].strip().lower()
+        allowed_media_types = {
+            "application/soap+xml",
+            "application/xml",
+            "text/xml",
+            "text/html",
+            "text/plain",
+        }
+        safe_media_type = media_type if media_type in allowed_media_types else (
+            "other" if media_type else "absent"
+        )
+        diagnostic = {
+            "category": "empty" if not content else "binary_or_text",
+            "content_type": safe_media_type,
+            "byte_length": len(content),
+        }
+        if not content:
+            return diagnostic
+        if safe_media_type == "text/html":
+            diagnostic["category"] = "html"
+            return diagnostic
+        try:
+            root = etree.fromstring(
+                content,
+                parser=etree.XMLParser(
+                    resolve_entities=False,
+                    load_dtd=False,
+                    no_network=True,
+                ),
+            )
+        except (TypeError, ValueError, etree.XMLSyntaxError):
+            if safe_media_type in {"application/xml", "application/soap+xml", "text/xml"}:
+                diagnostic["category"] = "malformed_xml"
+            elif safe_media_type == "text/plain":
+                diagnostic["category"] = "plain_text"
+            return diagnostic
+        qname = etree.QName(root)
+        diagnostic.update({
+            "category": "xml",
+            "root_local_name": qname.localname[:64],
+            "namespace_category": cls._namespace_category(qname.namespace),
+        })
+        return diagnostic
+
+    @classmethod
+    def _namespace_category(cls, namespace):
+        if namespace == cls.SOAP_ENV_NS:
+            return "soap12"
+        if namespace == cls.SIFEN_NS:
+            return "sifen"
+        return "other"
 
     def create_manual_partner(self, *, company, ruc, name, taxpayer_type, email=None):
         company.ensure_one()

@@ -131,6 +131,48 @@ class TestPySifenRucQueryService(TransactionCase):
         )
         self.assertEqual(timeout["reason"], "authority_unavailable")
 
+    def test_http_error_has_sanitized_structural_diagnostic_without_retry(self):
+        secret_body = b"<html><body>gateway detail SECRET-TOKEN</body></html>"
+        transport = _Transport(response={
+            "status_code": 400,
+            "content": secret_body,
+            "headers": {"Content-Type": "text/html; charset=utf-8"},
+        })
+
+        result = self._service(transport).resolve(
+            adapter_config=self.adapter,
+            company=self.company,
+            ruc="80012350-1",
+        )
+
+        self.assertEqual(result["reason"], "authority_invalid_response")
+        self.assertEqual(result["http_status"], 400)
+        self.assertEqual(result["response_diagnostic"], {
+            "category": "html",
+            "content_type": "text/html",
+            "byte_length": len(secret_body),
+        })
+        self.assertNotIn("SECRET-TOKEN", repr(result))
+        self.assertEqual(len(transport.calls), 1)
+
+    def test_malformed_soap_response_has_no_raw_payload_diagnostic(self):
+        raw_body = b"<soap:Envelope>PRIVATE-RUC-DATA"
+        result = self._service(_Transport()).normalize_response(
+            response={
+                "status_code": 200,
+                "content": raw_body,
+                "headers": {"Content-Type": "application/soap+xml"},
+            },
+            expected_ruc="80012350",
+        )
+
+        self.assertEqual(result["response_diagnostic"], {
+            "category": "malformed_xml",
+            "content_type": "application/soap+xml",
+            "byte_length": len(raw_body),
+        })
+        self.assertNotIn("PRIVATE-RUC-DATA", repr(result))
+
     def test_manual_partner_is_marked_unverified(self):
         result = self._service(_Transport()).create_manual_partner(
             company=self.company,
