@@ -229,7 +229,11 @@ class PySifenRetryEligibilityService:
             and bool(latest.authority_status_code)
             and latest.authority_status_code not in self.ACCEPTED_AUTHORITY_CODES
             and bool(latest.authority_message)
-            and 200 <= (latest.http_status or 0) < 300
+            # SIFEN can return a definitive, parsed DE rejection with HTTP 400
+            # (for example 0160).  The complete authority result and durable
+            # response evidence make that non-ambiguous just like an HTTP 200
+            # fiscal rejection; automatic retry remains forbidden.
+            and 200 <= (latest.http_status or 0) < 500
             and self.HASH_RE.fullmatch(latest.request_hash or "")
             and self.HASH_RE.fullmatch(latest.response_hash or "")
             and metadata.get("durability_phase") == "completed"
