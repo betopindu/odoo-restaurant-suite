@@ -3,6 +3,10 @@ import re
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from odoo.addons.einvoice_py.services.py_account_move_integration_service import (
+    PyFiscalDocumentFromAccountMoveService,
+)
+
 
 class PosOrder(models.Model):
     _inherit = "pos.order"
@@ -94,7 +98,41 @@ class PosOrder(models.Model):
         if not draft:
             for order in orders:
                 self._validate_py_fiscal_ui_order(order.get("data") or {})
-        return super().create_from_ui(orders, draft=draft)
+        result = super().create_from_ui(orders, draft=draft)
+        if not draft:
+            self._prepare_py_fiscal_documents(result)
+        return result
+
+    @api.model
+    def _prepare_py_fiscal_documents(self, sync_result):
+        order_ids = [item.get("id") for item in sync_result if item.get("id")]
+        for order in self.browse(order_ids).exists():
+            if order.py_fiscal_choice in (False, "no_fe"):
+                continue
+            move = order.account_move
+            if not move or move.state != "posted":
+                raise ValidationError(
+                    "Paraguay POS fiscal preparation requires the posted Odoo invoice."
+                )
+            documents = move.fiscal_document_ids.filtered(
+                lambda item: item.active and (item.country_code or "").upper() == "PY"
+            )
+            if len(documents) > 1:
+                raise ValidationError(
+                    "The POS invoice has multiple active Paraguay fiscal documents."
+                )
+            if documents:
+                continue
+            config = order.config_id
+            move.write({
+                "py_fiscal_environment": config.py_fiscal_environment,
+                "py_fiscal_tenant_id": config.py_fiscal_tenant_id.id,
+                "py_fiscal_establishment_id": config.py_fiscal_establishment_id.id,
+                "py_fiscal_point_of_issue_id": config.py_fiscal_point_of_issue_id.id,
+                "py_sale_condition_code": "1",
+            })
+            PyFiscalDocumentFromAccountMoveService(self.env).create(move=move)
+        return True
 
     @api.model
     def _validate_py_fiscal_ui_order(self, data):

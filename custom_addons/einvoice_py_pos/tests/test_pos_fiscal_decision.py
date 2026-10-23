@@ -1,5 +1,6 @@
 import ast
 from pathlib import Path
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.exceptions import ValidationError
@@ -173,6 +174,69 @@ class TestPosFiscalDecision(TransactionCase):
         values = self.env["pos.order"]._order_fields(self._data())
         self.assertEqual(values["py_fiscal_choice"], "no_fe")
         self.assertEqual(values["py_fiscal_decision_id"], "decision-0001")
+
+    def test_paid_fiscal_order_prepares_document_from_native_invoice_once(self):
+        move = self.env["account.move"].create({
+            "move_type": "out_invoice",
+            "partner_id": self.taxpayer.id,
+        })
+        move.state = "posted"
+        order = self.env["pos.order"].create({
+            "name": "Fiscal preparation order",
+            "pos_reference": "Fiscal preparation order",
+            "session_id": self.session.id,
+            "config_id": self.config.id,
+            "company_id": self.company.id,
+            "partner_id": self.taxpayer.id,
+            "account_move": move.id,
+            "amount_total": 0,
+            "amount_tax": 0,
+            "amount_paid": 0,
+            "amount_return": 0,
+            "py_fiscal_choice": "with_ruc",
+            "py_fiscal_decision_id": "decision-prepare",
+            "py_ruc_resolution": "local",
+            "py_fiscal_delivery": "print",
+        })
+        with patch.object(
+            __import__(
+                "odoo.addons.einvoice_py_pos.models.pos_order",
+                fromlist=["PyFiscalDocumentFromAccountMoveService"],
+            ).PyFiscalDocumentFromAccountMoveService,
+            "create",
+        ) as create:
+            self.env["pos.order"]._prepare_py_fiscal_documents([{"id": order.id}])
+        create.assert_called_once()
+        self.assertEqual(move.py_fiscal_tenant_id, self.tenant)
+        self.assertEqual(move.py_fiscal_establishment_id, self.establishment)
+        self.assertEqual(move.py_fiscal_point_of_issue_id, self.point)
+        self.assertEqual(move.py_sale_condition_code, "1")
+
+    def test_no_fe_order_never_prepares_fiscal_document(self):
+        order = self.env["pos.order"].create({
+            "name": "Non fiscal order",
+            "pos_reference": "Non fiscal order",
+            "session_id": self.session.id,
+            "config_id": self.config.id,
+            "company_id": self.company.id,
+            "amount_total": 0,
+            "amount_tax": 0,
+            "amount_paid": 0,
+            "amount_return": 0,
+            "py_fiscal_choice": "no_fe",
+            "py_fiscal_decision_id": "decision-no-fe",
+            "py_ruc_resolution": "not_applicable",
+            "py_fiscal_delivery": "not_applicable",
+        })
+        with patch.object(
+            __import__(
+                "odoo.addons.einvoice_py_pos.models.pos_order",
+                fromlist=["PyFiscalDocumentFromAccountMoveService"],
+            ).PyFiscalDocumentFromAccountMoveService,
+            "create",
+        ) as create:
+            self.env["pos.order"]._prepare_py_fiscal_documents([{"id": order.id}])
+        create.assert_not_called()
 
     def test_pos_loader_includes_fiscal_partner_fields_and_unnamed_partner(self):
         params = self.session._loader_params_res_partner()
