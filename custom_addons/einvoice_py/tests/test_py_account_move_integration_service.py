@@ -383,10 +383,7 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
             "dBaseGrav5", "dBaseGrav10", "dTBasGraIVA",
         ):
             self.assertFalse(root.xpath(f".//s:gTotSub/s:{field_name}", namespaces=ns))
-        self.assertEqual(
-            root.xpath("string(.//s:gTotSub/s:dTotIVA)", namespaces=ns),
-            "0.00000000",
-        )
+        self.assertFalse(root.xpath(".//s:gTotSub/s:dTotIVA", namespaces=ns))
         self.assertEqual(root.xpath("string(.//s:gCamAE/s:dNumIDVen)", namespaces=ns), "1234567")
         self.assertEqual(root.xpath("string(.//s:gCamAE/s:dDirProv)", namespaces=ns), "Purchase location")
         self.assertEqual(len(root.xpath(".//s:gCamAE", namespaces=ns)), 1)

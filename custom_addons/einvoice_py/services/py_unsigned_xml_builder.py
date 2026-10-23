@@ -333,9 +333,7 @@ class PyUnsignedXmlBuilder:
         self._text(group, "dAnticipo", self._format_money(0))
         self._text(group, "dRedon", self._format_decimal(0, places=4))
         self._text(group, "dTotGralOpe", self._format_money(totals["total_general"]))
-        if is_self_invoice:
-            self._text(group, "dTotIVA", self._format_money(totals.get("total_vat")))
-        else:
+        if not is_self_invoice:
             self._text(group, "dIVA5", self._format_money(totals.get("total_vat_5")))
             self._text(group, "dIVA10", self._format_money(totals.get("total_vat_10")))
             self._text(group, "dTotIVA", self._format_money(totals.get("total_vat")))

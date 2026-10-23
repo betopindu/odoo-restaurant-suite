@@ -47,13 +47,15 @@ ambiguous data fails closed: the integration does not invent geography.
 
 AFE uses its own timbrado and sequence, CDC document type `04`, transaction
 type `10`, receiver operation type B2C, tax type `4`, `gCamAE` in the official
-v150 order, no per-item `gCamIVA`, and the mandatory `gCamDEAsoc` electronic
+v150 order, no per-item `gCamIVA`, no `F017/dTotIVA` (prohibited for AFE), QR
+fallback `dTotIVA=0`, and the mandatory `gCamDEAsoc` electronic
 non-taxpayer constancy. The existing signing, QR, durable submission, retry,
 reconciliation, KuDE and delivery services are reused. Document `34204` is the
 current controlled TEST case. Its explicit responses `61056` (`2400`, before
 the association fix) and `61057` (`0160`, HTTP 400) are preserved. The latter
-rDE passes local XML parsing, XMLDSig and v150 XSD validation, but no AFE has
-yet been accepted by SIFEN TEST.
+was generated with forbidden `F017`; after removing it, the complete
+real-credential pipeline passes offline with the same CDC. No AFE has yet been
+accepted by SIFEN TEST.
 
 ### Credit terms and installments
 

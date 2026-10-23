@@ -185,9 +185,10 @@ limited to the exercised invoice profile.
 rejections remain preserved as interoperability evidence)
 [x] NDE end-to-end accounting and SIFEN flow (document `34200`, transmission
 `61045`, authority `0260`, protocol `50276074`)
-[~] AFE end-to-end accounting and SIFEN flow (official AFE no-IVA and mandatory
-constancy structures implemented; document `34204` remains non-ambiguously
-rejected after `61056`/`2400` and `61057`/`0160`, so live acceptance is pending)
+[~] AFE end-to-end accounting and SIFEN flow (official AFE no-IVA, omission of
+forbidden `F017`, QR zero fallback and mandatory constancy are implemented;
+document `34204` remains non-ambiguously rejected after `61056`/`2400` and the
+pre-fix `61057`/`0160`, so one controlled live validation remains pending)
 [x] Cancellation and inutilization completion for MVP with live TEST evidence
 (`61051` / `1169485` and inutilization `92` / `1169487`)
 

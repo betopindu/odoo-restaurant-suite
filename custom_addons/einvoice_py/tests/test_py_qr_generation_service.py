@@ -200,6 +200,14 @@ class TestPyQrGenerationService(TransactionCase):
             },
         )
 
+    def test_qr_uses_zero_when_total_vat_is_absent_for_self_invoice(self):
+        result = self._generate(signed_xml_bytes=self._signed_xml(total_vat=None))
+
+        self.assertEqual(
+            dict(self._query_pairs(result["qr_string"]))["dTotIVA"],
+            "0",
+        )
+
     def test_missing_csc_is_rejected(self):
         self.document.py_csc_id = False
 

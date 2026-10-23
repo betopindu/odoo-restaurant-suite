@@ -172,7 +172,10 @@ class PySifenQrBuilder:
                 de,
                 "gTotSub/dTotGralOpe",
             ),
-            "dTotIVA": self._required_text(de, "gTotSub/dTotIVA"),
+            # SIFEN v150 forbids F017/dTotIVA in an AFE.  The QR contract,
+            # however, still requires the parameter and explicitly prescribes
+            # zero when the source field is absent.
+            "dTotIVA": self._find_text(de, "gTotSub/dTotIVA") or "0",
             "cItems": str(
                 len(de.findall(f".//{self._tag('gCamItem')}"))
             ),

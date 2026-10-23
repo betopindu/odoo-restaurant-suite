@@ -5,12 +5,16 @@
 * Corrected AFE commercial semantics to transaction type `10`, B2C receiver
   operation type and tax type `4`; an AFE now fails closed if its posted vendor
   bill carries IVA.
-* Removed the per-item `gCamIVA` group for AFE while retaining zero `dTotIVA`
-  required by the QR input and preserving FE/NCE/NDE XML ordering.
+* Removed the per-item `gCamIVA` group and forbidden `F017/dTotIVA` element
+  from AFE. The QR still receives the Manual v150 fallback value `0` when
+  `F017` is absent, without fabricating the prohibited XML field.
 * Added the mandatory `gCamDEAsoc` electronic non-taxpayer constancy for AFE.
 * Preserved controlled TEST document `34204`, CDC
   `04032224796001001000000322026102215594656963`, and its explicit responses:
-  `61056` (`2400`) and `61057` (`0160`, HTTP 400). No response was ambiguous;
+  `61056` (`2400`) and `61057` (`0160`, HTTP 400). The latter exposed the
+  prohibited AFE `F017`; the corrected full pipeline passes offline. The DNIT
+  prevalidator's QR warning was reproduced with already accepted FE `30219`,
+  so it is not used as AFE defect evidence. No response was ambiguous;
   live AFE acceptance remains pending and the synchronous MVP is not expanded
   to claim AFE homologation yet.
 
