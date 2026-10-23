@@ -46,6 +46,11 @@ is selected. Per-company/POS configuration controls automatic delivery:
 
 ## Delivery stages
 
+The fiscal engine is channel-independent. Odoo POS, the existing API-first
+integration and a future web frontend are separate adapters. The first POS
+release uses `einvoice_py_pos`; installing Restaurant or KDS is never required
+for Paraguay invoicing, and installing KDS never requires e-Invoice.
+
 ### V1.0-P0 — Checkout decision and fiscal identity
 
 - Add the `No FE / Consumer final / With RUC` decision to POS payment.

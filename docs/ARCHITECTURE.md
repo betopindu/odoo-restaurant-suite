@@ -11,6 +11,15 @@
 
 The e-Invoice Platform is built around a country-neutral fiscal core, country-specific addons, and an API-first integration layer.
 
+Commercial channels remain adapters around that engine. `fiscal_api` serves
+external SaaS integrations, `einvoice_py_pos` is the optional Odoo POS bridge,
+and a future web product must use the same fiscal services rather than copy
+country rules. POS Restaurant and KDS remain independent products: neither the
+fiscal core nor the Paraguay addon depends on them, and the POS bridge does not
+depend on KDS or `pos_restaurant`. Future Costa Rica support belongs in a
+separate country addon over `einvoice_module`; it must not inherit Paraguay
+CDC, SIFEN, XML, QR or credential rules.
+
 The core owns common fiscal concepts such as document lifecycle, events, transmissions, attachments, tenant isolation, idempotency, lock policies, credential references, credential role bindings, and orchestration.
 
 Country addons own country-specific concepts such as numbering, fiscal identifiers, payloads, authority-specific configuration, XML signing, QR generation, and authority integration.

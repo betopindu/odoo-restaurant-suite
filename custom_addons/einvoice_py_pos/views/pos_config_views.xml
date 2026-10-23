@@ -1,0 +1,25 @@
+<odoo>
+    <record id="view_pos_config_form_py_fiscal_checkout" model="ir.ui.view">
+        <field name="name">pos.config.form.paraguay.fiscal.checkout</field>
+        <field name="model">pos.config</field>
+        <field name="inherit_id" ref="point_of_sale.pos_config_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[hasclass('row') and hasclass('mt16') and hasclass('o_settings_container') and @invisible=&quot;context.get('pos_config_create_mode', False)&quot;]" position="after">
+                <div class="row mt16 o_settings_container" invisible="context.get('pos_config_create_mode', False)">
+                    <setting string="Paraguay Fiscal Checkout" help="Optional POS channel for the country-neutral fiscal engine.">
+                        <field name="py_fiscal_checkout_enabled"/>
+                        <div class="content-group mt16" invisible="not py_fiscal_checkout_enabled">
+                            <field name="company_id" invisible="1"/>
+                            <div class="row mt8"><label for="py_fiscal_allow_no_fe" class="col-lg-4 o_light_label"/><field name="py_fiscal_allow_no_fe"/></div>
+                            <div class="row mt8"><label for="py_fiscal_environment" class="col-lg-4 o_light_label"/><field name="py_fiscal_environment"/></div>
+                            <div class="row mt8"><label for="py_fiscal_tenant_id" class="col-lg-4 o_light_label"/><field name="py_fiscal_tenant_id" domain="[('company_id', '=', company_id)]"/></div>
+                            <div class="row mt8"><label for="py_fiscal_establishment_id" class="col-lg-4 o_light_label"/><field name="py_fiscal_establishment_id" domain="[('company_id', '=', company_id), ('tenant_id', '=', py_fiscal_tenant_id)]"/></div>
+                            <div class="row mt8"><label for="py_fiscal_point_of_issue_id" class="col-lg-4 o_light_label"/><field name="py_fiscal_point_of_issue_id" domain="[('establishment_id', '=', py_fiscal_establishment_id)]"/></div>
+                            <div class="row mt8"><label for="py_fiscal_unnamed_partner_id" class="col-lg-4 o_light_label"/><field name="py_fiscal_unnamed_partner_id" domain="[('py_sifen_receiver_profile', '=', 'unnamed_consumer')]"/></div>
+                        </div>
+                    </setting>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>
