@@ -209,7 +209,7 @@ class PyFiscalDocumentFromAccountMoveService:
     def _receiver_values(self, partner):
         if partner.py_sifen_receiver_profile == "unnamed_consumer":
             return {
-                "customer_name": "INNOMINADO", "customer_tax_id": "0",
+                "customer_name": "Sin Nombre", "customer_tax_id": "0",
                 "customer_tax_id_type": "unnamed", "customer_email": partner.email or "",
                 "py_receiver_nature": "2", "py_receiver_operation_type": "2",
                 "py_receiver_id_type": "5", "py_receiver_id_type_description": "Innominado",

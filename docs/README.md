@@ -110,6 +110,7 @@ Current country implementation and evidence:
 ### Paraguay
 
 * [Paraguay Documentation](PARAGUAY/README.md)
+* [Paraguay Commercial V1 Roadmap](PARAGUAY/COMMERCIAL_V1_ROADMAP.md)
 * [KDS Operational Notes](KDS.md)
 * [SIFEN TEST Configuration](PARAGUAY/CONFIGURATION.md)
 * [Homologation Runbook](PARAGUAY/HOMOLOGATION_RUNBOOK.md)

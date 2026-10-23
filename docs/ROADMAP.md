@@ -172,6 +172,12 @@ limited to the exercised invoice profile.
 
 ## Next
 
+The release priority is now the small-business commercial V1 defined in the
+[Paraguay Commercial V1 Roadmap](PARAGUAY/COMMERCIAL_V1_ROADMAP.md). POS fiscal
+checkout, local-first RUC resolution, real payment mapping, delivery and
+production operations take precedence over new document types or post-MVP
+protocol breadth.
+
 [x] Resolve the B2B TEST receiver-data gate using a DNIT-published electronic taxpayer
 [x] Prepare and validate a fresh two-item B2B FE offline (document `17894`)
 [x] Submit the fresh B2B FE once under separate controlled authorization (`17894` / `31916` / `0260`)

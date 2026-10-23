@@ -63,6 +63,14 @@ The authoritative delivery files are final rDE attachment `74708`
 KuDE attachment `74717` (`AFE-001-001-0000003.pdf`, SHA-256
 `04e4f5ca9aa37254b2bed9d4e9eb961d3bc623e174f327b36680f6043077ec99`).
 
+### Commercial V1
+
+The next product milestone is the small-business POS checkout and production
+release described in the
+[Commercial V1 roadmap](COMMERCIAL_V1_ROADMAP.md). It deliberately prioritizes
+sellable daily operation over batch services, logistics, received-DTE flows or
+additional document types.
+
 ### Credit terms and installments
 
 When an operator explicitly selects **Credit**, preparation reads the posted

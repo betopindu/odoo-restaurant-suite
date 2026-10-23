@@ -1309,6 +1309,7 @@ class TestPyFakeAdapter(TransactionCase):
         self._enrich_standard_cash_invoice(document)
         payload = self._payload_for_xml(document)
         payload["receiver"].update({
+            "name": "Sin Nombre",
             "nature_code": "2",
             "taxpayer_type": None,
             "ruc_or_document": None,
@@ -1333,6 +1334,10 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertEqual(
             self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dNumIDRec"),
             "0",
+        )
+        self.assertEqual(
+            self._xml_findtext(root, "DE/gDatGralOpe/gDatRec/dNomRec"),
+            "Sin Nombre",
         )
 
     def test_payload_innominado_does_not_restore_partner_contact_address(self):
