@@ -53,8 +53,14 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
 
 ### V1.0-P0 — Checkout decision and fiscal identity
 
-- Add the `No FE / Consumer final / With RUC` decision to POS payment.
-- Record the decision durably and prevent double-click duplication.
+- [x] Add the `No FE / Consumer final / With RUC` decision to POS payment.
+- [x] Record the selected decision and its stable client decision identifier in
+  the POS order payload. The backend rejects conflicting replays and makes the
+  confirmed decision immutable.
+- [x] Keep this first UI increment offline: `With RUC` accepts only an existing
+  local taxpayer partner; it neither queries SIFEN nor creates or submits a
+  fiscal document. The configured innominado partner is explicitly loaded for
+  `Consumer final`.
 - Align innominado XML with Manual v150 and enforce its amount guard.
 - Implement local-first RUC resolution, remote fallback and manual-unverified
   fallback without fabricating optional data.

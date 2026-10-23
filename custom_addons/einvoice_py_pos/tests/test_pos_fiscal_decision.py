@@ -1,3 +1,6 @@
+import ast
+from pathlib import Path
+
 from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
@@ -170,3 +173,41 @@ class TestPosFiscalDecision(TransactionCase):
         values = self.env["pos.order"]._order_fields(self._data())
         self.assertEqual(values["py_fiscal_choice"], "no_fe")
         self.assertEqual(values["py_fiscal_decision_id"], "decision-0001")
+
+    def test_pos_loader_includes_fiscal_partner_fields_and_unnamed_partner(self):
+        params = self.session._loader_params_res_partner()
+        self.assertIn("py_sifen_receiver_profile", params["search_params"]["fields"])
+        self.assertIn("py_sifen_taxpayer_type", params["search_params"]["fields"])
+        partners = self.session._get_pos_ui_res_partner(params)
+        loaded = {partner["id"]: partner for partner in partners}
+        self.assertIn(self.unnamed.id, loaded)
+        self.assertEqual(
+            loaded[self.unnamed.id]["py_sifen_receiver_profile"],
+            "unnamed_consumer",
+        )
+
+    def test_frontend_contract_is_pos_only_and_contains_no_network_operation(self):
+        module_root = Path(__file__).resolve().parents[1]
+        manifest = ast.literal_eval((module_root / "__manifest__.py").read_text())
+        assets = manifest["assets"]["point_of_sale._assets_pos"]
+        self.assertIn(
+            "einvoice_py_pos/static/src/js/pos_fiscal_checkout.js",
+            assets,
+        )
+        self.assertIn(
+            "einvoice_py_pos/static/src/xml/pos_fiscal_checkout.xml",
+            assets,
+        )
+        javascript = (
+            module_root / "static/src/js/pos_fiscal_checkout.js"
+        ).read_text()
+        template = (
+            module_root / "static/src/xml/pos_fiscal_checkout.xml"
+        ).read_text()
+        self.assertIn("super.validateOrder(...arguments)", javascript)
+        self.assertIn("super.export_as_JSON(...arguments)", javascript)
+        self.assertIn("SelectionPopup", javascript)
+        self.assertIn("py_fiscal_checkout_enabled", template)
+        self.assertIn("selectPyFiscalChoice", template)
+        for forbidden in ("orm.call", "fetch(", "XMLHttpRequest", "submit_and_persist"):
+            self.assertNotIn(forbidden, javascript)

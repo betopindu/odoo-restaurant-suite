@@ -7,6 +7,12 @@
     "data": [
         "views/pos_config_views.xml",
     ],
+    "assets": {
+        "point_of_sale._assets_pos": [
+            "einvoice_py_pos/static/src/js/pos_fiscal_checkout.js",
+            "einvoice_py_pos/static/src/xml/pos_fiscal_checkout.xml",
+        ],
+    },
     "installable": True,
     "application": False,
     "license": "LGPL-3",

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-name="einvoice_py_pos.PaymentScreenFiscalChoice"
+       t-inherit="point_of_sale.PaymentScreenButtons"
+       t-inherit-mode="extension">
+        <xpath expr="//button[contains(@class, 'js_invoice')]" position="attributes">
+            <attribute name="t-if">!pos.config.py_fiscal_checkout_enabled</attribute>
+        </xpath>
+        <xpath expr="//button[contains(@class, 'js_invoice')]" position="after">
+            <button t-if="pos.config.py_fiscal_checkout_enabled"
+                    class="button py-fiscal-choice btn btn-light py-3 text-start rounded-0 border-bottom"
+                    t-att-class="{ 'highlight text-bg-primary': currentOrder.pyFiscalChoice }"
+                    t-on-click="selectPyFiscalChoice">
+                <i class="fa fa-file-text-o me-2"/>
+                <t t-esc="pyFiscalChoiceLabel"/>
+            </button>
+        </xpath>
+    </t>
+</templates>
