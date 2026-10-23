@@ -35,7 +35,8 @@ Current implemented Paraguay stages:
 * administrative UI stabilization for validation/support workflows
 * accepted synchronous SIFEN TEST interoperability baseline
 * operator-controlled submission and Consulta DE recovery from Odoo
-* Autofactura Electrónica (AFE) from posted vendor bills, end-to-end offline
+* Autofactura Electrónica (AFE) from posted vendor bills, live-validated and
+  available for authoritative KuDE/XML delivery
 
 ### Autofactura Electrónica
 
@@ -50,12 +51,17 @@ type `10`, receiver operation type B2C, tax type `4`, `gCamAE` in the official
 v150 order, no per-item `gCamIVA`, no `F017/dTotIVA` (prohibited for AFE), QR
 fallback `dTotIVA=0`, and the mandatory `gCamDEAsoc` electronic
 non-taxpayer constancy. The existing signing, QR, durable submission, retry,
-reconciliation, KuDE and delivery services are reused. Document `34204` is the
-current controlled TEST case. Its explicit responses `61056` (`2400`, before
-the association fix) and `61057` (`0160`, HTTP 400) are preserved. The latter
-was generated with forbidden `F017`; after removing it, the complete
-real-credential pipeline passes offline with the same CDC. No AFE has yet been
-accepted by SIFEN TEST.
+reconciliation, KuDE and delivery services are reused. Document `34204`, CDC
+`04032224796001001000000322026102215594656963`, is live-validated in SIFEN
+TEST. Its explicit responses `61056` (`2400`, before the association fix) and
+`61057` (`0160`, HTTP 400, with forbidden `F017`) remain preserved. Corrected
+retry `61058` returned `1001 - TEST - CDC duplicado`; the authorized Consulta
+DE `61060` resolved it with `0422 - CDC encontrado` and protocol `50276195`.
+The authoritative delivery files are final rDE attachment `74708`
+(`AFE-001-001-0000003.xml`, SHA-256
+`c6f0df343b1b4bc2c26871e3667cc18a5c4aa3b26dbc5d184bb0203c4bb0f1c5`) and
+KuDE attachment `74717` (`AFE-001-001-0000003.pdf`, SHA-256
+`04e4f5ca9aa37254b2bed9d4e9eb961d3bc623e174f327b36680f6043077ec99`).
 
 ### Credit terms and installments
 
@@ -139,10 +145,10 @@ in SIFEN TEST as of 2026-10-22:
   `0600`, protocol `1169487`.
 
 All three final responses were HTTP 200 and non-ambiguous. Earlier rejected
-event attempts remain preserved as interoperability evidence. This closes the
-synchronous FE/NCE/NDE plus cancellation/inutilization MVP scope; AFE live
-validation, receiver events, batch services and production hardening remain
-future work.
+event attempts remain preserved as interoperability evidence. With the AFE
+evidence above, the synchronous FE/NCE/NDE/AFE plus cancellation/inutilization
+MVP scope is closed. Receiver events, batch services, remaining official
+homologation counts and production hardening remain future work.
 
 ## Configuration
 

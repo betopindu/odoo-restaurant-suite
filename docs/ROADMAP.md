@@ -153,9 +153,17 @@ NDE number `0000003` was accepted as inutilization record `92`, event `47`
 (`0600`, protocol `1169487`). Earlier explicit event rejections remain
 immutable interoperability evidence.
 
+The synchronous AFE profile is now live-validated as well. Document `34204`,
+CDC `04032224796001001000000322026102215594656963`, produced corrected retry
+`61058` (`1001 - TEST - CDC duplicado`); operator-requested Consulta DE `61060`
+then returned `0422 - CDC encontrado`, protocol `50276195`. Authoritative final
+rDE `74708` and KuDE `74717` complete the recipient-delivery chain. This closes
+the synchronous FE/NCE/NDE/AFE plus cancellation/inutilization MVP, but not the
+official homologation count matrix or production readiness.
+
 ## Current Validation Status
 
-The full `einvoice_py` suite reports **768 counted checks across 708 test
+The full `einvoice_py` suite reports **770 counted checks across 710 test
 methods**. Automated coverage is network-free.
 It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
 1.2 wrapping, mocked mTLS transport, response classification, readiness, and
@@ -185,10 +193,9 @@ limited to the exercised invoice profile.
 rejections remain preserved as interoperability evidence)
 [x] NDE end-to-end accounting and SIFEN flow (document `34200`, transmission
 `61045`, authority `0260`, protocol `50276074`)
-[~] AFE end-to-end accounting and SIFEN flow (official AFE no-IVA, omission of
-forbidden `F017`, QR zero fallback and mandatory constancy are implemented;
-document `34204` remains non-ambiguously rejected after `61056`/`2400` and the
-pre-fix `61057`/`0160`, so one controlled live validation remains pending)
+[x] AFE end-to-end accounting and SIFEN flow (document `34204`; corrected retry
+`61058` returned duplicate `1001`, and Consulta DE `61060` proved acceptance
+with `0422`, protocol `50276195`; final rDE `74708`, KuDE `74717`)
 [x] Cancellation and inutilization completion for MVP with live TEST evidence
 (`61051` / `1169485` and inutilization `92` / `1169487`)
 

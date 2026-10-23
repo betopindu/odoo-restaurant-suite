@@ -325,16 +325,17 @@ baseline (`16106`/`17896`) and B2B taxpayer profile (`17894`/`31916`). Do not
 resubmit either accepted CDC. NCE `34199`/`61044` and NDE `34200`/`61045` are
 also accepted live. NDE cancellation `61051` and number inutilization `92`
 provide accepted `0600` emitter-event evidence. Do not repeat these accepted
-operations. AFE document `34204` is the active controlled TEST case: `61056`
-preserves the pre-correction `2400` response and `61057` the later explicit
-`0160`/HTTP 400 response. The `61057` rDE contained `F017/dTotIVA`, which Manual
-v150 explicitly prohibits for AFE; the corrected pipeline omits that element
-while supplying the required QR fallback `dTotIVA=0`. Its regenerated offline
-rDE is XMLDSig/XSD-valid and includes the mandatory non-taxpayer constancy, but
-AFE is not yet authority-accepted. The DNIT prevalidator's “URL QR inválida”
-warning also occurs for accepted FE `30219`, so it is not an AFE-specific
-defect signal. Asynchronous batch, remaining official case counts
-and receiver-event coverage remain outside this closed MVP slice.
+operations. AFE document `34204` is also live-validated. `61056` preserves the
+pre-correction `2400` response and `61057` the pre-fix explicit `0160`/HTTP 400
+response. Corrected retry `61058` returned HTTP 200 and `1001 - TEST - CDC
+duplicado`; operator-requested Consulta DE `61060` returned HTTP 200, `0422 -
+CDC encontrado`, protocol `50276195`, at `2026-10-23 15:35:07` UTC. This proves
+the same CDC was accepted without another submission. Its authoritative final
+rDE is attachment `74708` and its locally completed KuDE is `74717`. The DNIT
+prevalidator's “URL QR inválida” warning also occurs for accepted FE `30219`,
+so it is not an AFE-specific defect signal. Asynchronous batch, remaining
+official case counts and receiver-event coverage remain outside this closed
+MVP slice.
 
 ## Handling receiver rejection 1306
 

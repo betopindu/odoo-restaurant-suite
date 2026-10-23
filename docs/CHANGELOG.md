@@ -1,6 +1,6 @@
 # Documentation Changelog
 
-## 2026-10-23 — Paraguay AFE interoperability hardening
+## 2026-10-23 — Paraguay AFE live validation and authoritative delivery
 
 * Corrected AFE commercial semantics to transaction type `10`, B2C receiver
   operation type and tax type `4`; an AFE now fails closed if its posted vendor
@@ -14,9 +14,19 @@
   `61056` (`2400`) and `61057` (`0160`, HTTP 400). The latter exposed the
   prohibited AFE `F017`; the corrected full pipeline passes offline. The DNIT
   prevalidator's QR warning was reproduced with already accepted FE `30219`,
-  so it is not used as AFE defect evidence. No response was ambiguous;
-  live AFE acceptance remains pending and the synchronous MVP is not expanded
-  to claim AFE homologation yet.
+  so it is not used as AFE defect evidence.
+* The single corrected retry `61058` received HTTP 200 and explicit `1001 -
+  TEST - CDC duplicado`. Operator-requested Consulta DE `61060` then returned
+  HTTP 200, `0422 - CDC encontrado`, protocol `50276195`, proving that the same
+  CDC was already accepted by SIFEN TEST. No response was ambiguous and no
+  additional submission was made.
+* Completed authoritative recipient delivery locally from the accepted,
+  persisted chain: final rDE attachment `74708`, SHA-256
+  `c6f0df343b1b4bc2c26871e3667cc18a5c4aa3b26dbc5d184bb0203c4bb0f1c5`, and
+  KuDE attachment `74717`, SHA-256
+  `04e4f5ca9aa37254b2bed9d4e9eb961d3bc623e174f327b36680f6043077ec99`.
+  This closes AFE inside the synchronous Paraguay MVP without claiming the
+  remaining official homologation counts or production readiness.
 
 ## 2026-10-22 — Paraguay synchronous correction/event MVP closure
 

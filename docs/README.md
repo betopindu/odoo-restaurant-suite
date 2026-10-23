@@ -149,6 +149,7 @@ Implemented:
 * first accepted real SIFEN TEST synchronous DE (`0260`)
 * B2C and B2B synchronous FE live acceptance evidence
 * NCE and NDE synchronous live acceptance evidence
+* AFE synchronous live acceptance evidence and authoritative KuDE/XML delivery
 * live-validated NDE cancellation and number inutilization
 * durable pre-POST submission evidence and conservative reconciliation
 * operator-controlled FE readiness, submit, manual retry and Consulta DE UI
@@ -162,7 +163,7 @@ Operationally pending:
 * completion of the official TEST homologation case matrix
 * production credential, CSC, timbrado, endpoint, and operational approval
 * production enablement and electronic timbrado workflow
-* AFE live TEST validation and remaining official homologation case counts
+* remaining official homologation case counts
 * WhatsApp delivery
 * asynchronous batch, Consulta RUC and received-DTE flows
 * KDS production-clone, physical-printer, HTTPS and production operations

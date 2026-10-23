@@ -73,7 +73,7 @@ Status meanings:
 | Credit sale with installments | READY | Posted Odoo payment terms are snapshotted into immutable PYG installment schedules; `gPagCred`/`gCuotas`, due dates and exact total reconciliation are covered offline. Live authority evidence remains pending. |
 | Credit note | LIVE-VALIDATED | Posted Odoo refunds create an immutable NCE linked to one accepted identified-receiver FE, with independent CDC `05`, reason, cumulative amount guard, `gCamNCDE`, `gCamDEAsoc`, signing, XMLDSig, QR, final v150 XSD and KuDE. Document `34199`, transmission `61044`, was accepted with `0260`, protocol `50237584`; earlier `61042`/`1216` and `61043`/`1501` rejections preserve the interoperability trail. |
 | Debit note | LIVE-VALIDATED | Odoo's standard debit-note origin creates an immutable NDE linked to one accepted identified-receiver FE. Document `34200`, CDC `06032224796001001000000122026102217549779160`, transmission `61045`, was accepted with `0260`, protocol `50276074`. |
-| Autofactura | LIVE TEST IN PROGRESS | The posted-vendor-bill pipeline emits AFE transaction type `10`, receiver operation type B2C, tax type `4`, no per-item `gCamIVA`, no prohibited `F017/dTotIVA`, QR fallback `dTotIVA=0`, and the mandatory electronic non-taxpayer constancy association. Document `34204`, CDC `04032224796001001000000322026102215594656963`, preserves explicit TEST responses `61056` (`2400`, missing association) and `61057` (`0160`, HTTP 400, generated before removal of forbidden `F017`). The corrected full pipeline passes offline; AFE is not yet authority-accepted. |
+| Autofactura | LIVE-VALIDATED | The posted-vendor-bill pipeline emits AFE transaction type `10`, receiver operation type B2C, tax type `4`, no per-item `gCamIVA`, no prohibited `F017/dTotIVA`, QR fallback `dTotIVA=0`, and the mandatory electronic non-taxpayer constancy association. Document `34204`, CDC `04032224796001001000000322026102215594656963`, preserves `61056` (`2400`) and pre-fix `61057` (`0160`, HTTP 400). Corrected retry `61058` returned `1001` duplicate; operator-requested Consulta DE `61060` returned `0422`, protocol `50276195`, proving acceptance. Authoritative final rDE `74708` and KuDE `74717` complete delivery. |
 | Duplicate submission | PARTIAL | Response parser distinguishes configured duplicate codes and persistence blocks accidental resend of accepted CDCs. There is no operator-safe intentional duplicate homologation operation. |
 | Explicit rejection | READY | Parser/persistence tests plus preserved live rejection evidence demonstrate non-ambiguous rejection handling. |
 | Ambiguous POST and Consulta DE | LIVE-VALIDATED | Timeout normalization, CDC blocking, row-locked SOAP Consulta DE, immutable submission evidence, `0422` acceptance and `0420` `reconciliation_not_found` are live-observed. The guarded transition was exercised by ambiguous submission `29963`, linked Consulta DE `30867` (`0420`) and same-CDC manual retry `31903` (`1306`). `0420` is not a rejection or automatic-retry category, and newer/conflicting evidence still blocks retry. |
@@ -94,25 +94,16 @@ accepted (`0260`). `0100` remains ineligible for automatic retry.
 
 Country-neutral core support does not imply Paraguay protocol support. In
 particular, a neutral document/event value alone is not implementation of its
-corresponding SIFEN XML/service contract. NCE and NDE now have complete offline
-accounting-to-delivery paths; their live authority validation is still pending.
+corresponding SIFEN XML/service contract. NCE, NDE and AFE now have complete
+accounting-to-delivery paths with live SIFEN TEST evidence. Official case-count
+completion and production readiness remain separate milestones.
 
-## Selected next scenario
+## Next live work
 
-The safest incremental live scenario is:
-
-* synchronous TEST Factura Electrónica;
-* B2B receiver that is a real Paraguayan taxpayer;
-* cash operation in PYG;
-* at least two item groups taxed at IVA 10%;
-* current qualified certificate, TEST timbrado, CSC and existing synchronous
-  pipeline;
-* a fresh document number and CDC.
-
-This reuses every live-proven boundary, adds taxpayer-receiver coverage and
-aligns with the guide's minimum two-item FE shape. It does not depend on credit
-schedules, associated documents, events, KuDE rendering or asynchronous batch
-services.
+No accepted CDC in this matrix may be resubmitted. The next live operation
+must be selected from the remaining official homologation counts, use a fresh
+document/number where applicable, and receive separate explicit authorization.
+This documentation closure does not select or authorize that operation.
 
 ### External TEST receiver-data gate
 
