@@ -4,6 +4,8 @@ import { PaymentScreen } from "@point_of_sale/app/screens/payment_screen/payment
 import { ErrorPopup } from "@point_of_sale/app/errors/popups/error_popup";
 import { Order } from "@point_of_sale/app/store/models";
 import { SelectionPopup } from "@point_of_sale/app/utils/input_popups/selection_popup";
+import { TextInputPopup } from "@point_of_sale/app/utils/input_popups/text_input_popup";
+import { rpc } from "@web/core/network/rpc_service";
 import { uuidv4 } from "@point_of_sale/utils";
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
@@ -135,25 +137,126 @@ patch(PaymentScreen.prototype, {
             });
             return true;
         }
-        let partner = this.currentOrder.get_partner();
-        if (partner?.py_sifen_receiver_profile !== "taxpayer") {
-            await this.selectPartner(false, []);
-            partner = this.currentOrder.get_partner();
+        const partner = await this.resolvePyTaxpayer();
+        if (!partner) {
+            return false;
         }
-        if (partner?.py_sifen_receiver_profile !== "taxpayer" || !partner.vat) {
+        if (partner.py_sifen_receiver_profile !== "taxpayer" || !partner.vat) {
             await this.popup.add(ErrorPopup, {
                 title: _t("Taxpayer required"),
-                body: _t("Select a locally registered customer with a Paraguay taxpayer profile and RUC."),
+                body: _t("The resolved customer does not have a valid Paraguay taxpayer profile."),
             });
             return false;
         }
         this.currentOrder.setPyFiscalDecision({
             choice,
             partner,
-            rucResolution: "local",
+            rucResolution: partner.py_sifen_ruc_resolution || "local",
             delivery: partner.email ? "email" : "print",
             email: partner.email || false,
         });
         return true;
+    },
+    async resolvePyTaxpayer() {
+        const current = this.currentOrder.get_partner();
+        const { confirmed, payload: ruc } = await this.popup.add(TextInputPopup, {
+            title: _t("Customer RUC"),
+            body: _t("Enter the Paraguay RUC including its verification digit."),
+            startingValue: current?.vat || "",
+            placeholder: "80012345-6",
+        });
+        if (!confirmed || !ruc) {
+            return false;
+        }
+        let result;
+        try {
+            result = await rpc("/einvoice_py_pos/ruc/resolve", {
+                session_id: this.pos.pos_session.id,
+                ruc,
+            });
+        } catch (_error) {
+            await this.popup.add(ErrorPopup, {
+                title: _t("RUC lookup failed"),
+                body: _t("The RUC could not be resolved. No fiscal document was created."),
+            });
+            return false;
+        }
+        if (result.status === "found") {
+            return this.completePyTaxpayer(result);
+        }
+        return this.createManualPyTaxpayer(result.ruc || ruc, result.reason);
+    },
+    async completePyTaxpayer(result) {
+        let taxpayerType = result.taxpayer_type;
+        if (!taxpayerType) {
+            taxpayerType = await this.selectPyTaxpayerType();
+            if (!taxpayerType) {
+                return false;
+            }
+            result = await rpc("/einvoice_py_pos/ruc/complete", {
+                session_id: this.pos.pos_session.id,
+                partner_id: result.partner_id,
+                taxpayer_type: taxpayerType,
+            });
+        }
+        if (!result.partner) {
+            return false;
+        }
+        this.pos.db.add_partners([result.partner]);
+        return this.pos.db.get_partner_by_id(result.partner_id);
+    },
+    async createManualPyTaxpayer(ruc, reason) {
+        const reasonText =
+            reason === "authority_not_found"
+                ? _t("SIFEN did not find this RUC. Verify it before continuing manually.")
+                : _t("SIFEN Consulta RUC is unavailable. Manual data will be marked unverified.");
+        const { confirmed, payload: name } = await this.popup.add(TextInputPopup, {
+            title: _t("Manual taxpayer entry"),
+            body: reasonText,
+            placeholder: _t("Customer legal name"),
+        });
+        if (!confirmed || !name) {
+            return false;
+        }
+        const taxpayerType = await this.selectPyTaxpayerType();
+        if (!taxpayerType) {
+            return false;
+        }
+        const emailResult = await this.popup.add(TextInputPopup, {
+            title: _t("Delivery email (optional)"),
+            body: _t("Without an email, the accepted KuDE will be printed instead."),
+            placeholder: "customer@example.com",
+        });
+        if (!emailResult.confirmed) {
+            return false;
+        }
+        let result;
+        try {
+            result = await rpc("/einvoice_py_pos/ruc/manual", {
+                session_id: this.pos.pos_session.id,
+                ruc,
+                name,
+                taxpayer_type: taxpayerType,
+                email: emailResult.payload || "",
+            });
+        } catch (_error) {
+            await this.popup.add(ErrorPopup, {
+                title: _t("Customer could not be saved"),
+                body: _t("Review the RUC and customer data, then try again."),
+            });
+            return false;
+        }
+        this.pos.db.add_partners([result.partner]);
+        return this.pos.db.get_partner_by_id(result.partner_id);
+    },
+    async selectPyTaxpayerType() {
+        const { confirmed, payload } = await this.popup.add(SelectionPopup, {
+            title: _t("Taxpayer type"),
+            list: [
+                { id: "1", label: _t("Physical person"), item: "1" },
+                { id: "2", label: _t("Legal entity"), item: "2" },
+            ],
+        });
+        return confirmed ? payload : false;
     },
 });

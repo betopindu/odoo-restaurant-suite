@@ -3,6 +3,7 @@ from . import numbering_service
 from . import py_certificate_inspection_service
 from . import py_sifen_ambiguous_reconciliation_service
 from . import py_sifen_consulta_de_service
+from . import py_sifen_ruc_query_service
 from . import py_payload_builder
 from . import py_kude_service
 from . import py_qr_generation_service
@@ -84,6 +85,7 @@ from .py_sifen_consulta_de_service import (
     PySifenConsultaDeService,
     PySifenDocumentQueryService,
 )
+from .py_sifen_ruc_query_service import PySifenRucQueryService
 from .py_sifen_test_submission_service import (
     PySifenSubmissionFailureResult,
     PySifenSubmissionService,

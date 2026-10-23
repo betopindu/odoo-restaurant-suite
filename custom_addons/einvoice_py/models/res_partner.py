@@ -11,6 +11,19 @@ class ResPartner(models.Model):
     py_sifen_taxpayer_type = fields.Selection(
         [("1", "Physical Person"), ("2", "Legal Entity")], string="SIFEN Taxpayer Type"
     )
+    py_sifen_ruc_resolution = fields.Selection(
+        [
+            ("authority", "SIFEN Consulta RUC"),
+            ("manual_unverified", "Manual, unverified"),
+        ],
+        string="RUC Resolution",
+        copy=False,
+        readonly=True,
+    )
+    py_sifen_ruc_status_code = fields.Char(copy=False, readonly=True)
+    py_sifen_ruc_status = fields.Char(copy=False, readonly=True)
+    py_sifen_ruc_electronic_issuer = fields.Char(copy=False, readonly=True)
+    py_sifen_ruc_checked_at = fields.Datetime(copy=False, readonly=True)
     py_sifen_house_number = fields.Char(string="SIFEN House Number")
     py_sifen_department_code = fields.Char(string="SIFEN Department Code")
     py_sifen_department_name = fields.Char(string="SIFEN Department")

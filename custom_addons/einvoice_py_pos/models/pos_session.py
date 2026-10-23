@@ -7,7 +7,11 @@ class PosSession(models.Model):
     def _loader_params_res_partner(self):
         params = super()._loader_params_res_partner()
         fields = params["search_params"]["fields"]
-        for field_name in ("py_sifen_receiver_profile", "py_sifen_taxpayer_type"):
+        for field_name in (
+            "py_sifen_receiver_profile",
+            "py_sifen_taxpayer_type",
+            "py_sifen_ruc_resolution",
+        ):
             if field_name not in fields:
                 fields.append(field_name)
         return params

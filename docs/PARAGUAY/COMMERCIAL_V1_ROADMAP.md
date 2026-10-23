@@ -62,8 +62,11 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
   fiscal document. The configured innominado partner is explicitly loaded for
   `Consumer final`.
 - Align innominado XML with Manual v150 and enforce its amount guard.
-- Implement local-first RUC resolution, remote fallback and manual-unverified
-  fallback without fabricating optional data.
+- [x] Implement local-first RUC resolution, official mTLS Consulta RUC fallback
+  (`0500/0501/0502`) and an explicit manual-unverified fallback without
+  fabricating optional data. Successful authority results are cached as local
+  partners; remote data still requires the cashier to select the taxpayer type
+  because Consulta RUC does not return that SIFEN field.
 - Keep every network boundary mocked during development.
 
 ### V1.0-P1 — Payments and automatic orchestration

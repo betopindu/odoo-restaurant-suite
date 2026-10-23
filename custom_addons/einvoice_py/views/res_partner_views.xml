@@ -9,6 +9,9 @@
                     <group>
                         <field name="py_sifen_receiver_profile"/>
                         <field name="py_sifen_taxpayer_type" invisible="py_sifen_receiver_profile != 'taxpayer'"/>
+                        <field name="py_sifen_ruc_resolution" invisible="py_sifen_receiver_profile != 'taxpayer'"/>
+                        <field name="py_sifen_ruc_status" invisible="not py_sifen_ruc_resolution"/>
+                        <field name="py_sifen_ruc_checked_at" invisible="not py_sifen_ruc_resolution"/>
                         <field name="py_sifen_house_number"/>
                         <field name="py_sifen_department_code"/>
                         <field name="py_sifen_department_name"/>

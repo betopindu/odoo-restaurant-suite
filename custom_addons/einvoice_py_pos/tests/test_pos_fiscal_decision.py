@@ -186,7 +186,7 @@ class TestPosFiscalDecision(TransactionCase):
             "unnamed_consumer",
         )
 
-    def test_frontend_contract_is_pos_only_and_contains_no_network_operation(self):
+    def test_frontend_contract_only_calls_ruc_resolution_routes(self):
         module_root = Path(__file__).resolve().parents[1]
         manifest = ast.literal_eval((module_root / "__manifest__.py").read_text())
         assets = manifest["assets"]["point_of_sale._assets_pos"]
@@ -209,5 +209,8 @@ class TestPosFiscalDecision(TransactionCase):
         self.assertIn("SelectionPopup", javascript)
         self.assertIn("py_fiscal_checkout_enabled", template)
         self.assertIn("selectPyFiscalChoice", template)
+        self.assertIn('/einvoice_py_pos/ruc/resolve', javascript)
+        self.assertIn('/einvoice_py_pos/ruc/manual', javascript)
+        self.assertIn("TextInputPopup", javascript)
         for forbidden in ("orm.call", "fetch(", "XMLHttpRequest", "submit_and_persist"):
             self.assertNotIn(forbidden, javascript)
