@@ -38,6 +38,10 @@ class PyFiscalDocumentFromAccountMoveService:
         self._validate_correction_note(move, document_type, original_document, config)
         if document_type == "self_invoice":
             receiver = self._receiver_values(move.company_id.partner_id.commercial_partner_id)
+            # Manual Técnico v150 D202a: an Autofactura always identifies the
+            # purchaser/issuer as a taxpayer receiver, but its operation type is
+            # B2C rather than B2B.
+            receiver["py_receiver_operation_type"] = "2"
             receiver.update(self._self_invoice_values(move))
         else:
             receiver = self._receiver_values(move.partner_id.commercial_partner_id)
@@ -255,8 +259,14 @@ class PyFiscalDocumentFromAccountMoveService:
             "py_establishment_id": config["establishment"].id,
             "py_point_of_issue_id": config["point"].id,
             "py_timbrado_id": config["timbrado"].id, "py_csc_id": config["csc"].id,
-            "py_emission_type": "1", "py_transaction_type_code": "2",
-            "py_tax_type_code": "1", "py_currency": move.currency_id.name,
+            "py_emission_type": "1",
+            "py_transaction_type_code": (
+                "10" if move.move_type == "in_invoice" else "2"
+            ),
+            "py_tax_type_code": (
+                "4" if move.move_type == "in_invoice" else "1"
+            ),
+            "py_currency": move.currency_id.name,
             "py_sale_condition_code": move.py_sale_condition_code,
             "py_payment_type_code": "1" if move.py_sale_condition_code == "1" else False,
             "py_payment_amount": move.amount_total if move.py_sale_condition_code == "1" else 0,
@@ -382,7 +392,23 @@ class PyFiscalDocumentFromAccountMoveService:
             raise ValidationError(f"Invoice line {line.name!r} has an inconsistent SIFEN tax rate.")
         if not tax.price_include:
             raise ValidationError(f"Invoice line {line.name!r} uses unsupported tax-exclusive pricing.")
+        is_self_invoice = line.move_id.move_type == "in_invoice"
+        if is_self_invoice and (mapping["affectation"] != "3" or tax.amount):
+            raise ValidationError(
+                f"Self-invoice line {line.name!r} must not include VAT; "
+                "use the explicit zero-rate SIFEN mapping."
+            )
         discount = Decimal(str(line.price_unit)) * Decimal(str(line.discount)) / Decimal("100")
+        if is_self_invoice:
+            return {
+                "py_internal_code": line.product_id.default_code or str(line.id),
+                "py_unit_measure_code": "77", "py_unit_measure_description": "UNI",
+                "py_tax_affectation": False, "py_tax_rate": 0.0,
+                "py_tax_proportion": 0.0, "py_tax_base": 0.0,
+                "py_tax_amount": 0.0, "py_exempt_base": 0.0,
+                "py_discount_amount": float(discount), "tax_category_code": False,
+                "tax_rate": 0.0, "tax_base_amount": 0.0, "fiscal_unit_code": "77",
+            }
         return {
             "py_internal_code": line.product_id.default_code or str(line.id),
             "py_unit_measure_code": "77", "py_unit_measure_description": "UNI",

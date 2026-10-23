@@ -325,8 +325,12 @@ baseline (`16106`/`17896`) and B2B taxpayer profile (`17894`/`31916`). Do not
 resubmit either accepted CDC. NCE `34199`/`61044` and NDE `34200`/`61045` are
 also accepted live. NDE cancellation `61051` and number inutilization `92`
 provide accepted `0600` emitter-event evidence. Do not repeat these accepted
-operations. AFE, asynchronous batch, remaining official case counts and
-receiver-event coverage remain outside this closed MVP slice.
+operations. AFE document `34204` is the active controlled TEST case: `61056`
+preserves the pre-correction `2400` response and `61057` the later explicit
+`0160`/HTTP 400 response. Its current rDE is locally well-formed,
+XMLDSig/XSD-valid and includes the mandatory non-taxpayer constancy, but AFE is
+not yet authority-accepted. Asynchronous batch, remaining official case counts
+and receiver-event coverage remain outside this closed MVP slice.
 
 ## Handling receiver rejection 1306
 

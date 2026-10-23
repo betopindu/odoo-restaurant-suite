@@ -1,5 +1,19 @@
 # Documentation Changelog
 
+## 2026-10-23 — Paraguay AFE interoperability hardening
+
+* Corrected AFE commercial semantics to transaction type `10`, B2C receiver
+  operation type and tax type `4`; an AFE now fails closed if its posted vendor
+  bill carries IVA.
+* Removed the per-item `gCamIVA` group for AFE while retaining zero `dTotIVA`
+  required by the QR input and preserving FE/NCE/NDE XML ordering.
+* Added the mandatory `gCamDEAsoc` electronic non-taxpayer constancy for AFE.
+* Preserved controlled TEST document `34204`, CDC
+  `04032224796001001000000322026102215594656963`, and its explicit responses:
+  `61056` (`2400`) and `61057` (`0160`, HTTP 400). No response was ambiguous;
+  live AFE acceptance remains pending and the synchronous MVP is not expanded
+  to claim AFE homologation yet.
+
 ## 2026-10-22 — Paraguay synchronous correction/event MVP closure
 
 * Live-validated NDE document `34200`, transmission `61045`, authority `0260`

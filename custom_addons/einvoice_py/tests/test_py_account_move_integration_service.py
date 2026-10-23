@@ -310,7 +310,7 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         with self.assertRaisesRegex(ValidationError, "vendor bills"):
             self.service.create(move=move)
 
-    def _self_invoice_move(self, *, complete=True):
+    def _self_invoice_move(self, *, complete=True, taxes=None):
         seller = self.env["res.partner"].create({
             "name": "Rural non-taxpayer seller", "vat": "1234567",
             "country_id": self.env.ref("base.py").id, "street": "Seller address",
@@ -320,7 +320,10 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
             "py_sifen_self_invoice_seller_nature": "1",
             "py_sifen_self_invoice_id_type": "1",
         })
-        move = self._move(move_type="in_invoice", partner=seller, post=False)
+        move = self._move(
+            move_type="in_invoice", partner=seller,
+            taxes=self.tax_exempt if taxes is None else taxes, post=False,
+        )
         if complete:
             move.write({
                 "py_self_invoice_transaction_address": "Purchase location",
@@ -344,8 +347,46 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         self.assertEqual(document.document_type, "self_invoice")
         self.assertEqual(document.account_move_id, move)
         self.assertEqual(document.py_cdc[:2], "04")
+        self.assertEqual(document.py_transaction_type_code, "10")
+        self.assertEqual(document.py_receiver_nature, "1")
+        self.assertEqual(document.py_receiver_operation_type, "2")
+        self.assertEqual(document.py_tax_type_code, "4")
         self.assertEqual(document.py_seller_name, "Rural non-taxpayer seller")
         self.assertEqual(payload["self_invoice"]["seller_nature"], "1")
+        self.assertEqual(payload["operation"]["transaction_type_code"], "10")
+        self.assertEqual(
+            root.xpath("string(.//s:gOpeCom/s:iTipTra)", namespaces=ns),
+            "10",
+        )
+        self.assertEqual(
+            root.xpath("string(.//s:gOpeCom/s:dDesTipTra)", namespaces=ns),
+            "Compra de productos",
+        )
+        self.assertEqual(
+            root.xpath("string(.//s:gDatRec/s:iTiOpe)", namespaces=ns),
+            "2",
+        )
+        self.assertEqual(root.xpath("string(.//s:gOpeCom/s:iTImp)", namespaces=ns), "4")
+        self.assertFalse(root.xpath(".//s:gCamIVA", namespaces=ns))
+        self.assertEqual(
+            root.xpath("string(.//s:gCamDEAsoc/s:iTipDocAso)", namespaces=ns), "3"
+        )
+        self.assertEqual(
+            root.xpath("string(.//s:gCamDEAsoc/s:iTipCons)", namespaces=ns), "1"
+        )
+        self.assertEqual(
+            root.xpath("string(.//s:gCamDEAsoc/s:dDesTipCons)", namespaces=ns),
+            "Constancia de no ser contribuyente",
+        )
+        for field_name in (
+            "dSubExe", "dSub5", "dSub10", "dIVA5", "dIVA10",
+            "dBaseGrav5", "dBaseGrav10", "dTBasGraIVA",
+        ):
+            self.assertFalse(root.xpath(f".//s:gTotSub/s:{field_name}", namespaces=ns))
+        self.assertEqual(
+            root.xpath("string(.//s:gTotSub/s:dTotIVA)", namespaces=ns),
+            "0.00000000",
+        )
         self.assertEqual(root.xpath("string(.//s:gCamAE/s:dNumIDVen)", namespaces=ns), "1234567")
         self.assertEqual(root.xpath("string(.//s:gCamAE/s:dDirProv)", namespaces=ns), "Purchase location")
         self.assertEqual(len(root.xpath(".//s:gCamAE", namespaces=ns)), 1)
@@ -354,6 +395,12 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
     def test_self_invoice_missing_seller_or_transaction_data_fails_closed(self):
         with self.assertRaisesRegex(ValidationError, "transaction address"):
             self.service.create(move=self._self_invoice_move(complete=False))
+
+    def test_self_invoice_with_vat_fails_closed_before_artifact_creation(self):
+        move = self._self_invoice_move(taxes=self.tax_10)
+        with self.assertRaisesRegex(ValidationError, "must not include VAT"):
+            self.service.create(move=move)
+        self.assertFalse(move.fiscal_document_ids)
 
     def test_self_invoice_preview_and_full_signed_pipeline_are_offline(self):
         document = self.service.create(move=self._self_invoice_move())

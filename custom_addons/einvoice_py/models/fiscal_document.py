@@ -258,6 +258,8 @@ class FiscalDocument(models.Model):
         [
             ("1", "Sale of goods"),
             ("2", "Service provision"),
+            ("10", "Purchase of products"),
+            ("11", "Purchase of services"),
         ],
         string="Transaction Type",
         default="2",

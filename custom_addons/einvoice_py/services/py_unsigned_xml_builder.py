@@ -201,7 +201,7 @@ class PyUnsignedXmlBuilder:
         if document_type in ("01", "04"):
             self._build_condition(group, payload)
         for item in payload["items"]:
-            self._build_item(group, item)
+            self._build_item(group, item, include_vat=document_type != "04")
 
     def _build_invoice_fields(self, parent):
         group = self._sub(parent, "gCamFE")
@@ -247,6 +247,8 @@ class PyUnsignedXmlBuilder:
         self._text(group, "iTipDocAso", associated.get("type_code"))
         self._text(group, "dDesTipDocAso", associated.get("type_description"))
         self._text(group, "dCdCDERef", associated.get("cdc"))
+        self._text(group, "iTipCons", associated.get("constancy_type_code"))
+        self._text(group, "dDesTipCons", associated.get("constancy_type_description"))
 
     def _build_condition(self, parent, payload):
         condition = payload["condition"]
@@ -274,7 +276,7 @@ class PyUnsignedXmlBuilder:
                 self._text(installment_group, "dMonCuota", self._format_money(installment.get("amount")))
                 self._text(installment_group, "dVencCuo", installment.get("due_date"))
 
-    def _build_item(self, parent, item):
+    def _build_item(self, parent, item, *, include_vat=True):
         group = self._sub(parent, "gCamItem")
         self._text(group, "dCodInt", item.get("code"))
         self._text(group, "dDesProSer", item["description"])
@@ -297,6 +299,8 @@ class PyUnsignedXmlBuilder:
         self._text(remainder, "dAntGloPreUniIt", self._format_money(item.get("global_advance") or 0))
         self._text(remainder, "dTotOpeItem", self._format_money(item["total"]))
 
+        if not include_vat:
+            return
         tax = self._sub(group, "gCamIVA")
         affectation = item["tax_affectation"]
         self._text(tax, "iAfecIVA", self._normalize_int_code(affectation))
@@ -309,14 +313,16 @@ class PyUnsignedXmlBuilder:
 
     def _build_totals(self, parent, payload):
         totals = payload["totals"]
+        is_self_invoice = payload["document"]["py_i_tide"] == "04"
         subtotal_5 = totals.get("subtotal_5") or 0
         subtotal_10 = totals.get("subtotal_10") or 0
         base_5 = totals.get("base_5", subtotal_5) or 0
         base_10 = totals.get("base_10", subtotal_10) or 0
         group = self._sub(parent, "gTotSub")
-        self._text(group, "dSubExe", self._format_money(totals.get("subtotal_exempt")))
-        self._text(group, "dSub5", self._format_money(subtotal_5))
-        self._text(group, "dSub10", self._format_money(subtotal_10))
+        if not is_self_invoice:
+            self._text(group, "dSubExe", self._format_money(totals.get("subtotal_exempt")))
+            self._text(group, "dSub5", self._format_money(subtotal_5))
+            self._text(group, "dSub10", self._format_money(subtotal_10))
         self._text(group, "dTotOpe", self._format_money(totals.get("total_operation")))
         self._text(group, "dTotDesc", self._format_money(totals.get("total_discount")))
         self._text(group, "dTotDescGlotem", self._format_money(0))
@@ -327,12 +333,15 @@ class PyUnsignedXmlBuilder:
         self._text(group, "dAnticipo", self._format_money(0))
         self._text(group, "dRedon", self._format_decimal(0, places=4))
         self._text(group, "dTotGralOpe", self._format_money(totals["total_general"]))
-        self._text(group, "dIVA5", self._format_money(totals.get("total_vat_5")))
-        self._text(group, "dIVA10", self._format_money(totals.get("total_vat_10")))
-        self._text(group, "dTotIVA", self._format_money(totals.get("total_vat")))
-        self._text(group, "dBaseGrav5", self._format_money(base_5))
-        self._text(group, "dBaseGrav10", self._format_money(base_10))
-        self._text(group, "dTBasGraIVA", self._format_money(self._decimal(base_5) + self._decimal(base_10)))
+        if is_self_invoice:
+            self._text(group, "dTotIVA", self._format_money(totals.get("total_vat")))
+        else:
+            self._text(group, "dIVA5", self._format_money(totals.get("total_vat_5")))
+            self._text(group, "dIVA10", self._format_money(totals.get("total_vat_10")))
+            self._text(group, "dTotIVA", self._format_money(totals.get("total_vat")))
+            self._text(group, "dBaseGrav5", self._format_money(base_5))
+            self._text(group, "dBaseGrav10", self._format_money(base_10))
+            self._text(group, "dTBasGraIVA", self._format_money(self._decimal(base_5) + self._decimal(base_10)))
 
     def _validate_payload(self, payload):
         missing = []
@@ -397,6 +406,15 @@ class PyUnsignedXmlBuilder:
             self._require(missing, associated, "cdc", "associated invoice CDC")
         if document_type == "04":
             self_invoice = payload.get("self_invoice") or {}
+            associated = payload.get("associated_document") or {}
+            if associated.get("type_code") != "3":
+                missing.append("self-invoice electronic constancy association")
+            if associated.get("constancy_type_code") != "1":
+                missing.append("self-invoice non-taxpayer constancy type")
+            self._require(
+                missing, associated, "constancy_type_description",
+                "self-invoice constancy type description",
+            )
             for key, label in (
                 ("seller_nature", "seller nature"),
                 ("seller_nature_description", "seller nature description"),
@@ -436,7 +454,8 @@ class PyUnsignedXmlBuilder:
             self._require(missing, item, "quantity", f"{prefix} quantity")
             self._require(missing, item, "price_unit", f"{prefix} price unit")
             self._require(missing, item, "total", f"{prefix} total")
-            self._require(missing, item, "tax_affectation", f"{prefix} tax affectation")
+            if document_type != "04":
+                self._require(missing, item, "tax_affectation", f"{prefix} tax affectation")
             if (
                 item.get("tax_affectation")
                 and item.get("tax_affectation") not in self.VAT_AFFECTATION_DESCRIPTIONS

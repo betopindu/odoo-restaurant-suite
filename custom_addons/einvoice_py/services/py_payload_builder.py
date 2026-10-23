@@ -15,6 +15,8 @@ class PyPayloadBuilder:
     TRANSACTION_TYPES = {
         "1": "Venta de mercadería",
         "2": "Prestación de servicios",
+        "10": "Compra de productos",
+        "11": "Compra de servicios",
     }
     TAX_TYPES = {
         "1": "IVA",
@@ -93,6 +95,7 @@ class PyPayloadBuilder:
             payload["associated_document"] = self._associated_document_section(document)
         if document.document_type == "self_invoice":
             payload["self_invoice"] = self._self_invoice_section(document)
+            payload["associated_document"] = self._associated_document_section(document)
         return payload
 
     def _validate_required(self, document):
@@ -415,6 +418,13 @@ class PyPayloadBuilder:
         }
 
     def _associated_document_section(self, document):
+        if document.document_type == "self_invoice":
+            return {
+                "type_code": "3",
+                "type_description": "Constancia Electrónica",
+                "constancy_type_code": "1",
+                "constancy_type_description": "Constancia de no ser contribuyente",
+            }
         original = document.original_document_id
         if document.document_type not in ("credit_note", "debit_note") or not original:
             return None
@@ -441,11 +451,17 @@ class PyPayloadBuilder:
                 rate=self._decimal(tax_rate or 0),
                 proportion=tax_proportion,
             )
-            if not line.py_tax_affectation:
+            is_self_invoice = document.document_type == "self_invoice"
+            if not line.py_tax_affectation and not is_self_invoice:
                 warnings.append(
                     f"Line {line.sequence or line.id}: tax affectation is missing."
                 )
-            if line.py_tax_affectation != "3" and not tax_rate and not tax_amount:
+            if (
+                not is_self_invoice
+                and line.py_tax_affectation != "3"
+                and not tax_rate
+                and not tax_amount
+            ):
                 warnings.append(
                     f"Line {line.sequence or line.id}: unknown item tax details."
                 )
@@ -476,6 +492,26 @@ class PyPayloadBuilder:
         return items
 
     def _totals_section(self, document, warnings, items):
+        if document.document_type == "self_invoice":
+            total_operation = sum(
+                (self._decimal(item["total"]) for item in items), Decimal("0")
+            )
+            total_discount = sum(
+                (
+                    self._decimal(item.get("discount") or 0)
+                    * self._decimal(item["quantity"])
+                    for item in items
+                ),
+                Decimal("0"),
+            )
+            return {
+                "total_operation": self._number(total_operation),
+                "total_discount": self._number(total_discount),
+                # dTotIVA remains part of the mandatory QR input even though an
+                # AFE must not carry the per-item IVA group.
+                "total_vat": 0,
+                "total_general": self._number(total_operation),
+            }
         subtotal_exempt = subtotal_5 = subtotal_10 = Decimal("0")
         base_5 = base_10 = Decimal("0")
         total_vat_5 = total_vat_10 = Decimal("0")
