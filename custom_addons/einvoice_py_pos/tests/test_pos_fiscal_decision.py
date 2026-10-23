@@ -275,6 +275,20 @@ class TestPosFiscalDecision(TransactionCase):
         self.assertIn("selectPyFiscalChoice", template)
         self.assertIn('/einvoice_py_pos/ruc/resolve', javascript)
         self.assertIn('/einvoice_py_pos/ruc/manual', javascript)
+        self.assertIn(
+            'import { jsonrpc } from "@web/core/network/rpc_service";',
+            javascript,
+        )
+        self.assertIn(
+            'jsonrpc("/einvoice_py_pos/ruc/resolve"',
+            javascript,
+        )
         self.assertIn("TextInputPopup", javascript)
-        for forbidden in ("orm.call", "fetch(", "XMLHttpRequest", "submit_and_persist"):
+        for forbidden in (
+            'import { rpc } from "@web/core/network/rpc_service";',
+            "orm.call",
+            "fetch(",
+            "XMLHttpRequest",
+            "submit_and_persist",
+        ):
             self.assertNotIn(forbidden, javascript)

@@ -5,7 +5,7 @@ import { ErrorPopup } from "@point_of_sale/app/errors/popups/error_popup";
 import { Order } from "@point_of_sale/app/store/models";
 import { SelectionPopup } from "@point_of_sale/app/utils/input_popups/selection_popup";
 import { TextInputPopup } from "@point_of_sale/app/utils/input_popups/text_input_popup";
-import { rpc } from "@web/core/network/rpc_service";
+import { jsonrpc } from "@web/core/network/rpc_service";
 import { uuidv4 } from "@point_of_sale/utils";
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
@@ -170,7 +170,7 @@ patch(PaymentScreen.prototype, {
         }
         let result;
         try {
-            result = await rpc("/einvoice_py_pos/ruc/resolve", {
+            result = await jsonrpc("/einvoice_py_pos/ruc/resolve", {
                 session_id: this.pos.pos_session.id,
                 ruc,
             });
@@ -193,7 +193,7 @@ patch(PaymentScreen.prototype, {
             if (!taxpayerType) {
                 return false;
             }
-            result = await rpc("/einvoice_py_pos/ruc/complete", {
+            result = await jsonrpc("/einvoice_py_pos/ruc/complete", {
                 session_id: this.pos.pos_session.id,
                 partner_id: result.partner_id,
                 taxpayer_type: taxpayerType,
@@ -232,7 +232,7 @@ patch(PaymentScreen.prototype, {
         }
         let result;
         try {
-            result = await rpc("/einvoice_py_pos/ruc/manual", {
+            result = await jsonrpc("/einvoice_py_pos/ruc/manual", {
                 session_id: this.pos.pos_session.id,
                 ruc,
                 name,
