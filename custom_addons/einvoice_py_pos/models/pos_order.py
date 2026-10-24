@@ -1,6 +1,6 @@
 import re
 
-from odoo import api, fields, models
+from odoo import api, fields, models, tools
 from odoo.exceptions import ValidationError
 
 from odoo.addons.einvoice_py.services.py_account_move_integration_service import (
@@ -131,7 +131,16 @@ class PosOrder(models.Model):
                 "py_fiscal_point_of_issue_id": config.py_fiscal_point_of_issue_id.id,
                 "py_sale_condition_code": "1",
             })
-            PyFiscalDocumentFromAccountMoveService(self.env).create(move=move)
+            email_requested = order.py_fiscal_delivery in ("email", "both")
+            PyFiscalDocumentFromAccountMoveService(self.env).create(
+                move=move,
+                customer_email_override=(
+                    (order.py_fiscal_email or "").strip()
+                    if email_requested
+                    else None
+                ),
+                email_delivery_policy=("requested" if email_requested else "suppressed"),
+            )
         return True
 
     @api.model
@@ -178,8 +187,12 @@ class PosOrder(models.Model):
         delivery = data.get("py_fiscal_delivery")
         if delivery not in ("print", "email", "both"):
             raise ValidationError("Paraguay fiscal delivery selection is invalid.")
-        if delivery in ("email", "both") and not (data.get("py_fiscal_email") or "").strip():
-            raise ValidationError("Email delivery requires a recipient email address.")
+        if delivery in ("email", "both"):
+            email = (data.get("py_fiscal_email") or "").strip()
+            if len(tools.email_split(email)) != 1:
+                raise ValidationError(
+                    "Email delivery requires one valid recipient email address."
+                )
         return True
 
     def write(self, vals):

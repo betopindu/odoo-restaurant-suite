@@ -81,7 +81,9 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
 
 ### V1.0-P2 — Recipient delivery and operational recovery
 
-- Apply configurable automatic email delivery for known recipients.
+- [x] Apply configurable automatic email delivery for known recipients. The
+  originating channel snapshots the confirmed recipient and may explicitly
+  suppress automatic email when print-only delivery was selected.
 - Print KuDE when email is absent or printing is selected.
 - Expose delivery state and independent resend without another SIFEN call.
 - Provide operator recovery and Consulta DE only through existing guards.

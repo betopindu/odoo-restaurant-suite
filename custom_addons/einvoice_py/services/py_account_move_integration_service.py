@@ -28,8 +28,16 @@ class PyFiscalDocumentFromAccountMoveService:
         self.env = env
         self.snapshot_time_provider = snapshot_time_provider or fields.Datetime.now
 
-    def create(self, *, move):
+    def create(
+        self,
+        *,
+        move,
+        customer_email_override=None,
+        email_delivery_policy="company_default",
+    ):
         move.ensure_one()
+        if email_delivery_policy not in ("company_default", "requested", "suppressed"):
+            raise ValidationError("Unsupported Paraguay fiscal email delivery policy.")
         document_type = self._document_type(move)
         original_document = self._original_document(move, document_type)
         config = self._configuration(move, document_type)
@@ -45,6 +53,8 @@ class PyFiscalDocumentFromAccountMoveService:
             receiver.update(self._self_invoice_values(move))
         else:
             receiver = self._receiver_values(move.partner_id.commercial_partner_id)
+        if customer_email_override is not None:
+            receiver["customer_email"] = str(customer_email_override).strip()
         snapshot_at = self.snapshot_time_provider()
         document = FiscalDocumentFromAccountMoveService(
             move.with_context(fiscal_snapshot_at=snapshot_at).env
@@ -52,7 +62,13 @@ class PyFiscalDocumentFromAccountMoveService:
             move=move,
             tenant=config["tenant"],
             adapter_config=config["adapter"],
-            document_values=self._document_values(move, config, receiver, snapshot_at),
+            document_values=self._document_values(
+                move,
+                config,
+                receiver,
+                snapshot_at,
+                email_delivery_policy=email_delivery_policy,
+            ),
             line_value_provider=self._line_values,
             document_type=document_type,
             original_document=original_document,
@@ -250,7 +266,15 @@ class PyFiscalDocumentFromAccountMoveService:
             "py_receiver_city_name": partner.py_sifen_city_name,
         }
 
-    def _document_values(self, move, config, receiver, snapshot_at):
+    def _document_values(
+        self,
+        move,
+        config,
+        receiver,
+        snapshot_at,
+        *,
+        email_delivery_policy="company_default",
+    ):
         issuer = config["issuer"]
         values = dict(receiver, **{
             "issue_datetime": snapshot_at, "py_issuer_id": issuer.id,
@@ -272,6 +296,7 @@ class PyFiscalDocumentFromAccountMoveService:
             "py_payment_amount": move.amount_total if move.py_sale_condition_code == "1" else 0,
             "py_payment_currency": move.currency_id.name,
             "py_credit_debit_reason_code": move.py_credit_note_reason_code or False,
+            "py_email_delivery_policy": email_delivery_policy,
         })
         values.update(self._credit_values(move))
         return values

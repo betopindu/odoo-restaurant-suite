@@ -182,6 +182,17 @@ class TestPyFiscalEmailDeliveryService(TestPyFiscalDocumentDeliveryService):
         self.assertEqual(first.mode, "automatic")
         self.assertEqual(len(self.document.py_email_delivery_ids), 1)
 
+    def test_automatic_delivery_honors_channel_suppression(self):
+        self.env.company.py_auto_email_accepted_fiscal_documents = True
+        self.document.py_email_delivery_policy = "suppressed"
+
+        result = self._email_service().enqueue_automatic_if_enabled(
+            document=self.document.with_user(self.operator)
+        )
+
+        self.assertFalse(result)
+        self.assertFalse(self.document.py_email_delivery_ids)
+
     def test_email_failure_never_changes_accepted_fiscal_state(self):
         self.env.company.py_auto_email_accepted_fiscal_documents = True
         self.document.customer_email = False

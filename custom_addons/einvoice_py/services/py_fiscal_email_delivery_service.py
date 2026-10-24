@@ -112,6 +112,8 @@ class PyFiscalEmailDeliveryService:
         document.ensure_one()
         if not document.company_id.py_auto_email_accepted_fiscal_documents:
             return self.env["py.fiscal.email.delivery"]
+        if document.py_email_delivery_policy == "suppressed":
+            return self.env["py.fiscal.email.delivery"]
         try:
             with self.env.cr.savepoint():
                 return self.enqueue(document=document, mode="automatic")

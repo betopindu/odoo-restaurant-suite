@@ -293,6 +293,18 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         self.assertEqual(metadata["source"]["record_id"], move.id)
         self.assertEqual(len(metadata["snapshot_sha256"]), 64)
 
+    def test_channel_email_choice_is_captured_before_payload_persistence(self):
+        document = self.service.create(
+            move=self._move(),
+            customer_email_override=" checkout@example.test ",
+            email_delivery_policy="requested",
+        )
+        payload = PyPayloadBuilder(self.env).build(document)
+
+        self.assertEqual(document.customer_email, "checkout@example.test")
+        self.assertEqual(document.py_email_delivery_policy, "requested")
+        self.assertEqual(payload["receiver"]["email"], "checkout@example.test")
+
     def test_repeated_call_is_idempotent_and_consumes_one_number(self):
         move = self._move()
         before = self.sequence.next_number

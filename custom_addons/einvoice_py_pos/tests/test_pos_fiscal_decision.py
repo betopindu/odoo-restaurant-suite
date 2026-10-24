@@ -134,6 +134,10 @@ class TestPosFiscalDecision(TransactionCase):
         )
         with self.assertRaisesRegex(ValidationError, "recipient email"):
             self.env["pos.order"]._validate_py_fiscal_ui_order(values)
+        with self.assertRaisesRegex(ValidationError, "recipient email"):
+            self.env["pos.order"]._validate_py_fiscal_ui_order(
+                dict(values, py_fiscal_email="not-an-email")
+            )
 
     def test_disabled_pos_rejects_fiscal_payload_but_normal_pos_remains_usable(self):
         config = self.env["pos.config"].create({"name": "Non Fiscal POS"})
@@ -207,10 +211,52 @@ class TestPosFiscalDecision(TransactionCase):
         ) as create:
             self.env["pos.order"]._prepare_py_fiscal_documents([{"id": order.id}])
         create.assert_called_once()
+        self.assertEqual(create.call_args.kwargs["customer_email_override"], None)
+        self.assertEqual(create.call_args.kwargs["email_delivery_policy"], "suppressed")
         self.assertEqual(move.py_fiscal_tenant_id, self.tenant)
         self.assertEqual(move.py_fiscal_establishment_id, self.establishment)
         self.assertEqual(move.py_fiscal_point_of_issue_id, self.point)
         self.assertEqual(move.py_sale_condition_code, "1")
+
+    def test_email_choice_is_snapshotted_for_automatic_delivery(self):
+        move = self.env["account.move"].create({
+            "move_type": "out_invoice",
+            "partner_id": self.taxpayer.id,
+        })
+        move.state = "posted"
+        order = self.env["pos.order"].create({
+            "name": "Fiscal email order",
+            "pos_reference": "Fiscal email order",
+            "session_id": self.session.id,
+            "config_id": self.config.id,
+            "company_id": self.company.id,
+            "partner_id": self.taxpayer.id,
+            "account_move": move.id,
+            "amount_total": 0,
+            "amount_tax": 0,
+            "amount_paid": 0,
+            "amount_return": 0,
+            "py_fiscal_choice": "with_ruc",
+            "py_fiscal_decision_id": "decision-email",
+            "py_ruc_resolution": "local",
+            "py_fiscal_delivery": "email",
+            "py_fiscal_email": " checkout@example.test ",
+        })
+        with patch.object(
+            __import__(
+                "odoo.addons.einvoice_py_pos.models.pos_order",
+                fromlist=["PyFiscalDocumentFromAccountMoveService"],
+            ).PyFiscalDocumentFromAccountMoveService,
+            "create",
+        ) as create:
+            self.env["pos.order"]._prepare_py_fiscal_documents([{"id": order.id}])
+
+        create.assert_called_once()
+        self.assertEqual(
+            create.call_args.kwargs["customer_email_override"],
+            "checkout@example.test",
+        )
+        self.assertEqual(create.call_args.kwargs["email_delivery_policy"], "requested")
 
     def test_no_fe_order_never_prepares_fiscal_document(self):
         order = self.env["pos.order"].create({

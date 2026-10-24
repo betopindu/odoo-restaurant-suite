@@ -110,6 +110,21 @@ class FiscalDocument(models.Model):
         copy=False,
         index=True,
     )
+    py_email_delivery_policy = fields.Selection(
+        [
+            ("company_default", "Company Default"),
+            ("requested", "Email Requested"),
+            ("suppressed", "Email Suppressed"),
+        ],
+        string="Email Delivery Policy",
+        default="company_default",
+        required=True,
+        copy=False,
+        help=(
+            "Immutable delivery choice captured by the originating channel. "
+            "Automatic email remains subject to the company-level switch."
+        ),
+    )
     py_receiver_nature = fields.Selection(
         [
             ("1", "Taxpayer"),

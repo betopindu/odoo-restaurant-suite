@@ -67,6 +67,14 @@
 * Preserved document `34199` and transmission `61043` as the explicit SIFEN
   TEST rejection `1501`; no additional live operation was performed.
 
+## 2026-10-24 — POS fiscal delivery snapshot
+
+* Connected the POS delivery choice to the immutable fiscal snapshot before
+  payload persistence. Email/both uses the cashier-confirmed address; print-only
+  suppresses automatic email without changing fiscal issuance or manual resend.
+* Added offline regression coverage for channel policy, recipient propagation,
+  invalid addresses and automatic-delivery suppression.
+
 ## 2026-10-14 — SIFEN v150 transaction type conditionality
 
 * Corrected NCE/NDE XML generation to omit `iTipTra` and `dDesTipTra`, as the
