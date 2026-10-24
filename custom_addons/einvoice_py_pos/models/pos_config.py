@@ -40,6 +40,19 @@ class PosConfig(models.Model):
         ondelete="restrict",
         help="Internal partner used only to create the accounting invoice for an innominado FE.",
     )
+    py_fiscal_auto_submit_enabled = fields.Boolean(
+        string="Submit FE after POS payment",
+        help=(
+            "Queues exactly one SIFEN submission after the POS invoice and fiscal "
+            "document are prepared. Automatic retries remain disabled."
+        ),
+    )
+    py_fiscal_auto_submit_user_id = fields.Many2one(
+        "res.users",
+        string="Fiscal submission operator",
+        ondelete="restrict",
+        help="Authorized fiscal operator recorded as the actor of automatic POS submissions.",
+    )
 
     @api.constrains(
         "py_fiscal_checkout_enabled",
@@ -48,11 +61,19 @@ class PosConfig(models.Model):
         "py_fiscal_establishment_id",
         "py_fiscal_point_of_issue_id",
         "py_fiscal_unnamed_partner_id",
+        "py_fiscal_auto_submit_enabled",
+        "py_fiscal_auto_submit_user_id",
         "payment_method_ids",
         "company_id",
     )
     def _check_py_fiscal_checkout_scope(self):
-        for config in self.filtered("py_fiscal_checkout_enabled"):
+        for config in self:
+            if config.py_fiscal_auto_submit_enabled and not config.py_fiscal_checkout_enabled:
+                raise ValidationError(
+                    "Automatic POS fiscal submission requires Paraguay fiscal checkout."
+                )
+            if not config.py_fiscal_checkout_enabled:
+                continue
             required = {
                 "fiscal tenant": config.py_fiscal_tenant_id,
                 "establishment": config.py_fiscal_establishment_id,
@@ -93,3 +114,21 @@ class PosConfig(models.Model):
                     + ", ".join(unmapped.mapped("name"))
                     + "."
                 )
+            if config.py_fiscal_auto_submit_enabled:
+                operator = config.py_fiscal_auto_submit_user_id
+                if not operator:
+                    raise ValidationError(
+                        "Automatic POS fiscal submission requires an authorized operator."
+                    )
+                if not operator.has_group("einvoice_py.group_py_fiscal_operator"):
+                    raise ValidationError(
+                        "The automatic POS fiscal submission user must be a Paraguay Fiscal Operator."
+                    )
+                if config.company_id not in operator.company_ids:
+                    raise ValidationError(
+                        "The automatic POS fiscal operator must have access to the POS company."
+                    )
+                if config.py_fiscal_tenant_id not in operator.allowed_fiscal_tenant_ids:
+                    raise ValidationError(
+                        "The automatic POS fiscal operator must have access to the fiscal tenant."
+                    )

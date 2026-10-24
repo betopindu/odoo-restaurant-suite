@@ -210,6 +210,8 @@ with `0422`, protocol `50276195`; final rDE `74708`, KuDE `74717`)
 [ ] SIFEN error normalization
 [ ] Fiscal representation download security
 [x] Email delivery (Odoo mail queue; automatic mode disabled by default)
+[x] One-shot POS fiscal submission queue with explicit operator identity,
+non-blocking checkout and automatic retry prohibited
 [ ] WhatsApp delivery
 [ ] Costa Rica addon
 [ ] Argentina addon

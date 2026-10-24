@@ -1,0 +1,2 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_py_pos_fiscal_submission_job_operator,py.pos.fiscal.submission.job operator,model_py_pos_fiscal_submission_job,einvoice_py.group_py_fiscal_operator,1,0,0,0

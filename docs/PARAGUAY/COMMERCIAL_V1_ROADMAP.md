@@ -75,10 +75,12 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
   semantics. Each POS method requires an explicit official code; the immutable
   snapshot nets change, reconciles to the sale total and emits one ordered
   `gPaConEIni` group per tender.
-- Create the posted accounting move and immutable fiscal document exactly
+- [x] Create the posted accounting move and immutable fiscal document exactly
   once when FE is selected.
-- Execute exactly one durable submission automatically after cashier
-  confirmation; keep automatic retry disabled.
+- [x] Queue exactly one durable submission after cashier confirmation without
+  blocking POS/KDS. A configured fiscal-operator identity executes the job;
+  the job is claimed once, never requeued automatically, and its transmission
+  is explicitly ineligible for automatic retry.
 - Show accepted, rejected, ambiguous and recovery-required outcomes in POS.
 - Keep KDS preparation independent from fiscal checkout latency.
 

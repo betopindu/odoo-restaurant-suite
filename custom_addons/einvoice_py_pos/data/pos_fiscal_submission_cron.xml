@@ -1,0 +1,12 @@
+<odoo noupdate="1">
+    <record id="ir_cron_py_pos_fiscal_submission" model="ir.cron">
+        <field name="name">Paraguay POS - Submit queued fiscal documents</field>
+        <field name="model_id" ref="model_py_pos_fiscal_submission_job"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_process_queued(limit=10)</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">minutes</field>
+        <field name="numbercall">-1</field>
+        <field name="active">True</field>
+    </record>
+</odoo>

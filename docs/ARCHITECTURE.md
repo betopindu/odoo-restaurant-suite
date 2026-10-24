@@ -85,7 +85,19 @@ to `PySifenTransmissionPersistenceService`, guarded retries to
 confirmation wizard; network access begins only after an authorized member of
 `einvoice_py.group_py_fiscal_operator` confirms. Document locks and the existing
 durable pre-POST, CDC, provenance, acceptance and ambiguity guards remain the
-source of truth. Automatic submission and the retry cron remain disabled.
+source of truth. The operator UI itself never submits automatically and the
+generic retry cron remains disabled.
+
+The optional `einvoice_py_pos` bridge may enable a separate one-shot submission
+queue per POS configuration. Checkout prepares the accounting move and fiscal
+document, then creates at most one job keyed by both POS order and fiscal
+document; it performs no network call and therefore does not delay KDS or the
+cashier response. A configured member of `Paraguay Fiscal Operator`, scoped to
+the company and tenant, executes the existing `PySifenOperatorService` from the
+cron boundary. Claiming is committed before submission. A crash leaves the job
+in `processing` for manual review rather than requeueing it. Every completed
+transmission is marked `not_retryable` with no next retry time. No signing,
+SOAP, transport, persistence, CDC or reconciliation logic is duplicated.
 
 Paraguay DE submission now has a durable pre-POST boundary. A narrowly scoped
 independent cursor commits a `pending` attempt before caller-owned artifact

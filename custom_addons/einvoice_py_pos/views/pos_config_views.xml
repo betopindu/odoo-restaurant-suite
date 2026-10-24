@@ -16,6 +16,8 @@
                             <div class="row mt8"><label for="py_fiscal_establishment_id" class="col-lg-4 o_light_label"/><field name="py_fiscal_establishment_id" domain="[('company_id', '=', company_id), ('tenant_id', '=', py_fiscal_tenant_id)]"/></div>
                             <div class="row mt8"><label for="py_fiscal_point_of_issue_id" class="col-lg-4 o_light_label"/><field name="py_fiscal_point_of_issue_id" domain="[('establishment_id', '=', py_fiscal_establishment_id)]"/></div>
                             <div class="row mt8"><label for="py_fiscal_unnamed_partner_id" class="col-lg-4 o_light_label"/><field name="py_fiscal_unnamed_partner_id" domain="[('py_sifen_receiver_profile', '=', 'unnamed_consumer')]"/></div>
+                            <div class="row mt8"><label for="py_fiscal_auto_submit_enabled" class="col-lg-4 o_light_label"/><field name="py_fiscal_auto_submit_enabled"/></div>
+                            <div class="row mt8" invisible="not py_fiscal_auto_submit_enabled"><label for="py_fiscal_auto_submit_user_id" class="col-lg-4 o_light_label"/><field name="py_fiscal_auto_submit_user_id" domain="[('company_ids', 'in', company_id)]"/></div>
                         </div>
                     </setting>
                 </div>

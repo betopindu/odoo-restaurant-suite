@@ -121,27 +121,32 @@ class PosOrder(models.Model):
                 raise ValidationError(
                     "The POS invoice has multiple active Paraguay fiscal documents."
                 )
-            if documents:
-                continue
             config = order.config_id
-            move.write({
-                "py_fiscal_environment": config.py_fiscal_environment,
-                "py_fiscal_tenant_id": config.py_fiscal_tenant_id.id,
-                "py_fiscal_establishment_id": config.py_fiscal_establishment_id.id,
-                "py_fiscal_point_of_issue_id": config.py_fiscal_point_of_issue_id.id,
-                "py_sale_condition_code": "1",
-            })
-            email_requested = order.py_fiscal_delivery in ("email", "both")
-            payment_snapshot = self._py_sifen_payment_snapshot(order)
-            PyFiscalDocumentFromAccountMoveService(self.env).create(
-                move=move,
-                customer_email_override=(
-                    (order.py_fiscal_email or "").strip()
-                    if email_requested
-                    else None
-                ),
-                email_delivery_policy=("requested" if email_requested else "suppressed"),
-                payment_snapshot=payment_snapshot,
+            if documents:
+                document = documents
+            else:
+                move.write({
+                    "py_fiscal_environment": config.py_fiscal_environment,
+                    "py_fiscal_tenant_id": config.py_fiscal_tenant_id.id,
+                    "py_fiscal_establishment_id": config.py_fiscal_establishment_id.id,
+                    "py_fiscal_point_of_issue_id": config.py_fiscal_point_of_issue_id.id,
+                    "py_sale_condition_code": "1",
+                })
+                email_requested = order.py_fiscal_delivery in ("email", "both")
+                payment_snapshot = self._py_sifen_payment_snapshot(order)
+                document = PyFiscalDocumentFromAccountMoveService(self.env).create(
+                    move=move,
+                    customer_email_override=(
+                        (order.py_fiscal_email or "").strip()
+                        if email_requested
+                        else None
+                    ),
+                    email_delivery_policy=("requested" if email_requested else "suppressed"),
+                    payment_snapshot=payment_snapshot,
+                )
+            self.env["py.pos.fiscal.submission.job"].enqueue(
+                order=order,
+                document=document,
             )
         return True
 

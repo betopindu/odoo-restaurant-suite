@@ -103,8 +103,13 @@ provenance or contradictory evidence fails closed. Preview remains
 non-authoritative and never unlocks accepted-document delivery.
 
 Opening either action performs no network operation. The operator must confirm
-the transient wizard before one service call is made. There is no automatic
-submission, automatic reconciliation or enabled retry cron.
+the transient wizard before one service call is made. Independently, the
+optional POS bridge can queue one post-payment submission when explicitly
+enabled on that POS and assigned to an authorized fiscal operator. Queueing is
+network-free; the worker reuses the same operator and durable persistence
+services, never requeues an attempt, and disables automatic retry on its
+resulting transmission. There is no automatic reconciliation or enabled
+generic retry cron.
 
 ## Homologation status
 
