@@ -81,7 +81,9 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
   blocking POS/KDS. A configured fiscal-operator identity executes the job;
   the job is claimed once, never requeued automatically, and its transmission
   is explicitly ineligible for automatic retry.
-- Show accepted, rejected, ambiguous and recovery-required outcomes in POS.
+- [x] Show queued/processing, accepted, rejected, ambiguous and
+  recovery/operator-required outcomes on the POS receipt screen. The polling
+  endpoint is read-only and never invokes submission, retry or Consulta DE.
 - Keep KDS preparation independent from fiscal checkout latency.
 
 ### V1.0-P2 — Recipient delivery and operational recovery

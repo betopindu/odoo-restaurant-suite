@@ -98,6 +98,10 @@ cron boundary. Claiming is committed before submission. A crash leaves the job
 in `processing` for manual review rather than requeueing it. Every completed
 transmission is marked `not_retryable` with no next retry time. No signing,
 SOAP, transport, persistence, CDC or reconciliation logic is duplicated.
+The POS receipt screen polls a session- and decision-scoped, read-only endpoint
+for the job projection. It exposes only safe status, authority code/message,
+protocol and CDC. Terminal rejection, ambiguity and operator-review states stop
+polling and never trigger submission, retry or Consulta DE.
 
 Paraguay DE submission now has a durable pre-POST boundary. A narrowly scoped
 independent cursor commits a `pending` attempt before caller-owned artifact

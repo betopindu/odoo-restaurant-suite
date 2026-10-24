@@ -381,6 +381,10 @@ class TestPosFiscalDecision(TransactionCase):
         self.assertIn("selectPyFiscalChoice", template)
         self.assertIn('/einvoice_py_pos/ruc/resolve', javascript)
         self.assertIn('/einvoice_py_pos/ruc/manual', javascript)
+        self.assertIn('/einvoice_py_pos/fiscal/status', javascript)
+        self.assertIn("ReceiptScreen.prototype", javascript)
+        self.assertIn("Automatic retries are disabled.", template)
+        self.assertIn("aria-live=\"polite\"", template)
         self.assertIn(
             'import { jsonrpc } from "@web/core/network/rpc_service";',
             javascript,
@@ -396,5 +400,6 @@ class TestPosFiscalDecision(TransactionCase):
             "fetch(",
             "XMLHttpRequest",
             "submit_and_persist",
+            "Consulta DE",
         ):
             self.assertNotIn(forbidden, javascript)

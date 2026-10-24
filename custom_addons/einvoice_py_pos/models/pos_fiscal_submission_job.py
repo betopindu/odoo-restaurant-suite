@@ -80,6 +80,42 @@ class PyPosFiscalSubmissionJob(models.Model):
         })
 
     @api.model
+    def status_for_pos(self, *, order):
+        order.ensure_one()
+        if order.py_fiscal_choice in (False, "no_fe"):
+            return {"status": "not_applicable"}
+        job = self.sudo().search([("order_id", "=", order.id)], limit=1)
+        if not job:
+            return {
+                "status": "operator_submission_required",
+                "message": "The fiscal document requires operator submission.",
+            }
+        if job.state == "queued":
+            return {"status": "queued", "message": "Queued for SIFEN submission."}
+        if job.state == "processing":
+            return {
+                "status": "processing",
+                "message": "Submission is in progress. If it does not finish, request operator review.",
+            }
+        document = job.document_id
+        if job.ambiguous or document.state == "manual_review":
+            status = "recovery_required"
+        elif job.submission_status == "accepted" or document.state == "accepted":
+            status = "accepted"
+        elif job.submission_status == "rejected" or document.state == "rejected":
+            status = "rejected"
+        else:
+            status = "operator_review"
+        return {
+            "status": status,
+            "message": job.authority_message or job.error_detail or "Operator review is required.",
+            "authority_code": job.authority_code or "",
+            "authority_protocol": job.authority_protocol or "",
+            "cdc": document.py_cdc or document.country_identifier or "",
+            "ambiguous": bool(job.ambiguous),
+        }
+
+    @api.model
     def cron_process_queued(self, limit=10):
         job_ids = self.sudo().search([("state", "=", "queued")], limit=limit, order="id").ids
         results = []

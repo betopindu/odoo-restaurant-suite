@@ -182,6 +182,45 @@ class TestPosFiscalSubmissionJob(TransactionCase):
         self.assertEqual(transmission.retry_state, "not_retryable")
         self.assertEqual(transmission.max_retry_count, 0)
         self.assertFalse(transmission.next_retry_at)
+        status = self.env["py.pos.fiscal.submission.job"].status_for_pos(order=order)
+        self.assertEqual(status["status"], "accepted")
+        self.assertEqual(status["authority_code"], "0260")
+        self.assertEqual(status["authority_protocol"], "123")
+
+    def test_pos_status_distinguishes_rejection_and_recovery(self):
+        order, document = self._records("status-outcomes")
+        job = self.env["py.pos.fiscal.submission.job"].enqueue(
+            order=order, document=document
+        )
+        job.write({
+            "state": "completed",
+            "attempt_count": 1,
+            "submission_status": "rejected",
+            "authority_code": "1306",
+            "authority_message": "Receiver not found",
+        })
+
+        rejected = self.env["py.pos.fiscal.submission.job"].status_for_pos(order=order)
+        self.assertEqual(rejected["status"], "rejected")
+        self.assertEqual(rejected["authority_code"], "1306")
+
+        job.write({"ambiguous": True})
+        recovery = self.env["py.pos.fiscal.submission.job"].status_for_pos(order=order)
+        self.assertEqual(recovery["status"], "recovery_required")
+        self.assertTrue(recovery["ambiguous"])
+
+    def test_pos_status_is_read_only_and_never_submits(self):
+        order, document = self._records("status-read-only")
+        job = self.env["py.pos.fiscal.submission.job"].enqueue(
+            order=order, document=document
+        )
+
+        status = self.env["py.pos.fiscal.submission.job"].status_for_pos(order=order)
+
+        self.assertEqual(status["status"], "queued")
+        self.assertEqual(job.state, "queued")
+        self.assertEqual(job.attempt_count, 0)
+        self.assertFalse(document.transmission_ids)
 
     def test_unclaimed_job_cannot_execute(self):
         order, document = self._records("not-claimed")

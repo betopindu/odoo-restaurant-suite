@@ -16,4 +16,35 @@
             </button>
         </xpath>
     </t>
+
+    <t t-name="einvoice_py_pos.ReceiptScreenFiscalStatus"
+       t-inherit="point_of_sale.ReceiptScreen"
+       t-inherit-mode="extension">
+        <xpath expr="//div[contains(@class, 'actions')]/div/h1" position="after">
+            <div t-if="showPyFiscalStatus"
+                 class="alert mt-3 mb-2 text-start"
+                 t-att-class="pyFiscalStatusClass"
+                 role="status"
+                 aria-live="polite">
+                <div class="d-flex align-items-center gap-2 fw-bold fs-4">
+                    <i class="fa" t-att-class="pyFiscalStatusIcon"/>
+                    <span t-esc="pyFiscalStatusLabel"/>
+                </div>
+                <div t-if="pyFiscalStatus.message" class="mt-2" t-esc="pyFiscalStatus.message"/>
+                <div t-if="pyFiscalStatus.authority_code" class="mt-2">
+                    <strong>SIFEN:</strong>
+                    <span t-esc="pyFiscalStatus.authority_code"/>
+                </div>
+                <div t-if="pyFiscalStatus.cdc" class="text-break">
+                    <strong>CDC:</strong>
+                    <span t-esc="pyFiscalStatus.cdc"/>
+                </div>
+                <div t-if="pyFiscalStatus.authority_protocol">
+                    <strong>Protocol:</strong>
+                    <span t-esc="pyFiscalStatus.authority_protocol"/>
+                </div>
+                <small class="d-block mt-2 text-muted">Automatic retries are disabled.</small>
+            </div>
+        </xpath>
+    </t>
 </templates>

@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { PaymentScreen } from "@point_of_sale/app/screens/payment_screen/payment_screen";
+import { ReceiptScreen } from "@point_of_sale/app/screens/receipt_screen/receipt_screen";
 import { ErrorPopup } from "@point_of_sale/app/errors/popups/error_popup";
 import { Order } from "@point_of_sale/app/store/models";
 import { SelectionPopup } from "@point_of_sale/app/utils/input_popups/selection_popup";
@@ -9,6 +10,7 @@ import { jsonrpc } from "@web/core/network/rpc_service";
 import { uuidv4 } from "@point_of_sale/utils";
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
+import { onMounted, onWillUnmount, useState } from "@odoo/owl";
 
 
 patch(Order.prototype, {
@@ -258,5 +260,102 @@ patch(PaymentScreen.prototype, {
             ],
         });
         return confirmed ? payload : false;
+    },
+});
+
+
+patch(ReceiptScreen.prototype, {
+    setup() {
+        super.setup(...arguments);
+        this.pyFiscalStatus = useState({
+            status: this.currentOrder.pyFiscalChoice === "no_fe" ? "not_applicable" : "loading",
+            message: "",
+            authority_code: "",
+            authority_protocol: "",
+            cdc: "",
+        });
+        this.pyFiscalPoll = null;
+        onMounted(() => this.startPyFiscalStatusPolling());
+        onWillUnmount(() => this.stopPyFiscalStatusPolling());
+    },
+    get showPyFiscalStatus() {
+        return Boolean(
+            this.pos.config.py_fiscal_checkout_enabled &&
+            this.currentOrder.pyFiscalChoice &&
+            this.currentOrder.pyFiscalChoice !== "no_fe"
+        );
+    },
+    get pyFiscalStatusLabel() {
+        const labels = {
+            loading: _t("Checking fiscal status"),
+            queued: _t("Queued for SIFEN"),
+            processing: _t("Sending to SIFEN"),
+            accepted: _t("Accepted by SIFEN"),
+            rejected: _t("Rejected by SIFEN"),
+            recovery_required: _t("Recovery required"),
+            operator_review: _t("Operator review required"),
+            operator_submission_required: _t("Operator submission required"),
+        };
+        return labels[this.pyFiscalStatus.status] || _t("Fiscal status unavailable");
+    },
+    get pyFiscalStatusClass() {
+        if (this.pyFiscalStatus.status === "accepted") {
+            return "alert-success";
+        }
+        if (this.pyFiscalStatus.status === "rejected") {
+            return "alert-danger";
+        }
+        if (["recovery_required", "operator_review"].includes(this.pyFiscalStatus.status)) {
+            return "alert-warning";
+        }
+        return "alert-info";
+    },
+    get pyFiscalStatusIcon() {
+        if (this.pyFiscalStatus.status === "accepted") {
+            return "fa-check-circle";
+        }
+        if (this.pyFiscalStatus.status === "rejected") {
+            return "fa-times-circle";
+        }
+        if (["recovery_required", "operator_review"].includes(this.pyFiscalStatus.status)) {
+            return "fa-exclamation-triangle";
+        }
+        if (["loading", "queued", "processing"].includes(this.pyFiscalStatus.status)) {
+            return "fa-circle-o-notch fa-spin";
+        }
+        return "fa-info-circle";
+    },
+    async startPyFiscalStatusPolling() {
+        if (!this.showPyFiscalStatus) {
+            return;
+        }
+        await this.refreshPyFiscalStatus();
+        if (["loading", "queued", "processing"].includes(this.pyFiscalStatus.status)) {
+            this.pyFiscalPoll = setInterval(() => this.refreshPyFiscalStatus(), 2000);
+        }
+    },
+    stopPyFiscalStatusPolling() {
+        if (this.pyFiscalPoll) {
+            clearInterval(this.pyFiscalPoll);
+            this.pyFiscalPoll = null;
+        }
+    },
+    async refreshPyFiscalStatus() {
+        try {
+            const result = await jsonrpc("/einvoice_py_pos/fiscal/status", {
+                session_id: this.pos.pos_session.id,
+                decision_id: this.currentOrder.pyFiscalDecisionId,
+            });
+            Object.assign(this.pyFiscalStatus, result);
+            if (!["loading", "queued", "processing"].includes(result.status)) {
+                this.stopPyFiscalStatusPolling();
+            }
+        } catch (_error) {
+            Object.assign(this.pyFiscalStatus, {
+                status: "operator_review",
+                message: _t("Fiscal status could not be loaded. Ask an authorized operator to review it."),
+            });
+            this.stopPyFiscalStatusPolling();
+        }
     },
 });
