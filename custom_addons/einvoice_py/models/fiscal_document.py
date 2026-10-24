@@ -336,6 +336,16 @@ class FiscalDocument(models.Model):
         copy=False,
         help="Payment currency code used in the Paraguay payload. Default is PYG.",
     )
+    py_payment_count = fields.Integer(
+        string="Payment Count",
+        copy=False,
+        help="Number of immutable cash-payment groups captured from the originating channel.",
+    )
+    py_payments_json = fields.Text(
+        string="Payment Snapshot",
+        copy=False,
+        help="Immutable normalized cash-payment breakdown used to build repeated SIFEN payment groups.",
+    )
     py_credit_condition_code = fields.Selection(
         [("1", "Term"), ("2", "Installments")],
         string="Credit Condition", copy=False,

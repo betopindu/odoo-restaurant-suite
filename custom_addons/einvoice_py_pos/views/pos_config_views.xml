@@ -22,4 +22,15 @@
             </xpath>
         </field>
     </record>
+
+    <record id="view_pos_payment_method_form_py_sifen" model="ir.ui.view">
+        <field name="name">pos.payment.method.form.paraguay.sifen</field>
+        <field name="model">pos.payment.method</field>
+        <field name="inherit_id" ref="point_of_sale.pos_payment_method_view_form"/>
+        <field name="arch" type="xml">
+            <field name="journal_id" position="after">
+                <field name="py_sifen_payment_type_code"/>
+            </field>
+        </field>
+    </record>
 </odoo>

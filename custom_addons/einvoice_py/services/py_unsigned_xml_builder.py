@@ -256,12 +256,13 @@ class PyUnsignedXmlBuilder:
         self._text(group, "iCondOpe", self._normalize_int_code(condition["sale_condition_code"]))
         self._text(group, "dDCondOpe", condition.get("sale_condition_description"))
         if condition["sale_condition_code"] == "1" or not condition.get("credit_condition_code"):
-            payment = self._sub(group, "gPaConEIni")
-            self._text(payment, "iTiPago", self._normalize_int_code(condition.get("payment_type_code")))
-            self._text(payment, "dDesTiPag", condition.get("payment_type_description"))
-            self._text(payment, "dMonTiPag", self._format_money(condition.get("payment_amount")))
-            self._text(payment, "cMoneTiPag", condition.get("payment_currency"))
-            self._text(payment, "dDMoneTiPag", condition.get("payment_currency_description"))
+            for item in condition.get("payments") or [condition]:
+                payment = self._sub(group, "gPaConEIni")
+                self._text(payment, "iTiPago", self._normalize_int_code(item.get("type_code") or item.get("payment_type_code")))
+                self._text(payment, "dDesTiPag", item.get("type_description") or item.get("payment_type_description"))
+                self._text(payment, "dMonTiPag", self._format_money(item.get("amount") or item.get("payment_amount")))
+                self._text(payment, "cMoneTiPag", item.get("currency") or item.get("payment_currency"))
+                self._text(payment, "dDMoneTiPag", item.get("currency_description") or item.get("payment_currency_description"))
         else:
             credit = self._sub(group, "gPagCred")
             self._text(credit, "iCondCred", self._normalize_int_code(condition.get("credit_condition_code")))

@@ -132,6 +132,7 @@ class PosOrder(models.Model):
                 "py_sale_condition_code": "1",
             })
             email_requested = order.py_fiscal_delivery in ("email", "both")
+            payment_snapshot = self._py_sifen_payment_snapshot(order)
             PyFiscalDocumentFromAccountMoveService(self.env).create(
                 move=move,
                 customer_email_override=(
@@ -140,8 +141,37 @@ class PosOrder(models.Model):
                     else None
                 ),
                 email_delivery_policy=("requested" if email_requested else "suppressed"),
+                payment_snapshot=payment_snapshot,
             )
         return True
+
+    @api.model
+    def _py_sifen_payment_snapshot(self, order):
+        grouped = {}
+        for payment in order.payment_ids.sorted(lambda item: (item.payment_date, item.id)):
+            if order.currency_id.is_zero(payment.amount):
+                continue
+            code = payment.payment_method_id.py_sifen_payment_type_code
+            if not code:
+                raise ValidationError(
+                    "POS payment method requires a configured SIFEN payment type."
+                )
+            grouped[code] = grouped.get(code, 0.0) + payment.amount
+        snapshot = []
+        for code, amount in grouped.items():
+            if order.currency_id.compare_amounts(amount, 0) <= 0:
+                continue
+            snapshot.append({
+                "type_code": code,
+                "amount": str(amount),
+                "currency": order.currency_id.name,
+            })
+        total = sum((float(item["amount"]) for item in snapshot), 0.0)
+        if not snapshot or order.currency_id.compare_amounts(total, order.amount_total) != 0:
+            raise ValidationError(
+                "POS payments must reconcile with the fiscal sale after change."
+            )
+        return snapshot
 
     @api.model
     def _validate_py_fiscal_ui_order(self, data):

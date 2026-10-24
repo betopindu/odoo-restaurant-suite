@@ -49,6 +49,26 @@ class TestPosFiscalDecision(TransactionCase):
             "vat": "80000001-1",
             "py_sifen_receiver_profile": "taxpayer",
         })
+        cls.cash_journal = cls.env["account.journal"].create({
+            "name": "POS Fiscal Cash", "code": "PFCX", "type": "cash",
+            "company_id": cls.company.id,
+        })
+        cls.bank_journal = cls.env["account.journal"].create({
+            "name": "POS Fiscal Bank", "code": "PFBX", "type": "bank",
+            "company_id": cls.company.id,
+        })
+        cls.cash_method = cls.env["pos.payment.method"].create({
+            "name": "Fiscal Cash",
+            "journal_id": cls.cash_journal.id,
+            "company_id": cls.company.id,
+            "py_sifen_payment_type_code": "1",
+        })
+        cls.qr_method = cls.env["pos.payment.method"].create({
+            "name": "Fiscal QR",
+            "journal_id": cls.bank_journal.id,
+            "company_id": cls.company.id,
+            "py_sifen_payment_type_code": "21",
+        })
         cls.config = cls.env["pos.config"].create({
             "name": "Fiscal POS",
             "company_id": cls.company.id,
@@ -59,6 +79,7 @@ class TestPosFiscalDecision(TransactionCase):
             "py_fiscal_establishment_id": cls.establishment.id,
             "py_fiscal_point_of_issue_id": cls.point.id,
             "py_fiscal_unnamed_partner_id": cls.unnamed.id,
+            "payment_method_ids": [(6, 0, [cls.cash_method.id, cls.qr_method.id])],
         })
         cls.session = cls.env["pos.session"].create({
             "config_id": cls.config.id,
@@ -193,14 +214,19 @@ class TestPosFiscalDecision(TransactionCase):
             "company_id": self.company.id,
             "partner_id": self.taxpayer.id,
             "account_move": move.id,
-            "amount_total": 0,
+            "amount_total": 100,
             "amount_tax": 0,
-            "amount_paid": 0,
+            "amount_paid": 100,
             "amount_return": 0,
             "py_fiscal_choice": "with_ruc",
             "py_fiscal_decision_id": "decision-prepare",
             "py_ruc_resolution": "local",
             "py_fiscal_delivery": "print",
+        })
+        self.env["pos.payment"].create({
+            "pos_order_id": order.id,
+            "payment_method_id": self.cash_method.id,
+            "amount": 100,
         })
         with patch.object(
             __import__(
@@ -213,6 +239,9 @@ class TestPosFiscalDecision(TransactionCase):
         create.assert_called_once()
         self.assertEqual(create.call_args.kwargs["customer_email_override"], None)
         self.assertEqual(create.call_args.kwargs["email_delivery_policy"], "suppressed")
+        self.assertEqual(create.call_args.kwargs["payment_snapshot"], [{
+            "type_code": "1", "amount": "100.0", "currency": order.currency_id.name,
+        }])
         self.assertEqual(move.py_fiscal_tenant_id, self.tenant)
         self.assertEqual(move.py_fiscal_establishment_id, self.establishment)
         self.assertEqual(move.py_fiscal_point_of_issue_id, self.point)
@@ -232,15 +261,20 @@ class TestPosFiscalDecision(TransactionCase):
             "company_id": self.company.id,
             "partner_id": self.taxpayer.id,
             "account_move": move.id,
-            "amount_total": 0,
+            "amount_total": 100,
             "amount_tax": 0,
-            "amount_paid": 0,
+            "amount_paid": 100,
             "amount_return": 0,
             "py_fiscal_choice": "with_ruc",
             "py_fiscal_decision_id": "decision-email",
             "py_ruc_resolution": "local",
             "py_fiscal_delivery": "email",
             "py_fiscal_email": " checkout@example.test ",
+        })
+        self.env["pos.payment"].create({
+            "pos_order_id": order.id,
+            "payment_method_id": self.qr_method.id,
+            "amount": 100,
         })
         with patch.object(
             __import__(
@@ -257,6 +291,32 @@ class TestPosFiscalDecision(TransactionCase):
             "checkout@example.test",
         )
         self.assertEqual(create.call_args.kwargs["email_delivery_policy"], "requested")
+        self.assertEqual(create.call_args.kwargs["payment_snapshot"][0]["type_code"], "21")
+
+    def test_mixed_payment_snapshot_nets_cash_change_and_preserves_tenders(self):
+        order = self.env["pos.order"].create({
+            "name": "Mixed fiscal payment",
+            "pos_reference": "Mixed fiscal payment",
+            "session_id": self.session.id,
+            "config_id": self.config.id,
+            "company_id": self.company.id,
+            "amount_total": 150,
+            "amount_tax": 0,
+            "amount_paid": 150,
+            "amount_return": 50,
+        })
+        self.env["pos.payment"].create([
+            {"pos_order_id": order.id, "payment_method_id": self.cash_method.id, "amount": 100},
+            {"pos_order_id": order.id, "payment_method_id": self.qr_method.id, "amount": 100},
+            {"pos_order_id": order.id, "payment_method_id": self.cash_method.id, "amount": -50, "is_change": True},
+        ])
+
+        snapshot = self.env["pos.order"]._py_sifen_payment_snapshot(order)
+
+        self.assertEqual(snapshot, [
+            {"type_code": "1", "amount": "50.0", "currency": order.currency_id.name},
+            {"type_code": "21", "amount": "100.0", "currency": order.currency_id.name},
+        ])
 
     def test_no_fe_order_never_prepares_fiscal_document(self):
         order = self.env["pos.order"].create({

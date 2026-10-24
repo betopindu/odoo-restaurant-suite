@@ -71,7 +71,10 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
 
 ### V1.0-P1 — Payments and automatic orchestration
 
-- Map POS cash, card, bank transfer/QR and mixed tenders to SIFEN semantics.
+- [x] Map POS cash, card, bank transfer/QR and mixed tenders to SIFEN
+  semantics. Each POS method requires an explicit official code; the immutable
+  snapshot nets change, reconciles to the sale total and emits one ordered
+  `gPaConEIni` group per tender.
 - Create the posted accounting move and immutable fiscal document exactly
   once when FE is selected.
 - Execute exactly one durable submission automatically after cashier

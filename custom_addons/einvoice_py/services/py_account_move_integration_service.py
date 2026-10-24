@@ -34,6 +34,7 @@ class PyFiscalDocumentFromAccountMoveService:
         move,
         customer_email_override=None,
         email_delivery_policy="company_default",
+        payment_snapshot=None,
     ):
         move.ensure_one()
         if email_delivery_policy not in ("company_default", "requested", "suppressed"):
@@ -68,6 +69,7 @@ class PyFiscalDocumentFromAccountMoveService:
                 receiver,
                 snapshot_at,
                 email_delivery_policy=email_delivery_policy,
+                payment_snapshot=payment_snapshot,
             ),
             line_value_provider=self._line_values,
             document_type=document_type,
@@ -274,6 +276,7 @@ class PyFiscalDocumentFromAccountMoveService:
         snapshot_at,
         *,
         email_delivery_policy="company_default",
+        payment_snapshot=None,
     ):
         issuer = config["issuer"]
         values = dict(receiver, **{
@@ -298,8 +301,59 @@ class PyFiscalDocumentFromAccountMoveService:
             "py_credit_debit_reason_code": move.py_credit_note_reason_code or False,
             "py_email_delivery_policy": email_delivery_policy,
         })
+        if payment_snapshot is not None:
+            normalized = self._normalize_payment_snapshot(move, payment_snapshot)
+            values.update({
+                "py_payment_count": len(normalized),
+                "py_payments_json": json.dumps(
+                    normalized,
+                    ensure_ascii=True,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+                "py_payment_type_code": normalized[0]["type_code"],
+                "py_payment_amount": float(sum(
+                    (Decimal(item["amount"]) for item in normalized),
+                    Decimal("0"),
+                )),
+                "py_payment_currency": move.currency_id.name,
+            })
         values.update(self._credit_values(move))
         return values
+
+    @staticmethod
+    def _normalize_payment_snapshot(move, payment_snapshot):
+        if move.py_sale_condition_code != "1":
+            raise ValidationError("POS payment snapshots are supported for cash sales only.")
+        if not isinstance(payment_snapshot, (list, tuple)) or not payment_snapshot:
+            raise ValidationError("A cash fiscal sale requires its POS payment snapshot.")
+        normalized = []
+        total = Decimal("0")
+        for item in payment_snapshot:
+            if not isinstance(item, dict):
+                raise ValidationError("The POS payment snapshot is invalid.")
+            type_code = str(item.get("type_code") or "")
+            currency = str(item.get("currency") or "")
+            try:
+                amount = Decimal(str(item.get("amount")))
+            except Exception as error:
+                raise ValidationError("The POS payment snapshot amount is invalid.") from error
+            if (
+                type_code not in PyPayloadBuilder.PAYMENT_TYPES
+                or currency != move.currency_id.name
+                or amount <= 0
+            ):
+                raise ValidationError("The POS payment snapshot is incomplete or invalid.")
+            normalized.append({
+                "sequence": len(normalized) + 1,
+                "type_code": type_code,
+                "amount": format(amount, "f"),
+                "currency": currency,
+            })
+            total += amount
+        if move.currency_id.compare_amounts(float(total), move.amount_total) != 0:
+            raise ValidationError("POS payment amounts must reconcile with the fiscal total.")
+        return normalized
 
     def _credit_values(self, move):
         if move.py_sale_condition_code != "2":

@@ -764,7 +764,7 @@ class TestPyFakeAdapter(TransactionCase):
         self.assertEqual(payload["condition"]["sale_condition_code"], "2")
         self.assertEqual(payload["condition"]["sale_condition_description"], "Crédito")
         self.assertEqual(payload["condition"]["payment_type_code"], "5")
-        self.assertEqual(payload["condition"]["payment_type_description"], "Transferencia bancaria")
+        self.assertEqual(payload["condition"]["payment_type_description"], "Transferencia")
         self.assertEqual(payload["condition"]["payment_amount"], 100)
         self.assertEqual(payload["condition"]["payment_currency"], "PYG")
         self.assertEqual(payload["condition"]["payment_currency_description"], "Guarani")

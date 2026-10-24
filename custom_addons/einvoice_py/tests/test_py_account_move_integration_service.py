@@ -305,6 +305,51 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         self.assertEqual(document.py_email_delivery_policy, "requested")
         self.assertEqual(payload["receiver"]["email"], "checkout@example.test")
 
+    def test_pos_mixed_payment_snapshot_builds_repeated_schema_ordered_groups(self):
+        move = self._move()
+        document = self.service.create(
+            move=move,
+            payment_snapshot=[
+                {"type_code": "1", "amount": "60000", "currency": "PYG"},
+                {"type_code": "21", "amount": "50000", "currency": "PYG"},
+            ],
+        )
+        payload = PyPayloadBuilder(self.env).build(document)
+        xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        from lxml import etree
+
+        root = etree.fromstring(xml_bytes)
+        ns = {"s": PyUnsignedXmlBuilder.SIFEN_NS}
+        groups = root.xpath("s:DE/s:gDtipDE/s:gCamCond/s:gPaConEIni", namespaces=ns)
+
+        self.assertEqual(document.py_payment_count, 2)
+        self.assertEqual([item["type_code"] for item in payload["condition"]["payments"]], ["1", "21"])
+        self.assertEqual(len(groups), 2)
+        self.assertEqual(
+            [group.findtext("s:iTiPago", namespaces=ns) for group in groups],
+            ["1", "21"],
+        )
+        self.assertEqual(
+            [group.findtext("s:dMonTiPag", namespaces=ns) for group in groups],
+            ["60000.00000000", "50000.00000000"],
+        )
+
+    def test_pos_payment_snapshot_must_reconcile_and_use_supported_codes(self):
+        with self.assertRaisesRegex(ValidationError, "reconcile"):
+            self.service.create(
+                move=self._move(),
+                payment_snapshot=[
+                    {"type_code": "1", "amount": "100000", "currency": "PYG"},
+                ],
+            )
+        with self.assertRaisesRegex(ValidationError, "incomplete or invalid"):
+            self.service.create(
+                move=self._move(),
+                payment_snapshot=[
+                    {"type_code": "98", "amount": "110000", "currency": "PYG"},
+                ],
+            )
+
     def test_repeated_call_is_idempotent_and_consumes_one_number(self):
         move = self._move()
         before = self.sequence.next_number

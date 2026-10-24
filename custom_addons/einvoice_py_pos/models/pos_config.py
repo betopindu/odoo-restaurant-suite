@@ -48,6 +48,7 @@ class PosConfig(models.Model):
         "py_fiscal_establishment_id",
         "py_fiscal_point_of_issue_id",
         "py_fiscal_unnamed_partner_id",
+        "payment_method_ids",
         "company_id",
     )
     def _check_py_fiscal_checkout_scope(self):
@@ -82,4 +83,13 @@ class PosConfig(models.Model):
             if config.py_fiscal_unnamed_partner_id.py_sifen_receiver_profile != "unnamed_consumer":
                 raise ValidationError(
                     "Paraguay POS unnamed consumer must use the unnamed SIFEN receiver profile."
+                )
+            unmapped = config.payment_method_ids.filtered(
+                lambda method: not method.py_sifen_payment_type_code
+            )
+            if unmapped:
+                raise ValidationError(
+                    "Paraguay fiscal checkout requires a SIFEN payment type for: "
+                    + ", ".join(unmapped.mapped("name"))
+                    + "."
                 )

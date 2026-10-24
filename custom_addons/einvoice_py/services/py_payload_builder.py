@@ -38,9 +38,27 @@ class PyPayloadBuilder:
     }
     PAYMENT_TYPES = {
         "1": "Efectivo",
+        "2": "Cheque",
         "3": "Tarjeta de crédito",
-        "5": "Transferencia bancaria",
+        "4": "Tarjeta de débito",
+        "5": "Transferencia",
+        "6": "Giro",
+        "7": "Billetera electrónica",
+        "8": "Tarjeta empresarial",
+        "9": "Vale",
+        "10": "Retención",
+        "11": "Pago por anticipo",
+        "12": "Valor fiscal",
+        "13": "Valor comercial",
+        "14": "Compensación",
+        "15": "Permuta",
+        "16": "Pago bancario",
         "17": "Pago Móvil",
+        "18": "Donación",
+        "19": "Promoción",
+        "20": "Consumo Interno",
+        "21": "Pago Electrónico",
+        "99": "Otro",
     }
     VAT_AFFECTATIONS = {
         "1": "Gravado IVA",
@@ -326,6 +344,8 @@ class PyPayloadBuilder:
             "payment_currency": payment_currency,
             "payment_currency_description": self._currency_description(payment_currency),
         }
+        if sale_condition_code == "1":
+            condition["payments"] = self._cash_payments(document, condition)
         if sale_condition_code == "2":
             try:
                 installments = json.loads(document.py_installments_json or "[]")
@@ -382,6 +402,51 @@ class PyPayloadBuilder:
                 ],
             })
         return condition
+
+    def _cash_payments(self, document, legacy):
+        if not document.py_payments_json:
+            return [{
+                "sequence": 1,
+                "type_code": legacy["payment_type_code"],
+                "type_description": legacy["payment_type_description"],
+                "amount": legacy["payment_amount"],
+                "currency": legacy["payment_currency"],
+                "currency_description": legacy["payment_currency_description"],
+            }]
+        try:
+            snapshot = json.loads(document.py_payments_json)
+        except (TypeError, ValueError) as error:
+            raise ValidationError("POS payment snapshot is invalid.") from error
+        if not isinstance(snapshot, list) or not snapshot:
+            raise ValidationError("POS payment snapshot is empty.")
+        payments = []
+        total = Decimal("0")
+        for index, item in enumerate(snapshot, 1):
+            if not isinstance(item, dict):
+                raise ValidationError("POS payment snapshot is invalid.")
+            code = str(item.get("type_code") or "")
+            description = self.PAYMENT_TYPES.get(code)
+            currency = item.get("currency")
+            try:
+                amount = Decimal(str(item.get("amount")))
+            except (TypeError, InvalidOperation) as error:
+                raise ValidationError("POS payment snapshot amount is invalid.") from error
+            if not description or currency != "PYG" or amount <= 0:
+                raise ValidationError("POS payment snapshot is incomplete or unsupported.")
+            payments.append({
+                "sequence": index,
+                "type_code": code,
+                "type_description": description,
+                "amount": format(amount, "f"),
+                "currency": currency,
+                "currency_description": self._currency_description(currency),
+            })
+            total += amount
+        if document.py_payment_count != len(payments):
+            raise ValidationError("POS payment count does not match its snapshot.")
+        if document.currency_id.compare_amounts(float(total), document.amount_total) != 0:
+            raise ValidationError("POS payment snapshot does not reconcile with the fiscal total.")
+        return payments
 
     def _self_invoice_section(self, document):
         return {

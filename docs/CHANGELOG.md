@@ -75,6 +75,14 @@
 * Added offline regression coverage for channel policy, recipient propagation,
   invalid addresses and automatic-delivery suppression.
 
+## 2026-10-24 — POS payment snapshot for SIFEN
+
+* Added explicit SIFEN payment-type configuration to Odoo POS payment methods.
+* Captured cash, card, transfer/QR and mixed tenders as an immutable, reconciled
+  fiscal snapshot; cash change is netted by method and repeated v150
+  `gPaConEIni` groups retain each resulting tender.
+* Kept submission and automatic retry disabled; all validation remains offline.
+
 ## 2026-10-14 — SIFEN v150 transaction type conditionality
 
 * Corrected NCE/NDE XML generation to omit `iTipTra` and `dDesTipTra`, as the
