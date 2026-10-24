@@ -351,6 +351,89 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
                 ],
             )
 
+    def test_pos_card_payment_builds_required_sifen_card_group_offline(self):
+        move = self._move()
+        document = self.service.create(
+            move=move,
+            payment_snapshot=[{
+                "type_code": "3",
+                "amount": "110000",
+                "currency": "PYG",
+                "card": {
+                    "denomination_code": "1",
+                    "denomination_description": "Visa",
+                    "processing_code": "1",
+                    "processor_name": "Bancard SAECA",
+                    "processor_ruc": "80013884",
+                    "processor_dv": "8",
+                },
+            }],
+        )
+        payload = PyPayloadBuilder(self.env).build(document)
+        xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        from lxml import etree
+
+        root = etree.fromstring(xml_bytes)
+        ns = {"s": PyUnsignedXmlBuilder.SIFEN_NS}
+        card = root.xpath(
+            "s:DE/s:gDtipDE/s:gCamCond/s:gPaConEIni/s:gPagTarCD",
+            namespaces=ns,
+        )
+
+        self.assertEqual(len(card), 1)
+        self.assertEqual(card[0].findtext("s:iDenTarj", namespaces=ns), "1")
+        self.assertEqual(card[0].findtext("s:dDesDenTarj", namespaces=ns), "Visa")
+        self.assertEqual(card[0].findtext("s:dRUCProTar", namespaces=ns), "80013884")
+        self.assertEqual(card[0].findtext("s:iForProPa", namespaces=ns), "1")
+        self._offline_signed_pipeline(document)
+
+    def test_pos_card_payment_without_detail_fails_before_artifacts(self):
+        move = self._move()
+        with self.assertRaisesRegex(ValidationError, "requires.*SIFEN detail"):
+            self.service.create(
+                move=move,
+                payment_snapshot=[{
+                    "type_code": "4", "amount": "110000", "currency": "PYG",
+                }],
+            )
+        self.assertFalse(move.fiscal_document_ids)
+
+    def test_commercial_pos_supported_tender_matrix_is_schema_valid_offline(self):
+        card = {
+            "denomination_code": "2",
+            "denomination_description": "Mastercard",
+            "processing_code": "1",
+            "processor_name": None,
+            "processor_ruc": None,
+            "processor_dv": None,
+        }
+        payment_snapshot = [
+            {"type_code": code, "amount": "10000", "currency": "PYG"}
+            for code in ("1", "5", "7", "17", "21")
+        ] + [
+            {"type_code": "3", "amount": "30000", "currency": "PYG", "card": card},
+            {"type_code": "4", "amount": "30000", "currency": "PYG", "card": card},
+        ]
+        document = self.service.create(
+            move=self._move(), payment_snapshot=payment_snapshot
+        )
+        payload = PyPayloadBuilder(self.env).build(document)
+        xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        from lxml import etree
+
+        root = etree.fromstring(xml_bytes)
+        ns = {"s": PyUnsignedXmlBuilder.SIFEN_NS}
+        groups = root.xpath(
+            "s:DE/s:gDtipDE/s:gCamCond/s:gPaConEIni", namespaces=ns
+        )
+
+        self.assertEqual(
+            [group.findtext("s:iTiPago", namespaces=ns) for group in groups],
+            ["1", "5", "7", "17", "21", "3", "4"],
+        )
+        self.assertEqual(len(root.xpath(".//s:gPagTarCD", namespaces=ns)), 2)
+        self._offline_signed_pipeline(document)
+
     def test_repeated_call_is_idempotent_and_consumes_one_number(self):
         move = self._move()
         before = self.sequence.next_number

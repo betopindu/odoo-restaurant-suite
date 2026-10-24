@@ -321,8 +321,7 @@ class PyFiscalDocumentFromAccountMoveService:
         values.update(self._credit_values(move))
         return values
 
-    @staticmethod
-    def _normalize_payment_snapshot(move, payment_snapshot):
+    def _normalize_payment_snapshot(self, move, payment_snapshot):
         if move.py_sale_condition_code != "1":
             raise ValidationError("POS payment snapshots are supported for cash sales only.")
         if not isinstance(payment_snapshot, (list, tuple)) or not payment_snapshot:
@@ -344,12 +343,18 @@ class PyFiscalDocumentFromAccountMoveService:
                 or amount <= 0
             ):
                 raise ValidationError("The POS payment snapshot is incomplete or invalid.")
-            normalized.append({
+            normalized_item = {
                 "sequence": len(normalized) + 1,
                 "type_code": type_code,
                 "amount": format(amount, "f"),
                 "currency": currency,
-            })
+            }
+            card = item.get("card")
+            if type_code in ("3", "4"):
+                normalized_item["card"] = PyPayloadBuilder(self.env)._validated_card_payment(card)
+            elif card:
+                raise ValidationError("Card detail is only valid for card payments.")
+            normalized.append(normalized_item)
             total += amount
         if move.currency_id.compare_amounts(float(total), move.amount_total) != 0:
             raise ValidationError("POS payment amounts must reconcile with the fiscal total.")

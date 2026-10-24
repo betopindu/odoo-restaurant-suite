@@ -1,7 +1,7 @@
 {
     "name": "Electronic Invoicing Paraguay",
     "summary": "Paraguay fiscal configuration for the e-Invoice core",
-    "version": "17.0.1.0.1",
+    "version": "17.0.1.0.2",
     "category": "Accounting/Accounting",
     "depends": ["einvoice_module", "account_debit_note", "mail"],
     "external_dependencies": {

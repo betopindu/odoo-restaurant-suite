@@ -6,6 +6,10 @@
   tax matrix: IVA 10%, IVA 5%, exempt, mixed-rate items, item discounts and
   SIFEN monetary precision. No tax rule or production transport behavior was
   changed.
+* Restricted the commercial POS to payment types it can represent safely and
+  added immutable SIFEN card brand, processing and optional processor identity
+  snapshots. Credit/debit card payments now emit the mandatory `gPagTarCD`
+  XML group; incomplete or unsupported payment configuration fails closed.
 
 ## 2026-10-23 — Paraguay AFE live validation and authoritative delivery
 

@@ -104,8 +104,12 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
   offline signed-rDE/XSD path.
 - [x] Validate multiple items, item discounts and SIFEN eight-decimal monetary
   precision offline. Authority/live matrix evidence remains a release gate.
-- [ ] Validate every enabled POS tender in the complete checkout acceptance
-  suite (the fiscal payment mapping and mixed-tender XML are covered offline).
+- [x] Validate the V1 POS tender set offline: cash, credit/debit card, bank
+  transfer, electronic wallet, mobile payment and electronic/QR payment.
+  Card brand/processing data is snapshotted and emitted in the mandatory
+  `gPagTarCD` group; incomplete configuration fails before fiscal preparation.
+  Cheque, bank-payment presence and free-form "other" remain unavailable in a
+  fiscal POS until their transaction-specific evidence can be captured safely.
 - Validate B2C, local B2B, remote-RUC B2B and manual-unverified B2B.
 - Validate rejection, ambiguity, restart, duplicate click, email failure and
   printer fallback.

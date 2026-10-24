@@ -60,6 +60,11 @@ class PyPayloadBuilder:
         "21": "Pago Electrónico",
         "99": "Otro",
     }
+    CARD_DENOMINATIONS = {
+        "1": "Visa", "2": "Mastercard", "3": "American Express",
+        "4": "Maestro", "5": "Panal", "6": "Cabal", "99": "Otro",
+    }
+    CARD_PROCESSING_TYPES = {"1", "2", "9"}
     VAT_AFFECTATIONS = {
         "1": "Gravado IVA",
         "3": "Exento",
@@ -433,20 +438,59 @@ class PyPayloadBuilder:
                 raise ValidationError("POS payment snapshot amount is invalid.") from error
             if not description or currency != "PYG" or amount <= 0:
                 raise ValidationError("POS payment snapshot is incomplete or unsupported.")
-            payments.append({
+            payment = {
                 "sequence": index,
                 "type_code": code,
                 "type_description": description,
                 "amount": format(amount, "f"),
                 "currency": currency,
                 "currency_description": self._currency_description(currency),
-            })
+            }
+            card = item.get("card")
+            if code in ("3", "4"):
+                payment["card"] = self._validated_card_payment(card)
+            elif card:
+                raise ValidationError("Card detail is only valid for card payments.")
+            payments.append(payment)
             total += amount
         if document.py_payment_count != len(payments):
             raise ValidationError("POS payment count does not match its snapshot.")
         if document.currency_id.compare_amounts(float(total), document.amount_total) != 0:
             raise ValidationError("POS payment snapshot does not reconcile with the fiscal total.")
         return payments
+
+    def _validated_card_payment(self, card):
+        if not isinstance(card, dict):
+            raise ValidationError("Card payment requires its immutable SIFEN detail.")
+        denomination = str(card.get("denomination_code") or "")
+        processing = str(card.get("processing_code") or "")
+        expected_description = self.CARD_DENOMINATIONS.get(denomination)
+        if (
+            not expected_description
+            or card.get("denomination_description") != expected_description
+            or processing not in self.CARD_PROCESSING_TYPES
+        ):
+            raise ValidationError("Card payment SIFEN detail is incomplete or invalid.")
+        processor = (
+            card.get("processor_name"), card.get("processor_ruc"), card.get("processor_dv")
+        )
+        if any(processor) and not all(processor):
+            raise ValidationError("Card processor identity must be complete when provided.")
+        if card.get("processor_ruc") and (
+            not str(card["processor_ruc"]).isdigit()
+            or not 3 <= len(str(card["processor_ruc"])) <= 8
+            or not str(card["processor_dv"]).isdigit()
+            or len(str(card["processor_dv"])) != 1
+        ):
+            raise ValidationError("Card processor RUC and DV are invalid.")
+        return {
+            "denomination_code": denomination,
+            "denomination_description": expected_description,
+            "processing_code": processing,
+            "processor_name": card.get("processor_name") or None,
+            "processor_ruc": card.get("processor_ruc") or None,
+            "processor_dv": card.get("processor_dv") or None,
+        }
 
     def _self_invoice_section(self, document):
         return {

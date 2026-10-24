@@ -5,6 +5,8 @@ from odoo.exceptions import ValidationError
 class PosConfig(models.Model):
     _inherit = "pos.config"
 
+    PY_SIFEN_SUPPORTED_POS_PAYMENT_TYPES = {"1", "3", "4", "5", "7", "17", "21"}
+
     py_fiscal_checkout_enabled = fields.Boolean(
         string="Paraguay fiscal checkout",
         help="Enables the optional POS channel without coupling the fiscal engine to POS or KDS.",
@@ -112,6 +114,26 @@ class PosConfig(models.Model):
                 raise ValidationError(
                     "Paraguay fiscal checkout requires a SIFEN payment type for: "
                     + ", ".join(unmapped.mapped("name"))
+                    + "."
+                )
+            unsupported = config.payment_method_ids.filtered(
+                lambda method: method.py_sifen_payment_type_code
+                not in self.PY_SIFEN_SUPPORTED_POS_PAYMENT_TYPES
+            )
+            if unsupported:
+                raise ValidationError(
+                    "Paraguay fiscal checkout does not support the configured SIFEN "
+                    "payment detail for: " + ", ".join(unsupported.mapped("name")) + "."
+                )
+            incomplete_cards = config.payment_method_ids.filtered(
+                lambda method: method.py_sifen_payment_type_code in ("3", "4")
+                and not method._py_sifen_card_snapshot()
+            )
+            if incomplete_cards:
+                raise ValidationError(
+                    "Paraguay fiscal card methods require brand, processing method and "
+                    "a complete processor identity when provided: "
+                    + ", ".join(incomplete_cards.mapped("name"))
                     + "."
                 )
             if config.py_fiscal_auto_submit_enabled:

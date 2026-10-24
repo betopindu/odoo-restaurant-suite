@@ -32,6 +32,11 @@
         <field name="arch" type="xml">
             <field name="journal_id" position="after">
                 <field name="py_sifen_payment_type_code"/>
+                <field name="py_sifen_card_denomination" invisible="py_sifen_payment_type_code not in ('3', '4')"/>
+                <field name="py_sifen_card_processing" invisible="py_sifen_payment_type_code not in ('3', '4')"/>
+                <field name="py_sifen_card_processor_name" invisible="py_sifen_payment_type_code not in ('3', '4')"/>
+                <field name="py_sifen_card_processor_ruc" invisible="py_sifen_payment_type_code not in ('3', '4')"/>
+                <field name="py_sifen_card_processor_dv" invisible="py_sifen_payment_type_code not in ('3', '4')"/>
             </field>
         </field>
     </record>

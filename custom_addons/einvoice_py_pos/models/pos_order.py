@@ -1,3 +1,4 @@
+import json
 import re
 
 from odoo import api, fields, models, tools
@@ -161,16 +162,22 @@ class PosOrder(models.Model):
                 raise ValidationError(
                     "POS payment method requires a configured SIFEN payment type."
                 )
-            grouped[code] = grouped.get(code, 0.0) + payment.amount
+            card = payment.payment_method_id._py_sifen_card_snapshot()
+            key = (code, json.dumps(card, ensure_ascii=True, sort_keys=True))
+            grouped[key] = grouped.get(key, 0.0) + payment.amount
         snapshot = []
-        for code, amount in grouped.items():
+        for (code, card_json), amount in grouped.items():
             if order.currency_id.compare_amounts(amount, 0) <= 0:
                 continue
-            snapshot.append({
+            item = {
                 "type_code": code,
                 "amount": str(amount),
                 "currency": order.currency_id.name,
-            })
+            }
+            card = json.loads(card_json)
+            if card:
+                item["card"] = card
+            snapshot.append(item)
         total = sum((float(item["amount"]) for item in snapshot), 0.0)
         if not snapshot or order.currency_id.compare_amounts(total, order.amount_total) != 0:
             raise ValidationError(

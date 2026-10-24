@@ -263,6 +263,15 @@ class PyUnsignedXmlBuilder:
                 self._text(payment, "dMonTiPag", self._format_money(item.get("amount") or item.get("payment_amount")))
                 self._text(payment, "cMoneTiPag", item.get("currency") or item.get("payment_currency"))
                 self._text(payment, "dDMoneTiPag", item.get("currency_description") or item.get("payment_currency_description"))
+                card = item.get("card")
+                if card:
+                    card_group = self._sub(payment, "gPagTarCD")
+                    self._text(card_group, "iDenTarj", self._normalize_int_code(card["denomination_code"]))
+                    self._text(card_group, "dDesDenTarj", card["denomination_description"])
+                    self._text(card_group, "dRSProTar", card.get("processor_name"))
+                    self._text(card_group, "dRUCProTar", card.get("processor_ruc"))
+                    self._text(card_group, "dDVProTar", card.get("processor_dv"))
+                    self._text(card_group, "iForProPa", self._normalize_int_code(card["processing_code"]))
         else:
             credit = self._sub(group, "gPagCred")
             self._text(credit, "iCondCred", self._normalize_int_code(condition.get("credit_condition_code")))

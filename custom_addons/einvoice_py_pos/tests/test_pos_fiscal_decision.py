@@ -69,6 +69,17 @@ class TestPosFiscalDecision(TransactionCase):
             "company_id": cls.company.id,
             "py_sifen_payment_type_code": "21",
         })
+        cls.card_method = cls.env["pos.payment.method"].create({
+            "name": "Fiscal Visa Credit",
+            "journal_id": cls.bank_journal.id,
+            "company_id": cls.company.id,
+            "py_sifen_payment_type_code": "3",
+            "py_sifen_card_denomination": "1",
+            "py_sifen_card_processing": "1",
+            "py_sifen_card_processor_name": "Bancard SAECA",
+            "py_sifen_card_processor_ruc": "80013884",
+            "py_sifen_card_processor_dv": "8",
+        })
         cls.config = cls.env["pos.config"].create({
             "name": "Fiscal POS",
             "company_id": cls.company.id,
@@ -79,7 +90,9 @@ class TestPosFiscalDecision(TransactionCase):
             "py_fiscal_establishment_id": cls.establishment.id,
             "py_fiscal_point_of_issue_id": cls.point.id,
             "py_fiscal_unnamed_partner_id": cls.unnamed.id,
-            "payment_method_ids": [(6, 0, [cls.cash_method.id, cls.qr_method.id])],
+            "payment_method_ids": [(6, 0, [
+                cls.cash_method.id, cls.qr_method.id, cls.card_method.id,
+            ])],
         })
         cls.session = cls.env["pos.session"].create({
             "config_id": cls.config.id,
@@ -317,6 +330,51 @@ class TestPosFiscalDecision(TransactionCase):
             {"type_code": "1", "amount": "50.0", "currency": order.currency_id.name},
             {"type_code": "21", "amount": "100.0", "currency": order.currency_id.name},
         ])
+
+    def test_card_payment_snapshot_carries_required_sifen_detail(self):
+        order = self.env["pos.order"].create({
+            "name": "Card fiscal payment",
+            "pos_reference": "Card fiscal payment",
+            "session_id": self.session.id,
+            "config_id": self.config.id,
+            "company_id": self.company.id,
+            "amount_total": 150,
+            "amount_tax": 0,
+            "amount_paid": 150,
+            "amount_return": 0,
+        })
+        self.env["pos.payment"].create({
+            "pos_order_id": order.id,
+            "payment_method_id": self.card_method.id,
+            "amount": 150,
+        })
+
+        snapshot = self.env["pos.order"]._py_sifen_payment_snapshot(order)
+
+        self.assertEqual(snapshot[0]["type_code"], "3")
+        self.assertEqual(snapshot[0]["card"]["denomination_code"], "1")
+        self.assertEqual(snapshot[0]["card"]["processing_code"], "1")
+        self.assertEqual(snapshot[0]["card"]["processor_ruc"], "80013884")
+
+    def test_fiscal_card_method_cannot_become_incomplete(self):
+        incomplete = self.env["pos.payment.method"].create({
+            "name": "Incomplete fiscal card",
+            "journal_id": self.bank_journal.id,
+            "company_id": self.company.id,
+            "py_sifen_payment_type_code": "4",
+        })
+        with self.assertRaisesRegex(ValidationError, "require brand"):
+            self.env["pos.config"].create({
+                "name": "Invalid fiscal card POS",
+                "company_id": self.company.id,
+                "py_fiscal_checkout_enabled": True,
+                "py_fiscal_environment": "test",
+                "py_fiscal_tenant_id": self.tenant.id,
+                "py_fiscal_establishment_id": self.establishment.id,
+                "py_fiscal_point_of_issue_id": self.point.id,
+                "py_fiscal_unnamed_partner_id": self.unnamed.id,
+                "payment_method_ids": [(6, 0, [incomplete.id])],
+            })
 
     def test_no_fe_order_never_prepares_fiscal_document(self):
         order = self.env["pos.order"].create({
