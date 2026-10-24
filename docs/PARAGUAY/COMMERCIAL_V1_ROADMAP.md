@@ -100,8 +100,12 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
 
 ### V1.0-P3 — Commercial validation and release
 
-- Validate IVA 10%, IVA 5%, exempt and mixed-rate sales.
-- Validate multiple items, discounts, rounding and all supported tenders.
+- [x] Validate IVA 10%, IVA 5%, exempt and mixed-rate sales through the full
+  offline signed-rDE/XSD path.
+- [x] Validate multiple items, item discounts and SIFEN eight-decimal monetary
+  precision offline. Authority/live matrix evidence remains a release gate.
+- [ ] Validate every enabled POS tender in the complete checkout acceptance
+  suite (the fiscal payment mapping and mixed-tender XML are covered offline).
 - Validate B2C, local B2B, remote-RUC B2B and manual-unverified B2B.
 - Validate rejection, ambiguity, restart, duplicate click, email failure and
   printer fallback.

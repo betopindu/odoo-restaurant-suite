@@ -1,5 +1,12 @@
 # Documentation Changelog
 
+## 2026-10-24 — Commercial tax-matrix offline validation
+
+* Added full offline signed-rDE/XSD regression coverage for the commercial POS
+  tax matrix: IVA 10%, IVA 5%, exempt, mixed-rate items, item discounts and
+  SIFEN monetary precision. No tax rule or production transport behavior was
+  changed.
+
 ## 2026-10-23 — Paraguay AFE live validation and authoritative delivery
 
 * Corrected AFE commercial semantics to transaction type `10`, B2C receiver

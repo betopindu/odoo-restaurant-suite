@@ -240,9 +240,10 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         }
         if move_type != "entry":
             values["invoice_line_ids"] = [(0, 0, {
-                "name": name, "quantity": 1, "price_unit": price,
-                "tax_ids": [(6, 0, tax_records.ids)],
-            }) for name, price, tax_records in lines]
+                "name": line[0], "quantity": 1, "price_unit": line[1],
+                "tax_ids": [(6, 0, line[2].ids)],
+                "discount": line[3] if len(line) > 3 else 0,
+            }) for line in lines]
         move = self.env["account.move"].create(values)
         if post:
             move.action_post()
@@ -525,6 +526,69 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         self.assertEqual(mapped.mapped("py_tax_rate"), [10.0, 5.0, 0.0])
         self.assertEqual(mapped.mapped("py_tax_affectation"), ["1", "1", "3"])
         self.assertAlmostEqual(sum(mapped.mapped("total")), document.amount_total)
+
+    def test_commercial_mixed_tax_discount_reaches_schema_valid_signed_rde(self):
+        move = self._move(lines=[
+            ("Ten percent discounted", 110000, self.tax_10, 10),
+            ("Five percent discounted", 105000, self.tax_5, 5),
+            ("Exempt discounted", 50000, self.tax_exempt, 2),
+        ])
+        document = self.service.create(move=move)
+        payload = PyPayloadBuilder(self.env).build(document)
+        xml_bytes = PyUnsignedXmlBuilder(self.env).build_from_payload(payload)
+        from lxml import etree
+
+        root = etree.fromstring(xml_bytes)
+        ns = {"s": PyUnsignedXmlBuilder.SIFEN_NS}
+        totals = payload["totals"]
+
+        self.assertEqual(
+            [item["tax_rate"] for item in payload["items"]], [10.0, 5.0, 0.0]
+        )
+        self.assertEqual(
+            [item["tax_affectation"] for item in payload["items"]], ["1", "1", "3"]
+        )
+        self.assertEqual(
+            [item["discount"] for item in payload["items"]],
+            [11000.0, 5250.0, 1000.0],
+        )
+        self.assertEqual(totals["subtotal_10"], 99000.0)
+        self.assertEqual(totals["subtotal_5"], 99750.0)
+        self.assertEqual(totals["subtotal_exempt"], 49000.0)
+        self.assertEqual(totals["total_discount"], 17250.0)
+        self.assertEqual(totals["total_general"], 247750.0)
+        self.assertEqual(document.amount_total, 247750.0)
+        self.assertEqual(
+            root.xpath("string(.//s:gTotSub/s:dTotDesc)", namespaces=ns),
+            "17250.00000000",
+        )
+        self.assertEqual(
+            root.xpath("string(.//s:gTotSub/s:dRedon)", namespaces=ns), "0.0000"
+        )
+        self.assertEqual(
+            root.xpath("string(.//s:gTotSub/s:dTotGralOpe)", namespaces=ns),
+            "247750.00000000",
+        )
+        self._offline_signed_pipeline(document)
+
+    def test_commercial_decimal_discount_preserves_sifen_precision_offline(self):
+        move = self._move(lines=[
+            ("Rounded PYG line", 123457, self.tax_5, 3.3333),
+        ])
+        document = self.service.create(move=move)
+        payload = PyPayloadBuilder(self.env).build(document)
+        item = payload["items"][0]
+
+        self.assertEqual(move.invoice_line_ids.discount, 3.33)
+        self.assertEqual(item["price_unit"], 123457.0)
+        self.assertEqual(item["discount"], 4111.1181)
+        self.assertEqual(item["total"], 119345.8819)
+        self.assertEqual(payload["totals"]["total_discount"], 4111.1181)
+        self.assertEqual(payload["totals"]["total_general"], item["total"])
+        self.assertEqual(
+            document.currency_id.compare_amounts(item["total"], document.amount_total), 0
+        )
+        self._offline_signed_pipeline(document)
 
     def test_unmapped_multiple_and_tax_exclusive_configs_fail_closed(self):
         with self.assertRaisesRegex(ValidationError, "no explicit"):
