@@ -210,3 +210,23 @@ class TestPyFiscalEmailDeliveryService(TestPyFiscalDocumentDeliveryService):
                 document=self.document.with_user(self.operator), mode="manual"
             )
         send.assert_not_called()
+
+    def test_manual_request_identity_prevents_duplicate_email_queue(self):
+        service = self._email_service()
+        document = self.document.with_user(self.operator)
+        first = service.enqueue(
+            document=document,
+            mode="manual",
+            request_key="pos:42:request-0001",
+        )
+        second = service.enqueue(
+            document=document,
+            mode="manual",
+            request_key="pos:42:request-0001",
+        )
+
+        self.assertEqual(first, second)
+        self.assertEqual(first.request_key, "pos:42:request-0001")
+        self.assertEqual(self.env["mail.mail"].sudo().search_count([
+            ("id", "=", first.mail_id.id),
+        ]), 1)

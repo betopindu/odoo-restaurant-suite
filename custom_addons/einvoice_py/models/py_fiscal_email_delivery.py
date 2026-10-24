@@ -21,6 +21,7 @@ class PyFiscalEmailDelivery(models.Model):
         readonly=True,
     )
     automatic_key = fields.Char(readonly=True, index=True, copy=False)
+    request_key = fields.Char(readonly=True, index=True, copy=False)
     requested_by_id = fields.Many2one("res.users", readonly=True)
     requested_at = fields.Datetime(required=True, readonly=True)
     mail_id = fields.Many2one("mail.mail", readonly=True, ondelete="set null")
@@ -42,6 +43,10 @@ class PyFiscalEmailDelivery(models.Model):
         "automatic_key_unique",
         "unique(automatic_key)",
         "The accepted fiscal document was already queued for automatic email delivery.",
+    ), (
+        "request_key_unique",
+        "unique(request_key)",
+        "The fiscal email delivery request was already processed.",
     )]
 
 

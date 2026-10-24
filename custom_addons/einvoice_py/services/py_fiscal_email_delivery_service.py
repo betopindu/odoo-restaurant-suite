@@ -30,12 +30,20 @@ class PyFiscalEmailDeliveryService:
         self._sender(document)
         return prepared
 
-    def enqueue(self, *, document, mode="manual"):
+    def enqueue(self, *, document, mode="manual", request_key=None):
         document.ensure_one()
         if mode not in ("manual", "automatic"):
             raise ValidationError("Unsupported fiscal email delivery mode.")
         if mode == "manual" and not self.env.user.has_group(self.OPERATOR_GROUP):
             raise AccessError("Only Paraguay Fiscal Operators may email fiscal documents.")
+        if request_key:
+            existing = self.env["py.fiscal.email.delivery"].sudo().search([
+                ("request_key", "=", request_key),
+            ], limit=1)
+            if existing:
+                if existing.document_id != document or existing.mode != mode:
+                    raise ValidationError("Fiscal email request identity has conflicting scope.")
+                return existing
         prepared = self.prepare(document=document)
         sender = self._sender(document)
         auto_key = False
@@ -64,6 +72,7 @@ class PyFiscalEmailDeliveryService:
             "subject": prepared.subject,
             "mode": mode,
             "automatic_key": auto_key,
+            "request_key": request_key or False,
             "requested_by_id": self.env.user.id,
             "requested_at": fields.Datetime.now(),
             "pdf_source_attachment_id": prepared.attachments[0].fiscal_attachment_id,

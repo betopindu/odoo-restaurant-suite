@@ -273,6 +273,9 @@ patch(ReceiptScreen.prototype, {
             authority_code: "",
             authority_protocol: "",
             cdc: "",
+            delivery_ready: false,
+            email_status: "not_requested",
+            email_available: false,
         });
         this.pyFiscalPoll = null;
         onMounted(() => this.startPyFiscalStatusPolling());
@@ -356,6 +359,36 @@ patch(ReceiptScreen.prototype, {
                 message: _t("Fiscal status could not be loaded. Ask an authorized operator to review it."),
             });
             this.stopPyFiscalStatusPolling();
+        }
+    },
+    openPyAuthoritativeFile(fileKind) {
+        const decision = encodeURIComponent(this.currentOrder.pyFiscalDecisionId);
+        const session = encodeURIComponent(this.pos.pos_session.id);
+        window.open(
+            `/einvoice_py_pos/fiscal/file/${decision}/${fileKind}?session_id=${session}`,
+            "_blank",
+            "noopener"
+        );
+    },
+    async resendPyFiscalEmail() {
+        if (this.pyFiscalStatus.emailSending) {
+            return;
+        }
+        this.pyFiscalStatus.emailSending = true;
+        const requestId = uuidv4();
+        try {
+            const result = await jsonrpc("/einvoice_py_pos/fiscal/email", {
+                session_id: this.pos.pos_session.id,
+                decision_id: this.currentOrder.pyFiscalDecisionId,
+                request_id: requestId,
+            });
+            this.pyFiscalStatus.email_status = result.status;
+            this.pyFiscalStatus.message = _t("The authoritative KuDE and XML email was queued.");
+        } catch (_error) {
+            this.pyFiscalStatus.email_status = "failed";
+            this.pyFiscalStatus.message = _t("Email could not be queued. Ask a fiscal operator to review it.");
+        } finally {
+            this.pyFiscalStatus.emailSending = false;
         }
     },
 });

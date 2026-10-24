@@ -91,8 +91,10 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
 - [x] Apply configurable automatic email delivery for known recipients. The
   originating channel snapshots the confirmed recipient and may explicitly
   suppress automatic email when print-only delivery was selected.
-- Print KuDE when email is absent or printing is selected.
-- Expose delivery state and independent resend without another SIFEN call.
+- [x] Open/print the authoritative KuDE and download the accepted final XML
+  directly from the POS receipt through session- and decision-scoped routes.
+- [x] Expose email delivery state and an operator-authorized, idempotent resend
+  of the authoritative KuDE/XML without another SIFEN call.
 - Provide operator recovery and Consulta DE only through existing guards.
 - Define the no-connectivity and SIFEN-unavailable operating procedure.
 

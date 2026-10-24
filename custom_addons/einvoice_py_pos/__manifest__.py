@@ -1,7 +1,7 @@
 {
     "name": "Paraguay Electronic Invoicing POS Bridge",
     "summary": "Optional Odoo POS channel for the Paraguay fiscal engine",
-    "version": "17.0.1.2.0",
+    "version": "17.0.1.3.0",
     "category": "Point of Sale",
     "depends": ["point_of_sale", "einvoice_py"],
     "data": [

@@ -102,6 +102,12 @@ The POS receipt screen polls a session- and decision-scoped, read-only endpoint
 for the job projection. It exposes only safe status, authority code/message,
 protocol and CDC. Terminal rejection, ambiguity and operator-review states stop
 polling and never trigger submission, retry or Consulta DE.
+For accepted results, the same scoped boundary resolves the existing
+authoritative KuDE PDF and final rDE through `PyFiscalDocumentDeliveryService`;
+it never regenerates artifacts. A fiscal operator may queue an email resend
+through `PyFiscalEmailDeliveryService`. POS request identities are unique and
+make browser/RPC replay idempotent. Opening files or queueing email cannot call
+SIFEN or alter fiscal acceptance.
 
 Paraguay DE submission now has a durable pre-POST boundary. A narrowly scoped
 independent cursor commits a `pending` attempt before caller-owned artifact

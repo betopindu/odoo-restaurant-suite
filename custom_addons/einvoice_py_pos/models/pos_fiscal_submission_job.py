@@ -106,6 +106,17 @@ class PyPosFiscalSubmissionJob(models.Model):
             status = "rejected"
         else:
             status = "operator_review"
+        latest_delivery = document.py_email_delivery_ids.sorted("id", reverse=True)[:1]
+        email_status = "not_requested"
+        if latest_delivery:
+            if latest_delivery.preparation_status == "failed":
+                email_status = "failed"
+            elif latest_delivery.mail_state == "sent":
+                email_status = "sent"
+            elif latest_delivery.mail_state in ("exception", "cancel"):
+                email_status = "failed"
+            else:
+                email_status = "queued"
         return {
             "status": status,
             "message": job.authority_message or job.error_detail or "Operator review is required.",
@@ -113,6 +124,13 @@ class PyPosFiscalSubmissionJob(models.Model):
             "authority_protocol": job.authority_protocol or "",
             "cdc": document.py_cdc or document.country_identifier or "",
             "ambiguous": bool(job.ambiguous),
+            "delivery_ready": status == "accepted",
+            "email_status": email_status,
+            "email_available": bool(
+                status == "accepted"
+                and document.customer_email
+                and self.env.user.has_group("einvoice_py.group_py_fiscal_operator")
+            ),
         }
 
     @api.model

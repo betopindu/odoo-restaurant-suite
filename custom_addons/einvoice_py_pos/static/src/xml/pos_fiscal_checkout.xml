@@ -43,6 +43,27 @@
                     <strong>Protocol:</strong>
                     <span t-esc="pyFiscalStatus.authority_protocol"/>
                 </div>
+                <div t-if="pyFiscalStatus.delivery_ready" class="d-flex gap-2 mt-3 flex-wrap">
+                    <button class="btn btn-primary"
+                            t-on-click="() => this.openPyAuthoritativeFile('pdf')">
+                        <i class="fa fa-print me-1"/>Open / Print KuDE
+                    </button>
+                    <button class="btn btn-secondary"
+                            t-on-click="() => this.openPyAuthoritativeFile('xml')">
+                        <i class="fa fa-download me-1"/>Download XML
+                    </button>
+                    <button t-if="pyFiscalStatus.email_available"
+                            class="btn btn-secondary"
+                            t-att-disabled="pyFiscalStatus.emailSending"
+                            t-on-click="resendPyFiscalEmail">
+                        <i class="fa fa-envelope me-1"/>Email KuDE + XML
+                    </button>
+                </div>
+                <div t-if="pyFiscalStatus.delivery_ready and pyFiscalStatus.email_status != 'not_requested'"
+                     class="small mt-2">
+                    <strong>Email:</strong>
+                    <span t-esc="pyFiscalStatus.email_status"/>
+                </div>
                 <small class="d-block mt-2 text-muted">Automatic retries are disabled.</small>
             </div>
         </xpath>

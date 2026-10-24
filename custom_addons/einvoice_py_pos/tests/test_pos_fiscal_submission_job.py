@@ -222,6 +222,39 @@ class TestPosFiscalSubmissionJob(TransactionCase):
         self.assertEqual(job.attempt_count, 0)
         self.assertFalse(document.transmission_ids)
 
+    def test_pos_status_projects_email_delivery_without_fiscal_side_effects(self):
+        order, document = self._records("delivery-status")
+        document.write({
+            "customer_email": "receiver@example.test",
+            "py_cdc": "01" + "0" * 42,
+        })
+        job = self.env["py.pos.fiscal.submission.job"].enqueue(
+            order=order, document=document
+        )
+        job.write({
+            "state": "completed",
+            "attempt_count": 1,
+            "submission_status": "accepted",
+            "authority_code": "0260",
+        })
+        delivery = self.env["py.fiscal.email.delivery"].sudo().create({
+            "document_id": document.id,
+            "tenant_id": self.tenant.id,
+            "company_id": self.company.id,
+            "cdc": document.py_cdc,
+            "recipient_email": document.customer_email,
+            "mode": "automatic",
+            "requested_at": fields.Datetime.now(),
+        })
+
+        status = self.env["py.pos.fiscal.submission.job"].status_for_pos(order=order)
+
+        self.assertEqual(status["status"], "accepted")
+        self.assertTrue(status["delivery_ready"])
+        self.assertEqual(status["email_status"], "queued")
+        self.assertEqual(delivery.preparation_status, "queued")
+        self.assertFalse(document.transmission_ids)
+
     def test_unclaimed_job_cannot_execute(self):
         order, document = self._records("not-claimed")
         job = self.env["py.pos.fiscal.submission.job"].enqueue(
