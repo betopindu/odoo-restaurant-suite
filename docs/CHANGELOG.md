@@ -1,5 +1,13 @@
 # Documentation Changelog
 
+## 2026-10-24 — Innominado amount boundary
+
+* Enforced the regulatory identified-receiver boundary for Paraguay
+  consumer-final FE: an innominado B2C invoice is rejected locally when its
+  total exceeds the invoice-date equivalent of USD 10,000. The guard lives in
+  the channel-neutral fiscal engine, preserves the Manual v150 innominado
+  projection and does not affect identified B2B invoices.
+
 ## 2026-10-24 — Commercial tax-matrix offline validation
 
 * Added full offline signed-rDE/XSD regression coverage for the commercial POS

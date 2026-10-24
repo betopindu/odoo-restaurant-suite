@@ -54,6 +54,7 @@ class PyFiscalDocumentFromAccountMoveService:
             receiver.update(self._self_invoice_values(move))
         else:
             receiver = self._receiver_values(move.partner_id.commercial_partner_id)
+            self._validate_innominado_amount(move, receiver)
         if customer_email_override is not None:
             receiver["customer_email"] = str(customer_email_override).strip()
         snapshot_at = self.snapshot_time_provider()
@@ -82,6 +83,60 @@ class PyFiscalDocumentFromAccountMoveService:
         if document.state == "draft":
             document.write({"state": "ready", "fiscal_number": document.py_full_number})
         return document
+
+    def _validate_innominado_amount(self, move, receiver):
+        """Require an identified B2C receiver above the regulatory USD limit."""
+        if not (
+            receiver.get("py_receiver_nature") == "2"
+            and receiver.get("py_receiver_id_type") == "5"
+            and receiver.get("py_receiver_id_number") == "0"
+        ):
+            return
+        usd = self.env["res.currency"].with_context(active_test=False).search(
+            [("name", "=", "USD")], limit=1
+        )
+        if not usd:
+            raise ValidationError(
+                "Consumer-final FE requires the USD currency to validate the "
+                "identified-receiver amount limit."
+            )
+        conversion_date = move.invoice_date or fields.Date.context_today(move)
+        company_currency = move.company_id.currency_id
+        currencies_requiring_rate = (usd | move.currency_id) - company_currency
+        for currency in currencies_requiring_rate:
+            rate = self.env["res.currency.rate"].search([
+                ("currency_id", "=", currency.id),
+                ("name", "<=", conversion_date),
+                ("company_id", "in", [False, move.company_id.id]),
+            ], limit=1)
+            if not rate:
+                raise ValidationError(
+                    "Consumer-final FE requires a valid USD exchange rate for the "
+                    "invoice date before an innominado receiver can be used."
+                )
+        try:
+            limit = usd._convert(
+                10000,
+                move.currency_id,
+                move.company_id,
+                conversion_date,
+                round=False,
+            )
+        except Exception as exc:
+            raise ValidationError(
+                "Consumer-final FE requires a valid USD exchange rate for the "
+                "invoice date before an innominado receiver can be used."
+            ) from exc
+        if not limit or limit <= 0:
+            raise ValidationError(
+                "Consumer-final FE requires a valid USD exchange rate for the "
+                "invoice date before an innominado receiver can be used."
+            )
+        if move.currency_id.compare_amounts(move.amount_total, limit) > 0:
+            raise ValidationError(
+                "Consumer-final FE above the equivalent of USD 10,000 requires "
+                "an identified receiver; innominado is not allowed."
+            )
 
     def _document_type(self, move):
         if move.move_type == "out_invoice" and move.debit_origin_id:

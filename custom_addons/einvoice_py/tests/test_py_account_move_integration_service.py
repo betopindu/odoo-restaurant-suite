@@ -294,6 +294,50 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         self.assertEqual(metadata["source"]["record_id"], move.id)
         self.assertEqual(len(metadata["snapshot_sha256"]), 64)
 
+    def test_innominado_amount_limit_allows_exact_usd_equivalent(self):
+        usd = self.env["res.currency"].with_context(active_test=False).search(
+            [("name", "=", "USD")], limit=1
+        )
+        limit = usd._convert(
+            10000, self.currency, self.company, date(2026, 8, 11), round=False,
+        )
+        move = self._move(lines=[("At regulatory limit", limit, self.tax_exempt)])
+
+        document = self.service.create(move=move)
+
+        self.assertEqual(document.py_receiver_id_type, "5")
+        self.assertEqual(document.py_receiver_id_number, "0")
+
+    def test_innominado_above_usd_equivalent_requires_identified_receiver(self):
+        usd = self.env["res.currency"].with_context(active_test=False).search(
+            [("name", "=", "USD")], limit=1
+        )
+        limit = usd._convert(
+            10000, self.currency, self.company, date(2026, 8, 11), round=False,
+        )
+        move = self._move(lines=[("Above regulatory limit", limit + 1, self.tax_exempt)])
+
+        with self.assertRaisesRegex(ValidationError, "identified receiver"):
+            self.service.create(move=move)
+        self.assertFalse(move.fiscal_document_ids)
+
+    def test_identified_b2b_is_not_blocked_by_innominado_amount_limit(self):
+        usd = self.env["res.currency"].with_context(active_test=False).search(
+            [("name", "=", "USD")], limit=1
+        )
+        limit = usd._convert(
+            10000, self.currency, self.company, date(2026, 8, 11), round=False,
+        )
+        move = self._move(
+            partner=self._business_partner(),
+            lines=[("Identified high-value sale", limit + 1, self.tax_exempt)],
+        )
+
+        document = self.service.create(move=move)
+
+        self.assertEqual(document.py_receiver_nature, "1")
+        self.assertEqual(document.customer_tax_id, "80002201-7")
+
     def test_channel_email_choice_is_captured_before_payload_persistence(self):
         document = self.service.create(
             move=self._move(),

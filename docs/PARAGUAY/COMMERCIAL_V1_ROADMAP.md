@@ -61,7 +61,11 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
   local taxpayer partner; it neither queries SIFEN nor creates or submits a
   fiscal document. The configured innominado partner is explicitly loaded for
   `Consumer final`.
-- Align innominado XML with Manual v150 and enforce its amount guard.
+- [x] Align innominado XML with Manual v150 and enforce its amount guard. The
+  neutral fiscal engine emits nature `2`, B2C operation `2`, country `PRY`, ID
+  type `5`, number `0` and `Sin Nombre`, without fabricated geography. Above
+  the invoice-date equivalent of USD 10,000 it fails closed and requires an
+  identified receiver.
 - [x] Implement local-first RUC resolution, official mTLS Consulta RUC fallback
   (`0500/0501/0502`) and an explicit manual-unverified fallback without
   fabricating optional data. Successful authority results are cached as local
