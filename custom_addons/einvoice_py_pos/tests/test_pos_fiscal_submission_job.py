@@ -125,6 +125,32 @@ class TestPosFiscalSubmissionJob(TransactionCase):
         self.assertFalse(first.transmission_id)
         self.assertFalse(document.transmission_ids)
 
+    def test_queued_job_survives_cache_reset_without_duplicate_or_submission(self):
+        order, document = self._records("restart-safe")
+        model = self.env["py.pos.fiscal.submission.job"]
+        original = model.enqueue(order=order, document=document)
+
+        self.env.invalidate_all()
+        reloaded_order = self.env["pos.order"].browse(order.id)
+        reloaded_document = self.env["fiscal.document"].browse(document.id)
+        replay = model.enqueue(
+            order=reloaded_order,
+            document=reloaded_document,
+        )
+
+        self.assertEqual(replay.id, original.id)
+        self.assertEqual(replay.state, "queued")
+        self.assertEqual(replay.attempt_count, 0)
+        self.assertEqual(
+            model.search_count([
+                "|",
+                ("order_id", "=", order.id),
+                ("document_id", "=", document.id),
+            ]),
+            1,
+        )
+        self.assertFalse(reloaded_document.transmission_ids)
+
     def test_disabled_configuration_does_not_queue(self):
         order, document = self._records("disabled")
         self.config.py_fiscal_auto_submit_enabled = False

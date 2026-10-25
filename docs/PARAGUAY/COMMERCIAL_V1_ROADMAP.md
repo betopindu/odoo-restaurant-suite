@@ -123,8 +123,12 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
   through the offline POS decision, receiver-completion and fiscal-preparation
   boundaries. The local-B2B path also has an isolated interactive POS result
   with a ready fiscal document and zero submissions.
-- Validate rejection, ambiguity, restart, duplicate click, email failure and
-  printer fallback.
+- [x] Validate rejection, ambiguity, restart, duplicate click, email failure
+  and printer fallback. Automated tests preserve a single queued job across a
+  cache/process boundary, project rejection and ambiguity without side
+  effects, and keep accepted fiscal state independent from email failure. An
+  isolated interactive POS run also preserved its ready fiscal document when
+  native preparation printing failed.
 - Install on a clean local database, then deploy the same baseline to AWS
   STAGING and repeat the complete acceptance suite.
 - Complete the authority-required homologation cases and production approval.
