@@ -129,8 +129,14 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
   effects, and keep accepted fiscal state independent from email failure. An
   isolated interactive POS run also preserved its ready fiscal document when
   native preparation printing failed.
-- Install on a clean local database, then deploy the same baseline to AWS
-  STAGING and repeat the complete acceptance suite.
+- [x] Install the complete fiscal/POS baseline on a clean local database and
+  validate module discovery, dependency installation, registry, views,
+  security, assets and the focused POS suite (28 methods / 32 checks, zero
+  failures or errors). The clean database started with zero fiscal documents,
+  transmissions and submission jobs; fiscal checkout and automatic submission
+  were disabled by default.
+- Deploy the same baseline to AWS STAGING and repeat the complete acceptance
+  suite.
 - Complete the authority-required homologation cases and production approval.
 - Configure production certificate, CSC, timbrado, endpoints, HTTPS, secret
   management, monitoring, alerting, roles and tested backup restoration.
