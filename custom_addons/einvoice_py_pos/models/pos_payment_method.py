@@ -91,6 +91,17 @@ class PosPaymentMethod(models.Model):
         for method in self:
             if not fiscal_configs.filtered(lambda config: method in config.payment_method_ids):
                 continue
+            if not method.py_sifen_payment_type_code:
+                raise ValidationError(
+                    "A payment method used by Paraguay fiscal POS requires a SIFEN payment type."
+                )
+            if (
+                method.py_sifen_payment_type_code
+                not in self.env["pos.config"].PY_SIFEN_SUPPORTED_POS_PAYMENT_TYPES
+            ):
+                raise ValidationError(
+                    "This SIFEN payment type is not supported by Paraguay fiscal POS."
+                )
             if method.py_sifen_payment_type_code in ("3", "4"):
                 if not method._py_sifen_card_snapshot():
                     raise ValidationError(

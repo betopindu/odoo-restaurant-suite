@@ -12,6 +12,8 @@
   address and SIFEN geography before checkout. Official SIFEN department
   code-description pairs are enforced, while district/city codes and required
   descriptions fail closed when absent or structurally invalid.
+* Prevented a payment method already attached to an enabled Paraguay fiscal POS
+  from later losing its supported SIFEN payment mapping.
 
 ## 2026-10-24 — Commercial tax-matrix offline validation
 

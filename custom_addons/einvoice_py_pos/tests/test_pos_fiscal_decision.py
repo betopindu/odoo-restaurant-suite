@@ -158,6 +158,13 @@ class TestPosFiscalDecision(TransactionCase):
                 dict(values, py_ruc_resolution=False)
             )
 
+    def test_fiscal_payment_method_cannot_become_unmapped_or_unsupported(self):
+        self.session.unlink()
+        with self.assertRaisesRegex(ValidationError, "requires a SIFEN payment type"):
+            self.cash_method.py_sifen_payment_type_code = False
+        with self.assertRaisesRegex(ValidationError, "not supported"):
+            self.cash_method.py_sifen_payment_type_code = "2"
+
     def test_email_delivery_requires_address(self):
         values = self._data(
             py_fiscal_choice="consumer_final",
