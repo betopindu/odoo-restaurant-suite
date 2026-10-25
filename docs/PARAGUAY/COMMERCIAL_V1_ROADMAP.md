@@ -131,10 +131,12 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
   native preparation printing failed.
 - [x] Install the complete fiscal/POS baseline on a clean local database and
   validate module discovery, dependency installation, registry, views,
-  security, assets and the focused POS suite (28 methods / 32 checks, zero
-  failures or errors). The clean database started with zero fiscal documents,
-  transmissions and submission jobs; fiscal checkout and automatic submission
-  were disabled by default.
+  security and assets. The complete joint acceptance suite for
+  `einvoice_module`, `einvoice_py` and `einvoice_py_pos` passes on that clean
+  database with 804 methods / 880 checks and zero failures or errors. The
+  clean database remains at zero fiscal documents, transmissions and
+  submission jobs; fiscal checkout and automatic submission are disabled by
+  default.
 - Deploy the same baseline to AWS STAGING and repeat the complete acceptance
   suite.
 - Complete the authority-required homologation cases and production approval.

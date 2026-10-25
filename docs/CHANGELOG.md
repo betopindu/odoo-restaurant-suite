@@ -1,5 +1,16 @@
 # Documentation Changelog
 
+## 2026-10-25 — Clean Commercial V1 acceptance
+
+* Installed the complete fiscal/POS baseline on an isolated clean database and
+  ran the joint `einvoice_module`, `einvoice_py` and `einvoice_py_pos`
+  acceptance suite: 804 methods / 880 checks, zero failures or errors.
+* Made the account-move integration fixture independent of pre-existing local
+  currency-rate data. Production enforcement of the USD 10,000 innominado
+  boundary remains unchanged.
+* Confirmed after the run that the clean database contains no fiscal document,
+  transmission or submission job and has no POS automatic submission enabled.
+
 ## 2026-10-24 — Innominado amount boundary
 
 * Enforced the regulatory identified-receiver boundary for Paraguay

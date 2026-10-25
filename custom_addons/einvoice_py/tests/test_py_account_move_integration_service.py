@@ -59,12 +59,19 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
                 "name": "PYG", "symbol": "Gs", "rounding": 1.0,
                 "decimal_places": 0, "active": True,
             })
-            cls.env["res.currency.rate"].create({
-                "currency_id": cls.currency.id, "name": date.today(),
-                "rate": 7000.0, "company_id": cls.company.id,
-            })
         elif not cls.currency.active:
             cls.currency.active = True
+        if cls.currency != cls.company.currency_id and not cls.env["res.currency.rate"].search([
+            ("currency_id", "=", cls.currency.id),
+            ("name", "<=", cls.SNAPSHOT_TIME.date()),
+            ("company_id", "in", [False, cls.company.id]),
+        ], limit=1):
+            cls.env["res.currency.rate"].create({
+                "currency_id": cls.currency.id,
+                "name": cls.SNAPSHOT_TIME.date(),
+                "rate": 7000.0,
+                "company_id": cls.company.id,
+            })
         cls.tenant = cls.env["fiscal.tenant"].create({
             "name": "Account Move Integration Tenant", "code": "move-integration",
             "company_id": cls.company.id,

@@ -163,7 +163,7 @@ official homologation count matrix or production readiness.
 
 ## Current Validation Status
 
-The full `einvoice_py` suite reports **770 counted checks across 710 test
+The full `einvoice_py` suite reports **796 counted checks across 734 test
 methods**. Automated coverage is network-free.
 It proves local v150 XML construction, XMLDSig, QR, final XSD validation, SOAP
 1.2 wrapping, mocked mTLS transport, response classification, readiness, and
