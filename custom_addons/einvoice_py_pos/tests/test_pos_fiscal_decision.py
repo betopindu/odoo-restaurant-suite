@@ -2,6 +2,8 @@ import ast
 from pathlib import Path
 from unittest.mock import patch
 
+from psycopg2.errors import UniqueViolation
+
 from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
@@ -157,6 +159,60 @@ class TestPosFiscalDecision(TransactionCase):
             self.env["pos.order"]._validate_py_fiscal_ui_order(
                 dict(values, py_ruc_resolution=False)
             )
+
+    def test_commercial_receiver_resolution_matrix_is_accepted(self):
+        consumer_final = self._data(
+            py_fiscal_choice="consumer_final",
+            py_fiscal_decision_id="decision-consumer-final",
+            to_invoice=True,
+            partner_id=self.unnamed.id,
+            py_fiscal_delivery="print",
+        )
+        self.assertTrue(
+            self.env["pos.order"]._validate_py_fiscal_ui_order(consumer_final)
+        )
+
+        for resolution in ("local", "authority", "manual_unverified"):
+            with self.subTest(resolution=resolution):
+                values = self._data(
+                    py_fiscal_choice="with_ruc",
+                    py_fiscal_decision_id=f"decision-{resolution}",
+                    to_invoice=True,
+                    partner_id=self.taxpayer.id,
+                    py_ruc_resolution=resolution,
+                    py_fiscal_delivery="print",
+                )
+                self.assertTrue(
+                    self.env["pos.order"]._validate_py_fiscal_ui_order(values)
+                )
+
+    def test_fiscal_decision_identity_cannot_be_reused_by_another_order(self):
+        common = {
+            "session_id": self.session.id,
+            "config_id": self.config.id,
+            "company_id": self.company.id,
+            "amount_total": 0,
+            "amount_tax": 0,
+            "amount_paid": 0,
+            "amount_return": 0,
+            "py_fiscal_choice": "no_fe",
+            "py_fiscal_decision_id": "decision-commercial-replay",
+            "py_ruc_resolution": "not_applicable",
+            "py_fiscal_delivery": "not_applicable",
+        }
+        self.env["pos.order"].create({
+            **common,
+            "name": "Commercial decision original",
+            "pos_reference": "Commercial decision original",
+        })
+
+        with self.assertRaises(UniqueViolation):
+            with self.env.cr.savepoint():
+                self.env["pos.order"].create({
+                    **common,
+                    "name": "Commercial decision duplicate",
+                    "pos_reference": "Commercial decision duplicate",
+                })
 
     def test_fiscal_payment_method_cannot_become_unmapped_or_unsupported(self):
         self.session.unlink()

@@ -119,7 +119,10 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
   `gPagTarCD` group; incomplete configuration fails before fiscal preparation.
   Cheque, bank-payment presence and free-form "other" remain unavailable in a
   fiscal POS until their transaction-specific evidence can be captured safely.
-- Validate B2C, local B2B, remote-RUC B2B and manual-unverified B2B.
+- [x] Validate B2C, local B2B, remote-RUC B2B and manual-unverified B2B
+  through the offline POS decision, receiver-completion and fiscal-preparation
+  boundaries. The local-B2B path also has an isolated interactive POS result
+  with a ready fiscal document and zero submissions.
 - Validate rejection, ambiguity, restart, duplicate click, email failure and
   printer fallback.
 - Install on a clean local database, then deploy the same baseline to AWS
