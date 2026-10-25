@@ -35,6 +35,17 @@ class _Transport:
 @tagged("post_install", "-at_install")
 class TestPySifenRucQueryService(TransactionCase):
 
+    LOCATION = {
+        "address": "Avenida Mariscal Lopez",
+        "house_number": "123",
+        "department_code": "12",
+        "department_name": "CENTRAL",
+        "district_code": "164",
+        "district_name": "SAN LORENZO",
+        "city_code": "6010",
+        "city_name": "SAN LORENZO",
+    }
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -180,11 +191,70 @@ class TestPySifenRucQueryService(TransactionCase):
             name="Manual Customer",
             taxpayer_type="2",
             email="manual@example.com",
+            location=self.LOCATION,
         )
         partner = self.env["res.partner"].browse(result["partner_id"])
         self.assertEqual(result["source"], "manual_unverified")
         self.assertEqual(partner.py_sifen_ruc_resolution, "manual_unverified")
         self.assertEqual(partner.email, "manual@example.com")
+        self.assertEqual(partner.street, "Avenida Mariscal Lopez")
+        self.assertEqual(partner.py_sifen_department_code, "12")
+        self.assertEqual(partner.py_sifen_department_name, "CENTRAL")
+
+    def test_remote_partner_can_be_completed_with_fiscal_location(self):
+        result = self._service(_Transport(response=self._response(ruc="80012351"))).resolve(
+            adapter_config=self.adapter,
+            company=self.company,
+            ruc="80012351-2",
+        )
+        partner = self.env["res.partner"].browse(result["partner_id"])
+
+        completed = self._service(_Transport()).complete_partner(
+            partner=partner,
+            taxpayer_type="2",
+            location=self.LOCATION,
+        )
+
+        self.assertEqual(completed["source"], "authority")
+        self.assertEqual(partner.py_sifen_taxpayer_type, "2")
+        self.assertEqual(partner.py_sifen_city_code, "6010")
+        self.assertEqual(partner.country_id, self.env.ref("base.py"))
+
+    def test_location_rejects_incomplete_or_mismatched_department(self):
+        service = self._service(_Transport())
+        with self.assertRaisesRegex(ValidationError, "incomplete"):
+            service.create_manual_partner(
+                company=self.company,
+                ruc="80012352-3",
+                name="Incomplete Customer",
+                taxpayer_type="2",
+                location={"address": "Only an address"},
+            )
+        invalid = dict(self.LOCATION, department_code="11")
+        with self.assertRaisesRegex(ValidationError, "do not match"):
+            service.create_manual_partner(
+                company=self.company,
+                ruc="80012353-4",
+                name="Mismatched Customer",
+                taxpayer_type="2",
+                location=invalid,
+            )
+
+    def test_existing_partner_is_revalidated_before_pos_use(self):
+        partner = self.env["res.partner"].create({
+            "name": "Stale local taxpayer",
+            "vat": "80012354-5",
+            "py_sifen_receiver_profile": "taxpayer",
+            "py_sifen_taxpayer_type": "2",
+            **self._service(_Transport())._receiver_location_values(self.LOCATION),
+        })
+        partner.py_sifen_department_code = "11"
+
+        with self.assertRaisesRegex(ValidationError, "do not match"):
+            self._service(_Transport()).complete_partner(
+                partner=partner,
+                taxpayer_type="2",
+            )
 
     def test_ruc_requires_verification_digit(self):
         with self.assertRaisesRegex(ValidationError, "verification digit"):

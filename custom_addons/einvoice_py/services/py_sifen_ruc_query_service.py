@@ -35,6 +35,15 @@ class PySifenRucQueryService:
         "production": "https://sifen.set.gov.py/de/ws/consultas/consulta-ruc.wsdl",
     }
     RUC_RE = re.compile(r"^(?P<number>[0-9]{5,8})(?:-(?P<dv>[0-9]))?$")
+    DEPARTMENTS = {
+        "1": "CAPITAL", "2": "CONCEPCION", "3": "SAN PEDRO",
+        "4": "CORDILLERA", "5": "GUAIRA", "6": "CAAGUAZU",
+        "7": "CAAZAPA", "8": "ITAPUA", "9": "MISIONES",
+        "10": "PARAGUARI", "11": "ALTO PARANA", "12": "CENTRAL",
+        "13": "NEEMBUCU", "14": "AMAMBAY", "15": "PTE. HAYES",
+        "16": "BOQUERON", "17": "ALTO PARAGUAY", "18": "CANINDEYU",
+        "19": "CHACO", "20": "NUEVA ASUNCION",
+    }
 
     def __init__(self, env, *, credential_provider=None, transport=None, clock=None):
         self.env = env
@@ -244,7 +253,9 @@ class PySifenRucQueryService:
             return "sifen"
         return "other"
 
-    def create_manual_partner(self, *, company, ruc, name, taxpayer_type, email=None):
+    def create_manual_partner(
+        self, *, company, ruc, name, taxpayer_type, email=None, location=None,
+    ):
         company.ensure_one()
         number, dv = self.normalize_ruc(ruc)
         name = (name or "").strip()
@@ -255,7 +266,7 @@ class PySifenRucQueryService:
         existing = self._local_partner(company=company, number=number, dv=dv)
         if existing:
             return self._partner_result(existing, source="local")
-        partner = self.env["res.partner"].create({
+        values = {
             "name": name,
             "vat": self.full_ruc(number, dv),
             "company_id": company.id,
@@ -263,8 +274,89 @@ class PySifenRucQueryService:
             "py_sifen_receiver_profile": "taxpayer",
             "py_sifen_taxpayer_type": taxpayer_type,
             "py_sifen_ruc_resolution": "manual_unverified",
-        })
+        }
+        values.update(self._receiver_location_values(location))
+        partner = self.env["res.partner"].create(values)
         return self._partner_result(partner, source="manual_unverified")
+
+    def complete_partner(self, *, partner, taxpayer_type, location=None, email=None):
+        partner.ensure_one()
+        if partner.py_sifen_receiver_profile != "taxpayer":
+            raise ValidationError("Only a Paraguay taxpayer receiver can be completed.")
+        if taxpayer_type not in ("1", "2"):
+            raise ValidationError("Select person or legal-entity taxpayer type.")
+        values = {"py_sifen_taxpayer_type": taxpayer_type}
+        values.update(self._receiver_location_values(
+            location if location is not None else self._partner_location(partner)
+        ))
+        if email and not partner.email:
+            values["email"] = str(email).strip()
+        partner.write(values)
+        return self._partner_result(
+            partner,
+            source=partner.py_sifen_ruc_resolution or "local",
+        )
+
+    @staticmethod
+    def _partner_location(partner):
+        return {
+            "address": partner.street,
+            "house_number": partner.py_sifen_house_number,
+            "department_code": partner.py_sifen_department_code,
+            "department_name": partner.py_sifen_department_name,
+            "district_code": partner.py_sifen_district_code,
+            "district_name": partner.py_sifen_district_name,
+            "city_code": partner.py_sifen_city_code,
+            "city_name": partner.py_sifen_city_name,
+        }
+
+    def _receiver_location_values(self, location):
+        location = dict(location or {})
+        required = {
+            "address": "address",
+            "house_number": "house number",
+            "department_code": "department code",
+            "department_name": "department description",
+            "district_code": "district code",
+            "district_name": "district description",
+            "city_code": "city code",
+            "city_name": "city description",
+        }
+        normalized = {
+            key: re.sub(r"\s+", " ", str(location.get(key) or "")).strip()
+            for key in required
+        }
+        missing = [label for key, label in required.items() if not normalized[key]]
+        if missing:
+            raise ValidationError(
+                "Paraguay taxpayer location is incomplete: " + ", ".join(missing) + "."
+            )
+        department_code = normalized["department_code"].lstrip("0") or "0"
+        department_name = normalized["department_name"].upper()
+        if self.DEPARTMENTS.get(department_code) != department_name:
+            raise ValidationError(
+                "Paraguay department code and description do not match the official SIFEN catalog."
+            )
+        district_code = normalized["district_code"].lstrip("0") or "0"
+        city_code = normalized["city_code"].lstrip("0") or "0"
+        if not re.fullmatch(r"[1-9][0-9]{0,3}", district_code):
+            raise ValidationError("Paraguay district code must contain 1 to 4 digits.")
+        if not re.fullmatch(r"[1-9][0-9]{0,4}", city_code):
+            raise ValidationError("Paraguay city code must contain 1 to 5 digits.")
+        if len(normalized["district_name"]) > 30 or len(normalized["city_name"]) > 30:
+            raise ValidationError("Paraguay district and city descriptions allow at most 30 characters.")
+        country = self.env.ref("base.py")
+        return {
+            "street": normalized["address"],
+            "country_id": country.id,
+            "py_sifen_house_number": normalized["house_number"],
+            "py_sifen_department_code": department_code,
+            "py_sifen_department_name": department_name,
+            "py_sifen_district_code": district_code,
+            "py_sifen_district_name": normalized["district_name"].upper(),
+            "py_sifen_city_code": city_code,
+            "py_sifen_city_name": normalized["city_name"].upper(),
+        }
 
     def _persist_authority_partner(self, *, company, number, dv, result):
         return self.env["res.partner"].create({

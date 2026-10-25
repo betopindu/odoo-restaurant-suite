@@ -11,6 +11,13 @@ class PosSession(models.Model):
             "py_sifen_receiver_profile",
             "py_sifen_taxpayer_type",
             "py_sifen_ruc_resolution",
+            "py_sifen_house_number",
+            "py_sifen_department_code",
+            "py_sifen_department_name",
+            "py_sifen_district_code",
+            "py_sifen_district_name",
+            "py_sifen_city_code",
+            "py_sifen_city_name",
         ):
             if field_name not in fields:
                 fields.append(field_name)

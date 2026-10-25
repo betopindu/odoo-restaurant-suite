@@ -439,6 +439,8 @@ class TestPosFiscalDecision(TransactionCase):
         self.assertIn("selectPyFiscalChoice", template)
         self.assertIn('/einvoice_py_pos/ruc/resolve', javascript)
         self.assertIn('/einvoice_py_pos/ruc/manual', javascript)
+        self.assertIn('/einvoice_py_pos/ruc/complete', javascript)
+        self.assertIn("collectPyFiscalLocation", javascript)
         self.assertIn('/einvoice_py_pos/fiscal/status', javascript)
         self.assertIn('/einvoice_py_pos/fiscal/email', javascript)
         self.assertIn('/einvoice_py_pos/fiscal/file/', javascript)
@@ -457,6 +459,16 @@ class TestPosFiscalDecision(TransactionCase):
             javascript,
         )
         self.assertIn("TextInputPopup", javascript)
+        for field_name in (
+            "py_sifen_house_number",
+            "py_sifen_department_code",
+            "py_sifen_department_name",
+            "py_sifen_district_code",
+            "py_sifen_district_name",
+            "py_sifen_city_code",
+            "py_sifen_city_name",
+        ):
+            self.assertIn(field_name, self.session._loader_params_res_partner()["search_params"]["fields"])
         for forbidden in (
             'import { rpc } from "@web/core/network/rpc_service";',
             "orm.call",

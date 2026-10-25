@@ -71,6 +71,11 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
   fabricating optional data. Successful authority results are cached as local
   partners; remote data still requires the cashier to select the taxpayer type
   because Consulta RUC does not return that SIFEN field.
+- [x] Complete new authority-resolved and manual-unverified taxpayers inside
+  the POS with the address and SIFEN department/district/city data required by
+  the B2B snapshot. The completed receiver is cached locally and reused;
+  incomplete data, invalid numeric geography codes or a mismatched official
+  department code-description pair fails before fiscal preparation.
 - Keep every network boundary mocked during development.
 
 ### V1.0-P1 — Payments and automatic orchestration

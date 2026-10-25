@@ -29,7 +29,7 @@ class PyPosRucLookupController(http.Controller):
         return self._with_partner(result, session)
 
     @http.route("/einvoice_py_pos/ruc/manual", type="json", auth="user")
-    def manual(self, session_id, ruc, name, taxpayer_type, email=None):
+    def manual(self, session_id, ruc, name, taxpayer_type, email=None, location=None):
         session = self._session(session_id)
         result = PySifenRucQueryService(request.env).create_manual_partner(
             company=session.company_id,
@@ -37,11 +37,14 @@ class PyPosRucLookupController(http.Controller):
             name=name,
             taxpayer_type=taxpayer_type,
             email=email,
+            location=location,
         )
         return self._with_partner(result, session)
 
     @http.route("/einvoice_py_pos/ruc/complete", type="json", auth="user")
-    def complete(self, session_id, partner_id, taxpayer_type, email=None):
+    def complete(
+        self, session_id, partner_id, taxpayer_type, email=None, location=None,
+    ):
         session = self._session(session_id)
         if taxpayer_type not in ("1", "2"):
             raise ValidationError("Select person or legal-entity taxpayer type.")
@@ -52,15 +55,13 @@ class PyPosRucLookupController(http.Controller):
             or (partner.company_id and partner.company_id != session.company_id)
         ):
             raise AccessError("The selected taxpayer is outside this POS scope.")
-        values = {"py_sifen_taxpayer_type": taxpayer_type}
-        if email and not partner.email:
-            values["email"] = email.strip()
-        partner.write(values)
-        return self._with_partner({
-            "status": "found",
-            "source": partner.py_sifen_ruc_resolution or "local",
-            "partner_id": partner.id,
-        }, session)
+        result = PySifenRucQueryService(request.env).complete_partner(
+            partner=partner,
+            taxpayer_type=taxpayer_type,
+            location=location,
+            email=email,
+        )
+        return self._with_partner(result, session)
 
     def _session(self, session_id):
         session = request.env["pos.session"].browse(int(session_id)).exists()

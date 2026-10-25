@@ -7,6 +7,11 @@
   total exceeds the invoice-date equivalent of USD 10,000. The guard lives in
   the channel-neutral fiscal engine, preserves the Manual v150 innominado
   projection and does not affect identified B2B invoices.
+* Completed the local-first Consulta RUC POS flow: new authority-resolved and
+  manual-unverified taxpayers now collect and persist their required fiscal
+  address and SIFEN geography before checkout. Official SIFEN department
+  code-description pairs are enforced, while district/city codes and required
+  descriptions fail closed when absent or structurally invalid.
 
 ## 2026-10-24 — Commercial tax-matrix offline validation
 

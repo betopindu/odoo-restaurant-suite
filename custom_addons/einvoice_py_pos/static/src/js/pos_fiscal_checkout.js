@@ -195,12 +195,17 @@ patch(PaymentScreen.prototype, {
             if (!taxpayerType) {
                 return false;
             }
-            result = await jsonrpc("/einvoice_py_pos/ruc/complete", {
-                session_id: this.pos.pos_session.id,
-                partner_id: result.partner_id,
-                taxpayer_type: taxpayerType,
-            });
         }
+        const location = await this.collectPyFiscalLocation(result.partner);
+        if (location === false) {
+            return false;
+        }
+        result = await jsonrpc("/einvoice_py_pos/ruc/complete", {
+            session_id: this.pos.pos_session.id,
+            partner_id: result.partner_id,
+            taxpayer_type: taxpayerType,
+            location: location || null,
+        });
         if (!result.partner) {
             return false;
         }
@@ -224,6 +229,10 @@ patch(PaymentScreen.prototype, {
         if (!taxpayerType) {
             return false;
         }
+        const location = await this.collectPyFiscalLocation(null, true);
+        if (!location) {
+            return false;
+        }
         const emailResult = await this.popup.add(TextInputPopup, {
             title: _t("Delivery email (optional)"),
             body: _t("Without an email, the accepted KuDE will be printed instead."),
@@ -240,6 +249,7 @@ patch(PaymentScreen.prototype, {
                 name,
                 taxpayer_type: taxpayerType,
                 email: emailResult.payload || "",
+                location,
             });
         } catch (_error) {
             await this.popup.add(ErrorPopup, {
@@ -250,6 +260,46 @@ patch(PaymentScreen.prototype, {
         }
         this.pos.db.add_partners([result.partner]);
         return this.pos.db.get_partner_by_id(result.partner_id);
+    },
+    pyFiscalLocationComplete(partner) {
+        return Boolean(
+            partner?.street &&
+            partner?.py_sifen_house_number &&
+            partner?.py_sifen_department_code &&
+            partner?.py_sifen_department_name &&
+            partner?.py_sifen_district_code &&
+            partner?.py_sifen_district_name &&
+            partner?.py_sifen_city_code &&
+            partner?.py_sifen_city_name
+        );
+    },
+    async collectPyFiscalLocation(partner, force = false) {
+        if (!force && this.pyFiscalLocationComplete(partner)) {
+            return null;
+        }
+        const fields = [
+            ["address", _t("Fiscal address"), _t("Street or address from the taxpayer record"), partner?.street],
+            ["house_number", _t("House number"), _t("Use 0 when the official address has no number"), partner?.py_sifen_house_number],
+            ["department_code", _t("SIFEN department code"), _t("Enter the official numeric code"), partner?.py_sifen_department_code],
+            ["department_name", _t("SIFEN department"), _t("Enter the exact official description"), partner?.py_sifen_department_name],
+            ["district_code", _t("SIFEN district code"), _t("Enter the official numeric code"), partner?.py_sifen_district_code],
+            ["district_name", _t("SIFEN district"), _t("Enter the exact official description"), partner?.py_sifen_district_name],
+            ["city_code", _t("SIFEN city code"), _t("Enter the official numeric code"), partner?.py_sifen_city_code],
+            ["city_name", _t("SIFEN city"), _t("Enter the exact official description"), partner?.py_sifen_city_name],
+        ];
+        const location = {};
+        for (const [key, title, body, startingValue] of fields) {
+            const result = await this.popup.add(TextInputPopup, {
+                title,
+                body,
+                startingValue: startingValue || "",
+            });
+            if (!result.confirmed || !String(result.payload || "").trim()) {
+                return false;
+            }
+            location[key] = String(result.payload).trim();
+        }
+        return location;
     },
     async selectPyTaxpayerType() {
         const { confirmed, payload } = await this.popup.add(SelectionPopup, {
