@@ -137,8 +137,10 @@ for Paraguay invoicing, and installing KDS never requires e-Invoice.
   clean database remains at zero fiscal documents, transmissions and
   submission jobs; fiscal checkout and automatic submission are disabled by
   default.
-- Deploy the same baseline to AWS STAGING and repeat the complete acceptance
-  suite.
+- [x] Deploy the same baseline to AWS STAGING and repeat the complete
+  acceptance suite. The isolated Odoo `17.0-20260817` run passed with 805
+  methods / 881 checks and zero failures or errors; its temporary database was
+  removed afterward and no SIFEN request was made.
 - Complete the authority-required homologation cases and production approval.
 - Configure production certificate, CSC, timbrado, endpoints, HTTPS, secret
   management, monitoring, alerting, roles and tested backup restoration.

@@ -1,5 +1,18 @@
 # Documentation Changelog
 
+## 2026-10-25 — AWS STAGING Commercial V1 acceptance
+
+* Deployed the clean Commercial V1 baseline to AWS STAGING and ran the joint
+  `einvoice_module`, `einvoice_py` and `einvoice_py_pos` acceptance suite on an
+  isolated database initialized with the standard Accounting/POS baseline:
+  805 methods / 881 checks, zero failures or errors on Odoo `17.0-20260817`.
+* Made the explicit Paraguay tax fixture portable across Odoo 17 builds by
+  assigning its country-consistent tax group. The first STAGING run exposed
+  only this fixture incompatibility; the corrected complete rerun passed.
+* Deleted the temporary acceptance database after the run. The operational
+  `restaurant_staging` database and all persisted SIFEN evidence were left
+  untouched, and the acceptance run made no SIFEN request.
+
 ## 2026-10-25 — Clean Commercial V1 acceptance
 
 * Installed the complete fiscal/POS baseline on an isolated clean database and
