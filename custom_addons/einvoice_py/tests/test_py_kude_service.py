@@ -4,6 +4,7 @@ import io
 import json
 
 from PyPDF2 import PdfFileReader
+from reportlab.lib.units import mm
 
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
@@ -292,6 +293,22 @@ class TestPyKudeService(TransactionCase):
 
         self.assertIn("AMBIENTE: TEST", text)
         self.assertIn("presentacion del KuDE", " ".join(text.split()))
+
+    def test_pdf_wraps_long_unbroken_item_code_inside_its_column(self):
+        payload = self._payload()
+        long_code = "POS-SIFEN-STG-001-VERY-LONG-CODE"
+        payload["items"][0]["code"] = long_code
+        self._persist_payload(payload)
+        self._persist_qr()
+
+        result = self.service.generate(document=self.document)
+        reader = PdfFileReader(io.BytesIO(result.pdf_bytes))
+        text = reader.getPage(0).extractText()
+
+        code_lines = self.service._wrap_text(long_code, 11 * mm, "Helvetica", 6)
+        self.assertGreater(len(code_lines), 1)
+        for line in code_lines:
+            self.assertIn(line, text)
 
     def test_pdf_projects_structured_fiscal_sections_and_exact_cdc(self):
         payload = self._payload()

@@ -478,18 +478,24 @@ class PyKudeService:
             x += column_width
         y -= header_height
         for item in items:
+            code_lines = self._wrap_text(
+                item.get("code"),
+                11 * mm,
+                "Helvetica",
+                6,
+            )
             description_lines = self._wrap_text(
                 item.get("description"),
                 51 * mm,
                 "Helvetica",
                 6,
             )
-            row_height = max(18, 8 + len(description_lines) * 8)
+            row_height = max(18, 8 + max(len(code_lines), len(description_lines)) * 8)
             rate = self._decimal(item.get("tax_rate"))
             affectation = item.get("tax_affectation")
             total = item.get("total")
             values = (
-                item.get("code"),
+                code_lines,
                 description_lines,
                 item.get("unit_measure_description"),
                 self._format_quantity(item.get("quantity")),
@@ -523,13 +529,14 @@ class PyKudeService:
         current = []
         used_height = 0
         for item in items:
-            lines = len(
-                self._wrap_text(
+            lines = max(
+                len(self._wrap_text(item.get("code"), 11 * mm, "Helvetica", 6)),
+                len(self._wrap_text(
                     item.get("description"),
                     51 * mm,
                     "Helvetica",
                     6,
-                )
+                )),
             )
             row_height = max(18, 8 + lines * 8)
             if current and used_height + row_height > 285:
@@ -845,7 +852,20 @@ class PyKudeService:
         return "" if value in (None, False) else str(value)
 
     def _wrap_text(self, value, width, font_name, font_size):
-        words = self._safe(value).split()
+        words = []
+        for word in self._safe(value).split():
+            remainder = word
+            while remainder and stringWidth(remainder, font_name, font_size) > width:
+                split_at = 1
+                while (
+                    split_at < len(remainder)
+                    and stringWidth(remainder[:split_at + 1], font_name, font_size) <= width
+                ):
+                    split_at += 1
+                words.append(remainder[:split_at])
+                remainder = remainder[split_at:]
+            if remainder:
+                words.append(remainder)
         if not words:
             return [""]
         lines = []
