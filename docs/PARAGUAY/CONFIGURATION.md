@@ -58,6 +58,19 @@ workflow. Production requires separately authorized configuration and is not
 enabled by this TEST-ready baseline. Never copy TEST timbrado or CSC values
 into production configuration.
 
+Production uses a separate adapter, issuer, timbrado, CSC and external-secret
+binding for the same tenant/company scope. The production adapter must point to
+the official `sifen.set.gov.py` host and remains blocked until a system
+administrator explicitly enables `Production Enabled`. TEST configurations
+reject the production host. This switch is an activation gate, not a substitute
+for validating the production timbrado, establishment, point of issue,
+certificate, CSC, payload and current artifact provenance through the document
+readiness action.
+
+Never implement automatic fallback between TEST and PRODUCTION. A failed live
+operation must retain its production environment and durable evidence for
+normal reconciliation or guarded recovery.
+
 ## Validation order
 
 1. Run `PyQualifiedCertificateInstallationValidationService`.

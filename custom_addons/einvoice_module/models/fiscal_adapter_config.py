@@ -1,4 +1,5 @@
-from odoo import fields, models
+from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class FiscalAdapterConfig(models.Model):
@@ -17,6 +18,15 @@ class FiscalAdapterConfig(models.Model):
         [("test", "Test"), ("production", "Production")],
         default="test",
         required=True,
+    )
+    production_enabled = fields.Boolean(
+        string="Production Enabled",
+        default=False,
+        copy=False,
+        help=(
+            "Explicit administrative gate for live fiscal operations. "
+            "Leave disabled while validating this configuration against TEST."
+        ),
     )
 
     credentials_mode = fields.Selection(
@@ -55,3 +65,11 @@ class FiscalAdapterConfig(models.Model):
     timeout_seconds = fields.Integer(default=30)
     max_retry_count = fields.Integer(default=3)
     metadata_json = fields.Text()
+
+    @api.constrains("environment", "production_enabled")
+    def _check_production_enabled_environment(self):
+        for record in self:
+            if record.production_enabled and record.environment != "production":
+                raise ValidationError(
+                    "Production can only be enabled on a production adapter."
+                )

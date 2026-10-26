@@ -240,6 +240,52 @@ class TestPySifenTestReadinessService(TransactionCase):
             " ".join(point_report["errors"]),
         )
 
+    def test_production_requires_explicit_activation_and_official_endpoint(self):
+        self._credential(password_secret_ref="env://SIFEN_PRODUCTION_P12_PASSWORD")
+        self.document.environment = "production"
+        self.adapter.write({
+            "environment": "production",
+            "endpoint_base_url": "https://sifen.set.gov.py/de/ws/sync/recibe.wsdl",
+        })
+        self.issuer.environment = "production"
+        self.timbrado.write({
+            "environment": "production",
+            "number": "12345678",
+        })
+        self.csc.environment = "production"
+        service = self._service(_CertificateValidationStub(valid=True))
+
+        disabled = service.check(document=self.document)
+
+        self.assertFalse(disabled["ready"])
+        self.assertEqual(disabled["status"], "production_not_enabled")
+
+        self.adapter.production_enabled = True
+        ready = service.check(document=self.document)
+
+        self.assertTrue(ready["ready"])
+        self.assertEqual(ready["environment"], "production")
+
+    def test_test_configuration_rejects_production_endpoint(self):
+        self.adapter.endpoint_base_url = (
+            "https://sifen.set.gov.py/de/ws/sync/recibe.wsdl"
+        )
+
+        report = self._service(_CertificateValidationStub()).check(
+            document=self.document
+        )
+
+        self.assertFalse(report["ready"])
+        self.assertEqual(report["status"], "fiscal_configuration_invalid")
+        self.assertIn("environment-mismatched", " ".join(report["errors"]))
+
+    def test_test_adapter_cannot_enable_production(self):
+        with self.assertRaisesRegex(
+            ValidationError,
+            "only be enabled on a production adapter",
+        ):
+            self.adapter.production_enabled = True
+
     def _credential(
         self,
         *,

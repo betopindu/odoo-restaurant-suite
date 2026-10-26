@@ -360,4 +360,18 @@ class PySifenCredentialProvider:
             raise PySifenCredentialConfigurationError(
                 "Paraguay SIFEN endpoint must not contain credentials, query, or fragment."
             )
+        hostname = (parsed.hostname or "").lower()
+        if adapter.environment == "production":
+            if not adapter.production_enabled:
+                raise PySifenCredentialConfigurationError(
+                    "Paraguay SIFEN production access is not explicitly enabled."
+                )
+            if hostname != "sifen.set.gov.py":
+                raise PySifenCredentialConfigurationError(
+                    "Paraguay SIFEN production requires the official production endpoint."
+                )
+        elif hostname == "sifen.set.gov.py":
+            raise PySifenCredentialConfigurationError(
+                "Paraguay SIFEN TEST must not use the production endpoint."
+            )
         return endpoint_url

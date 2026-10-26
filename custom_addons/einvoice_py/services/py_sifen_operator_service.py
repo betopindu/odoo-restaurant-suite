@@ -7,7 +7,7 @@ from odoo.exceptions import AccessError, ValidationError
 from .py_sifen_ambiguous_reconciliation_service import PySifenReconciliationService
 from .py_sifen_manual_retry_service import PySifenManualRetryService
 from .py_sifen_retry_signing_time_service import PySifenRetrySigningTimeService
-from .py_sifen_test_readiness_service import PySifenTestReadinessService
+from .py_sifen_test_readiness_service import PySifenReadinessService
 from .py_sifen_transmission_persistence_service import PySifenTransmissionPersistenceService
 from .py_source_artifact_service import PySourceArtifactService
 
@@ -29,7 +29,7 @@ class PySifenOperatorService:
         signing_time_service=None,
     ):
         self.env = env
-        self.readiness_service = readiness_service or PySifenTestReadinessService(env)
+        self.readiness_service = readiness_service or PySifenReadinessService(env)
         self.persistence_service = persistence_service or PySifenTransmissionPersistenceService(env)
         self.manual_retry_service = manual_retry_service or PySifenManualRetryService(env)
         self.reconciliation_service = reconciliation_service or PySifenReconciliationService(env)

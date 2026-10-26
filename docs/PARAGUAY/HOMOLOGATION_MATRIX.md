@@ -8,7 +8,7 @@ This matrix separates the official TEST exercise scope from repository
 capability. It does not turn every SIFEN feature into an immediate development
 requirement and it does not claim habilitation from one accepted DE.
 
-Sources reviewed on 2026-08-06:
+Sources reviewed initially on 2026-08-06 and revalidated on 2026-10-25:
 
 * [DNIT Guía de Pruebas para el Sistema e-kuatia, February 2026](https://www.dnit.gov.py/documents/20123/424160/Guia%2Bde%2BPruebas%2Bpara%2Be-kuatia.pdf/715a15bf-d866-afe3-49e2-c10e05242c95?t=1770659877488.pdf), especially sections 2, 3 and 4.1–4.5.
 * [DNIT Manual Técnico SIFEN v150](https://www.dnit.gov.py/documents/20123/420592/Manual%2BT%C3%A9cnico%2BVersi%C3%B3n%2B150.pdf/e706f7c7-6d93-21d4-b45b-5d22d07b2d22?t=1687362295907.pdf), including document groups, transmission, events, consultation and KuDE rules.
@@ -43,6 +43,65 @@ rows. They are useful coverage profiles, but must not be misrepresented as
 explicit guide counts. Section 2 does require real receiver/customer data and
 the taxpayer's real registered issuer data; synthetic RUC or approximate
 catalog values are not acceptable substitutes (Guía de Pruebas §2, p. 4).
+
+## Audited execution ledger (2026-10-25)
+
+This ledger converts the guide into countable authority evidence. Counts are
+conservative: repeated queries of one CDC count as one DTE, an accepted FE
+counts toward the approval minimum only when it has at least two items, and
+offline tests never count as SIFEN TEST executions. DNIT remains the authority
+that decides whether preserved evidence satisfies the habilitation ticket.
+
+| Official case | Required | Preserved qualifying evidence | Remaining | Status |
+| --- | ---: | ---: | ---: | --- |
+| Synchronous FE approvals (minimum two items) | 5 | 2 (`17894`, `30219`) | 3 | INCOMPLETE |
+| Synchronous NCE approvals | 5 | 1 (`34199`) | 4 | INCOMPLETE |
+| Synchronous NDE approvals | 5 | 1 (`34200`) | 4 | INCOMPLETE |
+| Synchronous AFE approvals | 5 | 1 (`34204`, acceptance recovered by Consulta DE) | 4 | INCOMPLETE |
+| Synchronous NRE approvals | 5 | 0 | 5 | BLOCKED — NRE not implemented |
+| Synchronous FE rejections with different errors | 5 | at least 5 (`1004`, `1257`, `1261`, `1313`, `1326`, `2359`, `2501`) | 0 | COUNT COMPLETE; DNIT confirmation pending |
+| Synchronous NCE rejections with different errors | 5 | 2 (`1216`, `1501`) | 3 | INCOMPLETE |
+| Synchronous NDE rejections with different errors | 5 | 0 | 5 | INCOMPLETE |
+| Synchronous AFE rejections with different errors | 5 | 5 (`1316`, `2562`, `1901`, `2400`, `0160`) | 0 | COUNT COMPLETE; DNIT confirmation pending |
+| Synchronous NRE rejections with different errors | 5 | 0 | 5 | BLOCKED — NRE not implemented |
+| Asynchronous approvals, all five DE types | 25 | 0 | 25 | BLOCKED — batch submission/result not implemented |
+| Asynchronous rejections, all five DE types | 25 | 0 | 25 | BLOCKED — batch submission/result not implemented |
+| Issuer cancellation events | 5 | 1 (`34200` / `61051`) | 4 | INCOMPLETE |
+| FE number inutilizations | 2 | 0 | 2 | INCOMPLETE |
+| NCE number inutilizations | 1 | 0 | 1 | INCOMPLETE |
+| NDE number inutilizations | 1 | 1 (record `92`) | 0 | COUNT COMPLETE; DNIT confirmation pending |
+| AFE number inutilizations | 1 | 0 | 1 | INCOMPLETE |
+| Receiver events (five classes, three each) | 15 | 0 | 15 | BLOCKED — received-DTE/operator flow incomplete |
+| Consulta DTE — FE | 3 distinct DTE | 1 (`16106`) | 2 | INCOMPLETE |
+| Consulta DTE — NCE | 3 distinct DTE | 0 | 3 | INCOMPLETE |
+| Consulta DTE — NDE | 3 distinct DTE | 0 | 3 | INCOMPLETE |
+| Consulta DTE — AFE | 3 distinct DTE | 1 (`34204`) | 2 | INCOMPLETE |
+| Consulta DTE — NRE | 3 distinct DTE | 0 | 3 | BLOCKED — NRE not implemented |
+| KuDE PDF — FE/NCE/NDE/AFE | 1 each | 4 of 4 | 0 | COMPLETE for implemented types |
+| KuDE PDF — NRE | 1 | 0 | 1 | BLOCKED — NRE not implemented |
+| QR consultations — FE/NCE/NDE/AFE | 8 | 0 preserved browser-result records | 8 | INCOMPLETE |
+| QR consultations — NRE | 2 | 0 | 2 | BLOCKED — NRE not implemented |
+
+The local authority-evidence database also contains four accepted FE with only
+one item (`16106`, `32231`, `34205`, `34206`). They remain valid interoperability
+evidence but do not reduce the five-FE minimum because the guide explicitly
+requires at least two items for that row. The separate AWS STAGING POS FE also
+has one item and is therefore excluded from that count.
+
+### Completion boundary
+
+The full published matrix cannot be completed by merely sending more current
+documents. It first requires three capabilities deliberately left outside the
+Commercial V1 baseline: NRE, asynchronous batch submission/result, and the
+complete receiver-event/received-DTE operator workflow. Completing only the
+currently implemented synchronous Commercial V1 subset is not equivalent to
+completing the full DNIT matrix unless DNIT explicitly narrows the taxpayer's
+habilitation scope in its ticket.
+
+Before any further live execution, record in the DNIT ticket which document
+types and roles are being enabled and obtain confirmation whether NRE,
+asynchronous services and receiver-role events are required for this specific
+habilitation. No accepted CDC listed above may be sent again.
 
 ## Repository capability matrix
 

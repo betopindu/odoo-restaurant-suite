@@ -529,12 +529,12 @@ class FiscalDocument(models.Model):
 
     def action_check_py_sifen_readiness(self):
         from odoo.addons.einvoice_py.services.py_sifen_test_readiness_service import (
-            PySifenTestReadinessService,
+            PySifenReadinessService,
         )
 
         self.ensure_one()
         self._py_require_operator()
-        report = PySifenTestReadinessService(self.env).check(document=self)
+        report = PySifenReadinessService(self.env).check(document=self)
         if report.get("ready"):
             message = "Fiscal configuration, credential scope and certificate are ready."
             notification_type = "success"

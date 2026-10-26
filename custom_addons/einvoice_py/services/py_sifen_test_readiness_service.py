@@ -13,8 +13,8 @@ from odoo.addons.einvoice_py.services.py_unsigned_xml_builder import (
 )
 
 
-class PySifenTestReadinessService:
-    """Evaluate local SIFEN TEST submission readiness without network access."""
+class PySifenReadinessService:
+    """Evaluate local SIFEN submission readiness without network access."""
 
     STATUS_READY = "ready"
     STATUS_FISCAL_INVALID = "fiscal_configuration_invalid"
@@ -24,6 +24,7 @@ class PySifenTestReadinessService:
     STATUS_PASSWORD_MISSING = "certificate_password_missing"
     STATUS_CERTIFICATE_INVALID = "certificate_configuration_invalid"
     STATUS_PAYLOAD_INVALID = "payload_schema_not_ready"
+    STATUS_PRODUCTION_DISABLED = "production_not_enabled"
 
     def __init__(
         self,
@@ -45,6 +46,7 @@ class PySifenTestReadinessService:
 
     def check(self, *, document):
         document.ensure_one()
+        environment = (document.environment or "").lower()
         fiscal_errors = self._fiscal_errors(document)
         report = {
             "ready": False,
@@ -55,8 +57,16 @@ class PySifenTestReadinessService:
             "certificate_password_configured": False,
             "certificate_valid": False,
             "errors": fiscal_errors,
+            "environment": environment,
         }
         if fiscal_errors:
+            return report
+
+        if environment == "production" and not document.adapter_config_id.production_enabled:
+            report["status"] = self.STATUS_PRODUCTION_DISABLED
+            report["errors"] = [
+                "SIFEN production access is not explicitly enabled for this adapter."
+            ]
             return report
 
         report["status"] = self.STATUS_FISCAL_READY
@@ -75,7 +85,7 @@ class PySifenTestReadinessService:
         if not (credential.secret_ref or "").strip():
             report["status"] = self.STATUS_CERTIFICATE_MISSING
             report["errors"] = [
-                "SIFEN TEST PKCS#12 reference is missing.",
+                "SIFEN PKCS#12 reference is missing.",
             ]
             return report
         report["certificate_reference_configured"] = True
@@ -83,7 +93,7 @@ class PySifenTestReadinessService:
         if not (credential.password_secret_ref or "").strip():
             report["status"] = self.STATUS_PASSWORD_MISSING
             report["errors"] = [
-                "SIFEN TEST PKCS#12 password reference is missing.",
+                "SIFEN PKCS#12 password reference is missing.",
             ]
             return report
         report["certificate_password_configured"] = True
@@ -104,7 +114,7 @@ class PySifenTestReadinessService:
         if not certificate_report.get("valid"):
             report["status"] = self.STATUS_CERTIFICATE_INVALID
             report["errors"] = [
-                "SIFEN TEST PKCS#12 installation is not valid.",
+                "SIFEN PKCS#12 installation is not valid.",
             ]
             return report
 
@@ -141,24 +151,24 @@ class PySifenTestReadinessService:
         timbrado = document.py_timbrado_id
 
         if (document.country_code or "").upper() != "PY":
-            errors.append("SIFEN TEST readiness requires a Paraguay document.")
-        if document.environment != "test":
-            errors.append("SIFEN TEST readiness requires the TEST environment.")
+            errors.append("SIFEN readiness requires a Paraguay document.")
+        if document.environment not in ("test", "production"):
+            errors.append("SIFEN readiness requires the TEST or PRODUCTION environment.")
         if not self._adapter_matches(document, adapter):
-            errors.append("SIFEN TEST adapter configuration is incomplete.")
+            errors.append("SIFEN adapter configuration is incomplete or environment-mismatched.")
         if not self._issuer_matches(document, issuer):
-            errors.append("SIFEN TEST issuer configuration is incomplete.")
+            errors.append("SIFEN issuer configuration is incomplete or environment-mismatched.")
         if not self._three_digits(
             establishment.code if establishment else ""
         ) or not self._establishment_matches(document, establishment, issuer):
             errors.append(
-                "SIFEN TEST establishment must be active, scoped, and use three digits."
+                "SIFEN establishment must be active, scoped, and use three digits."
             )
         if not self._three_digits(
             point.code if point else ""
         ) or not self._point_matches(document, point, establishment):
             errors.append(
-                "SIFEN TEST expedition point must be active, scoped, and use three digits."
+                "SIFEN expedition point must be active, scoped, and use three digits."
             )
         if not self._timbrado_matches(
             document,
@@ -167,7 +177,7 @@ class PySifenTestReadinessService:
             point,
         ):
             errors.append(
-                "SIFEN TEST timbrado must equal the RUC without DV and include its start date."
+                "SIFEN timbrado is invalid for this environment, document type, or point of issue."
             )
         return errors
 
@@ -181,7 +191,7 @@ class PySifenTestReadinessService:
         return bool(
             adapter.active
             and (adapter.country_code or "").upper() == "PY"
-            and adapter.environment == "test"
+            and adapter.environment == document.environment
             and adapter.tenant_id == document.tenant_id
             and adapter.company_id == document.company_id
             and adapter.sequence_id
@@ -191,13 +201,14 @@ class PySifenTestReadinessService:
             and not endpoint.password
             and not endpoint.query
             and not endpoint.fragment
+            and self._endpoint_matches_environment(document.environment, endpoint.hostname)
         )
 
     def _issuer_matches(self, document, issuer):
         return bool(
             issuer
             and issuer.active
-            and issuer.environment == "test"
+            and issuer.environment == document.environment
             and issuer.tenant_id == document.tenant_id
             and issuer.company_id == document.company_id
             and issuer.ruc
@@ -230,12 +241,12 @@ class PySifenTestReadinessService:
         return bool(
             timbrado
             and timbrado.active
-            and timbrado.environment == "test"
+            and timbrado.environment == document.environment
             and timbrado.tenant_id == document.tenant_id
             and timbrado.company_id == document.company_id
             and timbrado.document_type == document.document_type
             and issuer
-            and timbrado.number == issuer.ruc
+            and self._timbrado_number_matches(document.environment, timbrado.number, issuer.ruc)
             and timbrado.valid_from
             and (
                 not timbrado.allowed_point_of_issue_ids
@@ -248,13 +259,13 @@ class PySifenTestReadinessService:
         if not (
             csc
             and csc.active
-            and csc.environment == "test"
+            and csc.environment == document.environment
             and csc.tenant_id == document.tenant_id
             and csc.company_id == document.company_id
             and (csc.id_csc or "").strip()
             and (csc.csc_value or "").strip()
         ):
-            return ["SIFEN TEST CSC configuration is missing."]
+            return ["SIFEN CSC configuration is missing or environment-mismatched."]
         return []
 
     def _credential(self, document):
@@ -274,7 +285,7 @@ class PySifenTestReadinessService:
             or signing.credential_id != mutual_tls.credential_id
         ):
             return None, [
-                "SIFEN TEST PKCS#12 credential bindings are missing.",
+                "SIFEN PKCS#12 credential bindings are missing.",
             ]
         credential = signing.credential_id
         if not (
@@ -285,9 +296,27 @@ class PySifenTestReadinessService:
             and credential.material_format == "pkcs12"
         ):
             return None, [
-                "SIFEN TEST PKCS#12 credential configuration is invalid.",
+                "SIFEN PKCS#12 credential configuration is invalid.",
             ]
         return credential, []
 
     def _three_digits(self, value):
         return bool(value and value.isdigit() and len(value) == 3)
+
+    @staticmethod
+    def _endpoint_matches_environment(environment, hostname):
+        hostname = (hostname or "").lower()
+        if environment == "production":
+            return hostname == "sifen.set.gov.py"
+        return hostname != "sifen.set.gov.py"
+
+    @staticmethod
+    def _timbrado_number_matches(environment, number, issuer_ruc):
+        number = (number or "").strip()
+        if environment == "test":
+            return number == issuer_ruc
+        return bool(number and number.isdigit())
+
+
+# Backward-compatible public name retained for existing callers and extensions.
+PySifenTestReadinessService = PySifenReadinessService

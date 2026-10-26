@@ -30,6 +30,9 @@
                             <field name="country_code"/>
                             <field name="adapter_code"/>
                             <field name="environment"/>
+                            <field name="production_enabled"
+                                   groups="base.group_system"
+                                   invisible="environment != 'production'"/>
                             <field name="active"/>
                         </group>
                         <group>

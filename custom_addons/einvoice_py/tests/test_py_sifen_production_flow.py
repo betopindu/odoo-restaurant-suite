@@ -6,6 +6,7 @@ from lxml import etree
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.einvoice_py.services.py_sifen_credential_provider import (
+    PySifenCredentialConfigurationError,
     PySifenCredentialProvider,
 )
 from odoo.addons.einvoice_py.services.py_sifen_retry_execution_service import (
@@ -109,7 +110,8 @@ class TestPySifenProductionFlow(TransactionCase):
             "country_code": "PY",
             "adapter_code": "py",
             "environment": "production",
-            "endpoint_base_url": "https://sifen-production.example.test/de",
+            "endpoint_base_url": "https://sifen.set.gov.py/de/ws/sync/recibe.wsdl",
+            "production_enabled": True,
             "timeout_seconds": 12,
             "sequence_id": self.submission_sequence.id,
         })
@@ -262,7 +264,7 @@ class TestPySifenProductionFlow(TransactionCase):
         for call in submission.calls:
             self.assertEqual(
                 call["endpoint_url"],
-                "https://sifen-production.example.test/de",
+                "https://sifen.set.gov.py/de/ws/sync/recibe.wsdl",
             )
             root = etree.fromstring(call["final_xml_bytes"])
             self.assertEqual(
@@ -283,3 +285,20 @@ class TestPySifenProductionFlow(TransactionCase):
         ):
             self.assertNotIn(secret, serialized)
         self.assertNotIn("<rDE", serialized)
+
+    def test_production_credentials_require_explicit_activation(self):
+        self.adapter.production_enabled = False
+        provider = PySifenCredentialProvider(
+            self.env,
+            provider_registry=_Registry(material={
+                "certificate_bytes": self.CERTIFICATE_SECRET,
+                "private_key_bytes": self.PRIVATE_KEY_SECRET,
+                "password": self.PASSWORD_SECRET,
+            }),
+        )
+
+        with self.assertRaisesRegex(
+            PySifenCredentialConfigurationError,
+            "not explicitly enabled",
+        ):
+            provider.resolve(document=self.document)
