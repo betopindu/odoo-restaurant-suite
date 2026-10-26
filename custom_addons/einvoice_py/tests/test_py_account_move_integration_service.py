@@ -162,6 +162,10 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
             "py_sifen_district_code": "143", "py_sifen_district_name": "SAN LORENZO",
             "py_sifen_city_code": "3756", "py_sifen_city_name": "SAN LORENZO",
         })
+        cls.tax_group = cls.env["account.tax.group"].create({
+            "name": "Paraguay fiscal fixture",
+            "country_id": cls.company.account_fiscal_country_id.id,
+        })
         cls.tax_10 = cls._tax("IVA 10 explicit fixture", 10, "iva_10")
         cls.tax_5 = cls._tax("IVA 5 explicit fixture", 5, "iva_5")
         cls.tax_exempt = cls._tax("Exempt explicit fixture", 0, "exempt")
@@ -184,7 +188,8 @@ class TestPyAccountMoveIntegrationService(TransactionCase):
         return cls.env["account.tax"].create({
             "name": name, "amount_type": "percent", "amount": amount,
             "type_tax_use": "sale", "price_include": True,
-            "company_id": cls.company.id, "py_sifen_tax_treatment": mapping,
+            "company_id": cls.company.id, "tax_group_id": cls.tax_group.id,
+            "py_sifen_tax_treatment": mapping,
         })
 
     def setUp(self):
