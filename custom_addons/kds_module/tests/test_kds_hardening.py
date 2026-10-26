@@ -812,6 +812,11 @@ class TestKdsInstallMetadata(TransactionCase):
         self.assertIn("order.changesToOrder(cancelled)", revision_javascript)
         self.assertIn("super.sendOrderInPreparationUpdateLastChange", revision_javascript)
         self.assertIn("super.export_as_JSON", revision_javascript)
+        self.assertIn("ProductScreen.prototype", revision_javascript)
+        self.assertIn(
+            "return this.pos.config.module_pos_restaurant;",
+            revision_javascript,
+        )
         self.assertNotIn("printChanges(", revision_javascript)
 
     def test_pos_revision_patch_is_loaded_by_the_real_pos_bundle(self):

@@ -26,6 +26,13 @@ rewrite historical `pos.order` rows and does not create historical
 KDS starts from future POS Restaurant synchronizations that include
 `last_order_preparation_change`. Existing historical orders are not backfilled.
 
+The KDS display is itself a preparation destination. A physical or virtual
+preparation printer is optional: Restaurant POS keeps its native **Order**
+action available when `kds_module` is installed, and submitting that action
+persists the preparation snapshot for KDS even when no printer is configured.
+If preparation printers are configured, their native printing behavior remains
+unchanged.
+
 ## Preparation Event Identity
 
 The cumulative preparation snapshot is content, not event identity. In an

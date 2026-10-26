@@ -8,7 +8,7 @@ electronic-invoicing platform with the Paraguay SIFEN implementation.
 ### Restaurant KDS
 
 * AWS STAGING baseline: tag `kds-staging-v1`, commit `e861c41`.
-* Installed addon: `kds_module` `17.0.1.1.3`.
+* Installed addon: `kds_module` `17.0.1.1.4`.
 * Validated with Restaurant POS orders, quantity deltas, cancellations,
   replay/reconnect/payment idempotency, preparation notes and the complete
   `new -> preparing -> ready -> done` workflow.
