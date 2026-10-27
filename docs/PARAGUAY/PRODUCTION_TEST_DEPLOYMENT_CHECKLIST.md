@@ -29,7 +29,14 @@ It is not evidence of DNIT production habilitation.
 - [x] Execute the current backup, copy it outside EC2 and verify destination
       hashes.
 - [x] Complete one isolated restoration test.
-- [ ] Confirm capacity, disk monitoring and restart policy.
+- [x] Confirm current capacity and restart policy. Read-only audit on 2026-10-27
+      found a 20 GB root volume at 48% use (9.6 GB free), 10% inode use,
+      349 MiB available RAM plus 2 GB swap, Docker enabled/active, and
+      `unless-stopped` for PostgreSQL, Odoo and the staging ePOS simulator.
+- [ ] Configure disk-usage monitoring and an alert threshold. The CloudWatch
+      agent is not currently active; enabling custom metrics may add AWS cost.
+- [ ] Configure bounded Docker log rotation. The current `json-file` logging
+      driver has no `max-size` or `max-file` limits.
 
 ## Security and access
 
