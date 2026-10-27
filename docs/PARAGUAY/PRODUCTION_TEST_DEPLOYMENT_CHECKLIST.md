@@ -16,6 +16,9 @@ It is not evidence of DNIT production habilitation.
 ## Infrastructure and persistence
 
 - [ ] Create or designate the operational AWS environment separately from STAGING.
+      Read-only audit on 2026-10-27 found only `odoo-staging`
+      (`i-016056d5e7c5fdcca`, `t3.micro`, `us-east-1c`); no separate operational
+      instance currently exists.
 - [ ] Configure persistent PostgreSQL and Odoo filestore storage.
 - [ ] Configure backups and complete one verified restoration.
 - [ ] Confirm capacity, disk monitoring and restart policy.
