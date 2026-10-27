@@ -24,7 +24,11 @@ It is not evidence of DNIT production habilitation.
 - [ ] Protect those volumes from EC2/EBS loss with a documented backup target
       outside the instance. Named Docker volumes alone are not a disaster
       recovery boundary.
-- [ ] Configure backups and complete one verified restoration.
+- [x] Version a consistent PostgreSQL-plus-filestore backup and integrity
+      verification procedure.
+- [ ] Execute the current backup, copy it outside EC2 and verify destination
+      hashes.
+- [ ] Complete one isolated restoration test.
 - [ ] Confirm capacity, disk monitoring and restart policy.
 
 ## Security and access
