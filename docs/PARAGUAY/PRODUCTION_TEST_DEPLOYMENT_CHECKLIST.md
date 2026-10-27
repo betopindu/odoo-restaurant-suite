@@ -15,11 +15,15 @@ It is not evidence of DNIT production habilitation.
 
 ## Infrastructure and persistence
 
-- [ ] Create or designate the operational AWS environment separately from STAGING.
-      Read-only audit on 2026-10-27 found only `odoo-staging`
-      (`i-016056d5e7c5fdcca`, `t3.micro`, `us-east-1c`); no separate operational
-      instance currently exists.
-- [ ] Configure persistent PostgreSQL and Odoo filestore storage.
+- [x] Retain the approved single evolving STAGING environment for the
+      pre-habilitation SIFEN TEST pilot; do not create a second AWS environment
+      yet. Read-only audit on 2026-10-27 confirmed `odoo-staging`
+      (`i-016056d5e7c5fdcca`, `t3.micro`, `us-east-1c`).
+- [x] Keep PostgreSQL and the Odoo filestore on separate persistent Docker
+      named volumes so container recreation does not erase them.
+- [ ] Protect those volumes from EC2/EBS loss with a documented backup target
+      outside the instance. Named Docker volumes alone are not a disaster
+      recovery boundary.
 - [ ] Configure backups and complete one verified restoration.
 - [ ] Confirm capacity, disk monitoring and restart policy.
 
