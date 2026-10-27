@@ -35,8 +35,9 @@ It is not evidence of DNIT production habilitation.
       `unless-stopped` for PostgreSQL, Odoo and the staging ePOS simulator.
 - [ ] Configure disk-usage monitoring and an alert threshold. The CloudWatch
       agent is not currently active; enabling custom metrics may add AWS cost.
-- [ ] Configure bounded Docker log rotation. The current `json-file` logging
-      driver has no `max-size` or `max-file` limits.
+- [x] Configure bounded Docker log rotation. PostgreSQL, Odoo and the staging
+      ePOS simulator use `json-file` with `max-size=10m` and `max-file=5`;
+      STAGING recreation and HTTP 200 verification completed on 2026-10-27.
 
 ## Security and access
 

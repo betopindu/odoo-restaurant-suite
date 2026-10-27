@@ -7,6 +7,11 @@ services:
       - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   odoo:
     build:
@@ -29,6 +34,11 @@ services:
       - ${HOME}/.secrets/sifen:/run/secrets/sifen:ro
     command: odoo -c /etc/odoo/odoo.conf
     restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 volumes:
   postgres_data:

@@ -16,3 +16,8 @@ services:
       - ./tools/epos_simulator/server.py:/app/server.py:ro
       - ./tools/epos_simulator/data:/data
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
