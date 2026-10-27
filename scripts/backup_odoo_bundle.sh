@@ -10,6 +10,7 @@ COMPOSE_FILE_PATH=${COMPOSE_FILE_PATH:-docker-compose.yml}
 DB_SERVICE=${DB_SERVICE:-db}
 ODOO_SERVICE=${ODOO_SERVICE:-odoo}
 BACKUP_ROOT=${BACKUP_ROOT:-backups}
+FILESTORE_ROOT=${FILESTORE_ROOT:-/var/lib/odoo/.local/share/Odoo/filestore}
 STAMP=${BACKUP_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}
 BUNDLE_NAME=${BUNDLE_NAME:-${DB_NAME}_${STAMP}}
 OUTPUT_DIR=${BACKUP_ROOT%/}/${BUNDLE_NAME}
@@ -44,8 +45,8 @@ odoo_was_stopped=1
     sh "$DB_NAME" >"$OUTPUT_DIR/database.dump"
 
 "${compose[@]}" run --rm --no-deps -T --entrypoint /bin/sh "$ODOO_SERVICE" \
-    -eu -c 'test -d "/var/lib/odoo/filestore/$1"; tar -C /var/lib/odoo/filestore -czf - "$1"' \
-    sh "$DB_NAME" >"$OUTPUT_DIR/filestore.tar.gz"
+    -eu -c 'test -d "$1/$2"; tar -C "$1" -czf - "$2"' \
+    sh "$FILESTORE_ROOT" "$DB_NAME" >"$OUTPUT_DIR/filestore.tar.gz"
 
 "${compose[@]}" exec -T "$DB_SERVICE" sh -eu -c \
     'pg_restore --list >/dev/null' <"$OUTPUT_DIR/database.dump"
@@ -64,6 +65,7 @@ git_commit=$git_commit
 compose_file=$COMPOSE_FILE_PATH
 database_service=$DB_SERVICE
 odoo_service=$ODOO_SERVICE
+filestore_root=$FILESTORE_ROOT
 EOF
 
 if command -v sha256sum >/dev/null 2>&1; then
@@ -78,4 +80,3 @@ odoo_was_stopped=0
 trap - EXIT INT TERM
 
 echo "$OUTPUT_DIR"
-

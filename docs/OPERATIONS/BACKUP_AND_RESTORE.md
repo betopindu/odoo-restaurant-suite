@@ -49,6 +49,8 @@ name, start an isolated Odoo process, and verify registry load, attachment
 access and record counts. Delete the isolated restoration only after evidence
 has been recorded.
 
-The first AWS restoration exercise remains pending until a current bundle has
-been copied outside EC2.
-
+On 2026-10-27, `restaurant_staging` was backed up as bundle
+`restaurant_staging_20261027T173527Z`, verified on the EC2 host, copied over SSH
+to encrypted local storage outside EC2, and verified again at the destination.
+Odoo returned HTTP 200 after the consistent-backup stop/start window. The first
+isolated AWS restoration exercise remains pending.

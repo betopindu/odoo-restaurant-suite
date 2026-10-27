@@ -21,12 +21,12 @@ It is not evidence of DNIT production habilitation.
       (`i-016056d5e7c5fdcca`, `t3.micro`, `us-east-1c`).
 - [x] Keep PostgreSQL and the Odoo filestore on separate persistent Docker
       named volumes so container recreation does not erase them.
-- [ ] Protect those volumes from EC2/EBS loss with a documented backup target
+- [x] Protect those volumes from EC2/EBS loss with a documented backup target
       outside the instance. Named Docker volumes alone are not a disaster
       recovery boundary.
 - [x] Version a consistent PostgreSQL-plus-filestore backup and integrity
       verification procedure.
-- [ ] Execute the current backup, copy it outside EC2 and verify destination
+- [x] Execute the current backup, copy it outside EC2 and verify destination
       hashes.
 - [ ] Complete one isolated restoration test.
 - [ ] Confirm capacity, disk monitoring and restart policy.
