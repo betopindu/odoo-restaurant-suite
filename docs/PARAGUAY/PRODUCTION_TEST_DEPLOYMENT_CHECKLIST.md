@@ -10,7 +10,8 @@ It is not evidence of DNIT production habilitation.
 - [x] AWS STAGING acceptance completed.
 - [x] Pre-habilitation TEST-only deployment decision documented.
 - [x] Decision documentation published at commit `0262379`.
-- [ ] Create and publish the immutable deployment baseline tag.
+- [x] Create and publish the immutable deployment baseline tag
+      `commercial-v1-sifen-test`.
 
 ## Infrastructure and persistence
 
@@ -60,4 +61,3 @@ It is not evidence of DNIT production habilitation.
 - [ ] Complete the DNIT-confirmed homologation scope.
 - [ ] Obtain explicit DNIT production habilitation.
 - [ ] Perform a separately reviewed and authorized switch to SIFEN PRODUCTION.
-
