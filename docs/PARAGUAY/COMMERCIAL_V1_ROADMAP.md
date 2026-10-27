@@ -166,3 +166,18 @@ screen intervention, every FE decision is auditable, payment semantics are
 correct, one-and-only-one submission is guaranteed, recipient delivery has a
 usable channel, failure recovery is operator-safe, clean installation and AWS
 STAGING validation pass, and DNIT production enablement is complete.
+
+## Pre-habilitation deployment decision
+
+The application may be deployed on its intended operational infrastructure
+before DNIT production habilitation, but Paraguay fiscal configuration must
+remain explicitly in **TEST**. During this phase every SIFEN endpoint, adapter,
+timbrado, CSC and generated document must remain TEST-scoped; the documents
+have no fiscal validity and the deployment must not be represented to users as
+production electronic invoicing.
+
+Switching SIFEN to **PRODUCTION** is a separate controlled release operation.
+It requires DNIT habilitation plus production certificate, CSC, timbrado and
+endpoint configuration, a reviewed readiness check and explicit authorization.
+Application hosting in production-like infrastructure never implies authority
+to select the SIFEN production environment.

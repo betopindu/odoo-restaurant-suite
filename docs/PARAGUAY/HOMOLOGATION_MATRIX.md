@@ -8,7 +8,7 @@ This matrix separates the official TEST exercise scope from repository
 capability. It does not turn every SIFEN feature into an immediate development
 requirement and it does not claim habilitation from one accepted DE.
 
-Sources reviewed initially on 2026-08-06 and revalidated on 2026-10-25:
+Sources reviewed initially on 2026-08-06 and revalidated on 2026-10-27:
 
 * [DNIT Guía de Pruebas para el Sistema e-kuatia, February 2026](https://www.dnit.gov.py/documents/20123/424160/Guia%2Bde%2BPruebas%2Bpara%2Be-kuatia.pdf/715a15bf-d866-afe3-49e2-c10e05242c95?t=1770659877488.pdf), especially sections 2, 3 and 4.1–4.5.
 * [DNIT Manual Técnico SIFEN v150](https://www.dnit.gov.py/documents/20123/420592/Manual%2BT%C3%A9cnico%2BVersi%C3%B3n%2B150.pdf/e706f7c7-6d93-21d4-b45b-5d22d07b2d22?t=1687362295907.pdf), including document groups, transmission, events, consultation and KuDE rules.
@@ -102,6 +102,36 @@ Before any further live execution, record in the DNIT ticket which document
 types and roles are being enabled and obtain confirmation whether NRE,
 asynchronous services and receiver-role events are required for this specific
 habilitation. No accepted CDC listed above may be sent again.
+
+### Ordered completion plan
+
+The next work is split so that more TEST traffic is not generated before its
+scope can count toward habilitation:
+
+1. **Authority scope gate.** In the existing DNIT habilitation ticket, record
+   the intended first commercial scope (FE, NCE, NDE and AFE; synchronous
+   issuance; issuer cancellation and inutilization) and ask DNIT to confirm
+   whether the ticket still requires NRE, asynchronous batch/result services
+   and receiver-role events. This is a scope confirmation, not a request to
+   waive technical validation.
+2. **Offline capability closure.** If DNIT requires the complete published
+   matrix, implement and validate NRE, asynchronous batch submission/result
+   and the received-DTE/receiver-event operator boundary before any additional
+   live count execution. If DNIT accepts the narrower enabled set, keep those
+   capabilities after Commercial V1 and proceed only with the confirmed rows.
+3. **Controlled TEST evidence.** Prepare fresh numbers and immutable execution
+   records for the remaining approvals, distinct intentional rejections,
+   cancellation/inutilization, Consulta DTE and QR rows. Each POST or authority
+   consultation remains a separately authorized live operation; accepted CDCs
+   and terminal event evidence are never reused.
+4. **Evidence submission.** Reconcile the preserved ledger with the DNIT
+   ticket, attach the requested evidence, and obtain explicit production
+   habilitation before configuring or enabling production endpoints.
+
+As of 2026-10-27, step 1 is the only external gate. The current repository can
+prepare and test the implemented synchronous subset offline, but it cannot
+truthfully claim the complete published homologation matrix while the blocked
+capabilities above remain absent.
 
 ## Repository capability matrix
 
