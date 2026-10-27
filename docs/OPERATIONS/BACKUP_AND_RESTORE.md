@@ -52,5 +52,9 @@ has been recorded.
 On 2026-10-27, `restaurant_staging` was backed up as bundle
 `restaurant_staging_20261027T173527Z`, verified on the EC2 host, copied over SSH
 to encrypted local storage outside EC2, and verified again at the destination.
-Odoo returned HTTP 200 after the consistent-backup stop/start window. The first
-isolated AWS restoration exercise remains pending.
+Odoo returned HTTP 200 after the consistent-backup stop/start window. The same
+bundle was restored locally on 2026-10-27 under the isolated database name
+`restore_test_aws_staging_20261027`: the Odoo registry loaded, the expected POS,
+KDS and e-invoice modules were installed, and 25 of 25 sampled stored
+attachments were readable. The temporary database and filestore were removed
+after verification; no active database was modified.

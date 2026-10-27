@@ -28,7 +28,7 @@ It is not evidence of DNIT production habilitation.
       verification procedure.
 - [x] Execute the current backup, copy it outside EC2 and verify destination
       hashes.
-- [ ] Complete one isolated restoration test.
+- [x] Complete one isolated restoration test.
 - [ ] Confirm capacity, disk monitoring and restart policy.
 
 ## Security and access
