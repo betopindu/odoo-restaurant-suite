@@ -181,3 +181,6 @@ It requires DNIT habilitation plus production certificate, CSC, timbrado and
 endpoint configuration, a reviewed readiness check and explicit authorization.
 Application hosting in production-like infrastructure never implies authority
 to select the SIFEN production environment.
+
+Progress toward that deployment is maintained in the
+[Commercial V1 SIFEN TEST deployment checklist](PRODUCTION_TEST_DEPLOYMENT_CHECKLIST.md).
