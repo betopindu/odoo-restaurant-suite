@@ -1,5 +1,20 @@
 # Documentation Changelog
 
+## 2026-10-28 — Final AWS STAGING V1 acceptance
+
+* Upgraded the installed fiscal schemas in `restaurant_staging` after a
+  verified PostgreSQL-plus-filestore backup and confirmed the Odoo registry,
+  routes, TEST-only adapter gate, external credential references, roles,
+  bounded logs and zero pending fiscal work.
+* Reconciled the operational checkout evidence: ordinary no-FE sales remain
+  outside the fiscal flow, the STAGING innominado FE is accepted with `0260`,
+  and the unchanged identified-RUC B2B path retains its accepted SIFEN TEST
+  evidence and complete AWS acceptance coverage. No duplicate SIFEN request
+  was made for the audit.
+* Fast-forwarded AWS STAGING to the same published commit as the local and
+  GitHub branch while preserving untracked environment configuration and
+  secrets.
+
 ## 2026-10-25 — AWS STAGING Commercial V1 acceptance
 
 * Deployed the clean Commercial V1 baseline to AWS STAGING and ran the joint
